@@ -243,6 +243,26 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
       <circle cx="42" cy="50" r="4" fill="#ece3cf" />
     </svg>
   ),
+  forging: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
+      <rect x="9" y="9" width="14" height="14" rx="3" fill="#c27f66" />
+      <circle cx="16" cy="16" r="2.4" fill="#0b1526" />
+      <rect x="26.5" y="10.5" width="11" height="11" rx="2.5" fill="#d8c690" />
+      <path d="M32 12.5v7M28.5 16h7" stroke="#0b1526" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="48" cy="16" r="1.6" fill="#27344f" />
+      <rect x="11" y="27" width="10" height="10" rx="2" fill="#7fb0d8" />
+      <rect x="25" y="25" width="14" height="14" rx="3" fill="#c27f66" />
+      <path d="M29 29l6 6M35 29l-6 6" stroke="#0b1526" strokeWidth="2" strokeLinecap="round" />
+      <rect x="40.5" y="24.5" width="15" height="15" rx="3" fill="none" stroke="#e2a94b" strokeWidth="2" />
+      <rect x="43" y="27" width="10" height="10" rx="2" fill="#d8c690" />
+      <circle cx="16" cy="48" r="1.6" fill="#27344f" />
+      <rect x="25" y="41" width="14" height="14" rx="3" fill="#c27f66" />
+      <path d="M29.5 44v7h5" fill="none" stroke="#0b1526" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="48" cy="48" r="9" fill="none" stroke="#ece3cf" strokeWidth="1.5" opacity=".7" />
+      <rect x="41" y="41" width="14" height="14" rx="3" fill="#c27f66" />
+    </svg>
+  ),
   assembly: (
     <svg viewBox="0 0 64 64" width="56" height="56">
       <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />

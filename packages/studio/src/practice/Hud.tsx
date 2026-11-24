@@ -6,7 +6,9 @@ import { useTally, type ShellProps } from "./PracticeShell.jsx";
 const COMBO_PIPS = 8;
 
 /** Score with the live tier, time and moves: the three stats every shell leads with. */
-export function CoreStats({ p, wide, pace, lowTime }: { p: ShellProps; wide: boolean; pace: TierPaceValue | null; lowTime: boolean }) {
+export function CoreStats({ p, wide, pace: live, lowTime }: { p: ShellProps; wide: boolean; pace: TierPaceValue | null; lowTime: boolean }) {
+  // A pace reads points over time, so a round with no clock shows none.
+  const pace = p.untimed ? null : live;
   const score = useTally(p.score);
   const { puzzle, scenario } = useFrame();
   // A puzzle with a ladder names the stage being played beside the score (ADR 0066).
@@ -35,15 +37,17 @@ export function CoreStats({ p, wide, pace, lowTime }: { p: ShellProps; wide: boo
         </span>
         {wide && <TierPace pace={pace} />}
       </div>
-      <div className={`stat ${lowTime ? "stat-urgent" : ""}`}>
-        <span className="stat-label">{p.turn ? t("practice.turn_time") : t("practice.time")}</span>
-        <span className={`stat-value ${lowTime ? "urgent" : ""}`} data-testid="hud-time" data-turn={p.turn ? "" : undefined}>
-          {fmt(p.turn ? p.turn.left : p.timeLeft)}
-        </span>
-        <span className="bar" aria-hidden="true">
-          <i style={{ width: `${Math.min(100, p.turn ? (p.turn.left / Math.max(1, p.turn.seconds)) * 100 : (p.timeLeft / Math.max(1, p.roundSeconds)) * 100)}%` }} />
-        </span>
-      </div>
+      {!p.untimed && (
+        <div className={`stat ${lowTime ? "stat-urgent" : ""}`}>
+          <span className="stat-label">{p.turn ? t("practice.turn_time") : t("practice.time")}</span>
+          <span className={`stat-value ${lowTime ? "urgent" : ""}`} data-testid="hud-time" data-turn={p.turn ? "" : undefined}>
+            {fmt(p.turn ? p.turn.left : p.timeLeft)}
+          </span>
+          <span className="bar" aria-hidden="true">
+            <i style={{ width: `${Math.min(100, p.turn ? (p.turn.left / Math.max(1, p.turn.seconds)) * 100 : (p.timeLeft / Math.max(1, p.roundSeconds)) * 100)}%` }} />
+          </span>
+        </div>
+      )}
       <div className="stat">
         <span className="stat-label">{p.movesLabel ?? t("practice.moves")}</span>
         <span className="stat-value" data-testid="hud-moves">

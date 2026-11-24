@@ -1,6 +1,6 @@
 # Prototype puzzles
 
-Thirteen puzzles, built to be played and judged in the studio (ADR 0036). None is in the game.
+Fourteen puzzles, built to be played and judged in the studio (ADR 0036). None is in the game.
 Eight are the game's own design: inspired by the feel of the original's puzzles, ported from none of
 them. All eight follow the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): each draws its pieces
 in code as flat pictograms of its own subject, on the game's one palette, and loads no image. The
@@ -20,6 +20,7 @@ generated sprites they first shipped with (ADR 0037) and the tooling that made t
 | Refining | Swap linked fractions so the column drawn at the outlet is pure vapour | `/refining` | [refining.md](./refining.md) |
 | Freefall | Drop a pod down a shaft of rockers; tip loaded cradles into the berths, and leave the rival nothing | `/freefall` | [freefall.md](./freefall.md) |
 | Showdown | Fold, call or raise at a fixed-limit hold'em table against three rivals who each play one way | `/showdown` | [showdown.md](./showdown.md) |
+| Forging | Strike a spot of a hot plate; its mark says where the press lands next | `/forging` | [forging.md](./forging.md) |
 | Assembly | Swap each part its own way; fit blueprints, several in a chain | `/assembly` | [assembly.md](./assembly.md) |
 
 Tractor is the ninth and of another kind: a successor to one of the original's later puzzles,
@@ -29,8 +30,10 @@ puzzle Distilling (ADR 0080). Freefall is the eleventh, the same kind: a success
 Drop, played against a rival the engine drops for (ADR 0081).
 Showdown is the twelfth, the same kind again: a successor to the original's Poker, played at a
 fixed limit against rivals the engine plays (ADR 0082).
-Assembly is the thirteenth, the same kind: a successor to Shipwrightry, the original's shipyard
-crafting puzzle (ADR 0083).
+Forging is the thirteenth and the same kind: a successor to the crafting puzzle Blacksmithing
+(ADR 0083).
+Assembly is the fourteenth, the same kind: a successor to Shipwrightry, the original's shipyard
+crafting puzzle (ADR 0084).
 
 M11's pitches (a layer, a bait and stages for each puzzle but Salvage, with their bot checks) are in [m11-pitches.md](./m11-pitches.md), for the owner to pick from.
 

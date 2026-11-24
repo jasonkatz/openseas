@@ -1,6 +1,6 @@
 # Assembly
 
-Status: built. Prototype (ADR 0036, ADR 0083), in the studio at `/assembly`. Untimed moves; a 240
+Status: built. Prototype (ADR 0036, ADR 0084), in the studio at `/assembly`. Untimed moves; a 240
 second round.
 
 Assembly is a successor, not one of the game's own new designs: it follows the original's

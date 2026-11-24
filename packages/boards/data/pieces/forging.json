@@ -1,0 +1,333 @@
+{
+  "one": {
+    "tint": "rust",
+    "layers": [
+      {
+        "name": "spot",
+        "kind": "rect",
+        "x": 1,
+        "y": 1,
+        "w": 22,
+        "h": 22,
+        "r": 5
+      },
+      {
+        "name": "pip",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 3.2,
+        "cut": true
+      }
+    ]
+  },
+  "two": {
+    "tint": "rust",
+    "layers": [
+      {
+        "name": "spot",
+        "kind": "rect",
+        "x": 1,
+        "y": 1,
+        "w": 22,
+        "h": 22,
+        "r": 5
+      },
+      {
+        "name": "pip",
+        "kind": "disc",
+        "x": 7.6,
+        "y": 16.4,
+        "r": 2.6,
+        "cut": true
+      },
+      {
+        "name": "pip",
+        "kind": "disc",
+        "x": 16.4,
+        "y": 7.6,
+        "r": 2.6,
+        "cut": true
+      }
+    ]
+  },
+  "three": {
+    "tint": "rust",
+    "layers": [
+      {
+        "name": "spot",
+        "kind": "rect",
+        "x": 1,
+        "y": 1,
+        "w": 22,
+        "h": 22,
+        "r": 5
+      },
+      {
+        "name": "pip",
+        "kind": "disc",
+        "x": 6.6,
+        "y": 17.4,
+        "r": 2.6,
+        "cut": true
+      },
+      {
+        "name": "pip",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 2.6,
+        "cut": true
+      },
+      {
+        "name": "pip",
+        "kind": "disc",
+        "x": 17.4,
+        "y": 6.6,
+        "r": 2.6,
+        "cut": true
+      }
+    ]
+  },
+  "four": {
+    "tint": "rust",
+    "layers": [
+      {
+        "name": "spot",
+        "kind": "rect",
+        "x": 1,
+        "y": 1,
+        "w": 22,
+        "h": 22,
+        "r": 5
+      },
+      {
+        "name": "pip",
+        "kind": "disc",
+        "x": 7.4,
+        "y": 7.4,
+        "r": 2.6,
+        "cut": true
+      },
+      {
+        "name": "pip",
+        "kind": "disc",
+        "x": 16.6,
+        "y": 7.4,
+        "r": 2.6,
+        "cut": true
+      },
+      {
+        "name": "pip",
+        "kind": "disc",
+        "x": 7.4,
+        "y": 16.6,
+        "r": 2.6,
+        "cut": true
+      },
+      {
+        "name": "pip",
+        "kind": "disc",
+        "x": 16.6,
+        "y": 16.6,
+        "r": 2.6,
+        "cut": true
+      }
+    ]
+  },
+  "rail": {
+    "tint": "rust",
+    "layers": [
+      {
+        "name": "spot",
+        "kind": "rect",
+        "x": 1,
+        "y": 1,
+        "w": 22,
+        "h": 22,
+        "r": 5
+      },
+      {
+        "name": "upright",
+        "kind": "bar",
+        "x0": 12,
+        "y0": 5,
+        "x1": 12,
+        "y1": 19,
+        "width": 3.4,
+        "cut": true
+      },
+      {
+        "name": "across",
+        "kind": "bar",
+        "x0": 5,
+        "y0": 12,
+        "x1": 19,
+        "y1": 12,
+        "width": 3.4,
+        "cut": true
+      }
+    ]
+  },
+  "slant": {
+    "tint": "rust",
+    "layers": [
+      {
+        "name": "spot",
+        "kind": "rect",
+        "x": 1,
+        "y": 1,
+        "w": 22,
+        "h": 22,
+        "r": 5
+      },
+      {
+        "name": "falling",
+        "kind": "bar",
+        "x0": 6.4,
+        "y0": 6.4,
+        "x1": 17.6,
+        "y1": 17.6,
+        "width": 3.4,
+        "cut": true
+      },
+      {
+        "name": "rising",
+        "kind": "bar",
+        "x0": 17.6,
+        "y0": 6.4,
+        "x1": 6.4,
+        "y1": 17.6,
+        "width": 3.4,
+        "cut": true
+      }
+    ]
+  },
+  "star": {
+    "tint": "rust",
+    "layers": [
+      {
+        "name": "spot",
+        "kind": "rect",
+        "x": 1,
+        "y": 1,
+        "w": 22,
+        "h": 22,
+        "r": 5
+      },
+      {
+        "name": "spoke",
+        "kind": "bar",
+        "x0": 12,
+        "y0": 4.6,
+        "x1": 12,
+        "y1": 19.4,
+        "width": 2.2,
+        "cut": true
+      },
+      {
+        "name": "spoke",
+        "kind": "bar",
+        "x0": 4.6,
+        "y0": 12,
+        "x1": 19.4,
+        "y1": 12,
+        "width": 2.2,
+        "cut": true
+      },
+      {
+        "name": "spoke",
+        "kind": "bar",
+        "x0": 6.8,
+        "y0": 6.8,
+        "x1": 17.2,
+        "y1": 17.2,
+        "width": 2.2,
+        "cut": true
+      },
+      {
+        "name": "spoke",
+        "kind": "bar",
+        "x0": 17.2,
+        "y0": 6.8,
+        "x1": 6.8,
+        "y1": 17.2,
+        "width": 2.2,
+        "cut": true
+      }
+    ]
+  },
+  "hook": {
+    "tint": "rust",
+    "layers": [
+      {
+        "name": "spot",
+        "kind": "rect",
+        "x": 1,
+        "y": 1,
+        "w": 22,
+        "h": 22,
+        "r": 5
+      },
+      {
+        "name": "hook",
+        "kind": "path",
+        "steps": [
+          {
+            "x": 9,
+            "y": 5.4
+          },
+          {
+            "x": 9,
+            "y": 17
+          },
+          {
+            "x": 16.6,
+            "y": 17
+          }
+        ],
+        "width": 3.4,
+        "cap": true,
+        "cut": true
+      }
+    ]
+  },
+  "spark": {
+    "tint": "cream",
+    "layers": [
+      {
+        "name": "spot",
+        "kind": "rect",
+        "x": 1,
+        "y": 1,
+        "w": 22,
+        "h": 22,
+        "r": 5
+      },
+      {
+        "name": "spark",
+        "kind": "poly",
+        "points": [
+          12,
+          4.2,
+          13.9,
+          10.1,
+          19.8,
+          12,
+          13.9,
+          13.9,
+          12,
+          19.8,
+          10.1,
+          13.9,
+          4.2,
+          12,
+          10.1,
+          10.1
+        ],
+        "round": 1.2,
+        "cut": true
+      }
+    ]
+  }
+}
