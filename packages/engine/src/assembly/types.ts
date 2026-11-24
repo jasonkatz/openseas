@@ -11,7 +11,8 @@
  * - a core never moves, and in a blueprint it stands for any part.
  *
  * Two neighbouring parts may swap when either one moves that way. A swap scores nothing; it sets the
- * bay up. The tray holds `traySize` blueprints, each a shape of three to five parts drawn on a grid.
+ * bay up. The tray holds `traySize` blueprints, dealt from a fixed pool of sixteen (ASSEMBLY_POOL) in a
+ * shuffled bag: each comes once before any comes again.
  * Fitting a blueprint takes every part under it, when each is the part the blueprint asks for or a
  * core; a new part appears in each cell it took, every other part stays where it is, and a new
  * blueprint takes the used one's place in the tray.
@@ -42,12 +43,10 @@ export type AssemblyWay = "side" | "up" | "diagonal";
 export interface AssemblyConfig {
   readonly width: number;
   readonly height: number;
-  /** How often each kind is dealt, in the engine's order: panel, girder, strut, cable. Blueprints are drawn with the same weights. */
+  /** How often each kind is dealt, in the engine's order: panel, girder, strut, cable. */
   readonly kindWeights: readonly number[];
   /** Blueprints in the tray. */
   readonly traySize: number;
-  /** How often a new blueprint has three, four or five parts. */
-  readonly sizeWeights: readonly number[];
   /** A fit of n parts scores fitPoints * (n - 2) * its place in the chain. */
   readonly fitPoints: number;
   /** The place in a chain counts up to this and holds. 1: every fit counts as the first, so there are no chains. */
@@ -68,7 +67,6 @@ export const DEFAULT_ASSEMBLY_CONFIG: AssemblyConfig = {
   height: 6,
   kindWeights: [22, 26, 26, 26],
   traySize: 6,
-  sizeWeights: [5, 4, 2],
   fitPoints: 10,
   chainCap: 6,
   corePoints: 10,
@@ -95,7 +93,7 @@ export interface AssemblyPart {
 export interface AssemblyBlueprint {
   /** Stable identity for animation. Never reused within a game. */
   readonly id: number;
-  /** Its shape's index in ASSEMBLY_SHAPES. */
+  /** Its place in ASSEMBLY_POOL. */
   readonly shape: number;
   /** The box the parts sit in. */
   readonly width: number;
@@ -150,7 +148,7 @@ export interface AssemblyStreams {
   readonly parts: PrngState;
   /** Whether a new part is a core, and where the opening cores sit. */
   readonly cores: PrngState;
-  /** Each blueprint's shape and kinds. */
+  /** The order the pool is dealt in, a bag at a time. */
   readonly prints: PrngState;
 }
 
@@ -158,6 +156,8 @@ export interface AssemblyState {
   readonly config: AssemblyConfig;
   /** Always full. */
   readonly cells: readonly AssemblyPiece[];
+  /** What is left of the bag: places in ASSEMBLY_POOL, dealt from the front. */
+  readonly bag: readonly number[];
   readonly tray: readonly AssemblyBlueprint[];
   readonly streams: AssemblyStreams;
   readonly nextId: number;

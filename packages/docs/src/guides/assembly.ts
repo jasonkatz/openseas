@@ -35,7 +35,7 @@ export const assembly: Guide = {
   rules: [
     "The bay is full of parts, and **each kind moves its own way**. A **girder** swaps sideways. A **strut** swaps up or down. A **cable** swaps corner to corner. Its shape shows the way.",
     "Two neighbouring parts can swap when **either one** moves that way. A **panel** has no way of its own: it moves only when a part beside it swaps with it. Two parts of one kind never swap.",
-    "The tray holds the **blueprints**: shapes of three, four or five parts, each square asking for one kind. Pick one and drop it where the bay holds exactly those parts, in that shape. Blueprints never turn.",
+    "The tray holds the **blueprints**: shapes of three, four or five parts, each square asking for one kind. Pick one and drop it where the bay holds exactly those parts, in that shape. Blueprints never turn, and they come from a set of sixteen, each dealt once before any comes again.",
     "The parts are **fitted** and taken away. New parts appear in the cells they left, nothing else in the bay moves, and a new blueprint takes the old one's place.",
     "A **core** never moves. In a blueprint it stands for any part.",
     `A swap scores nothing. The round is ${p.roundSeconds} seconds on the clock, with no undo.`,
@@ -47,7 +47,7 @@ export const assembly: Guide = {
     caption: `A first fit of three parts: ${fit(3)} points.`,
   },
   controls: [
-    { action: "Swap two parts", touch: "Drag a part onto its neighbour, any of eight ways", desktop: "Drag with the mouse, or click a part and then its neighbour" },
+    { action: "Swap two parts", touch: "Drag a part onto its neighbour, any of eight ways, and keep dragging to carry it further", desktop: "Drag with the mouse, or click a part and then its neighbour" },
     { action: "Fit a blueprint", touch: "Drag it from the tray onto the bay, or tap it and then tap the bay", desktop: "The same with the mouse. The strip over the bay shows what it scores where it is held" },
     { action: "Move the cursor", touch: "", desktop: "Arrow keys or WASD" },
     { action: "Swap with the keyboard", touch: "", desktop: "Space holds the part under the cursor; then an arrow, or Q, E, Z or C for a corner, swaps it that way" },
@@ -124,6 +124,10 @@ export const assembly: Guide = {
         {
           title: "Keep blueprints apart",
           body: "Two blueprints set up over the same cells cannot both be fitted. Give each one cells of its own, side by side or one above the other.",
+        },
+        {
+          title: "Learn the sixteen",
+          body: "Every round deals the same sixteen blueprints, each once before any comes twice. Once you know them, you know which are still to come, and can set up for the next one before it arrives.",
         },
         {
           title: "Use cores late",

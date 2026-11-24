@@ -18,13 +18,8 @@ export const AssemblyConfigSchema = z.object({
     .array(Weight)
     .length(4)
     .refine((w) => w.some((x) => x > 0) && w[1]! + w[2]! + w[3]! > 0, "some part must move")
-    .describe("How often each kind is dealt and asked for: panel, girder, strut, cable. Panels move only when pushed."),
+    .describe("How often each kind is dealt: panel, girder, strut, cable. Panels move only when pushed."),
   traySize: z.int().min(1).max(8).describe("Blueprints in the tray at once: the most a chain can be set up for."),
-  sizeWeights: z
-    .array(Weight)
-    .length(3)
-    .refine((w) => w.some((x) => x > 0), "some size must be drawn")
-    .describe("How often a new blueprint has three, four or five parts."),
   fitPoints: z.int().min(0).max(1000).describe("Points a fit earns for each part over two, times its place in the chain."),
   chainCap: z.int().min(1).max(20).describe("The place in a chain counts up to this and holds. 1 switches chains off: every fit counts as the first."),
   corePoints: z.int().min(0).max(1000).describe("Points for each core a fit takes, times its place in the chain."),

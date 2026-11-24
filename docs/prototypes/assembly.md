@@ -20,11 +20,12 @@ blueprints for the next sections of hull.
 - **The verb is a swap.** Two neighbouring parts, side by side, one over the other or corner to
   corner, may swap when either one moves that way. Two parts of one kind never swap. A swap scores
   nothing: it sets the bay up, and it spends the clock.
-- **Blueprints.** Each is a shape of three, four or five parts drawn on a grid no bigger than four by
-  four, each square asking for one kind (never a core). A new blueprint has three parts five times in
-  eleven, four parts four times, five parts twice (`sizeWeights`), its shape even among that size's,
-  each square's kind by the same weights as the bay's (`kindWeights`: panels 22, the others 26).
-  Blueprints never turn: a shape and its turn are two shapes.
+- **Blueprints.** The tray is dealt from a fixed pool of sixteen, the same in every round
+  (`ASSEMBLY_POOL` in the engine): six of three parts, six of four and four of five, each drawn on a
+  grid no bigger than three by four, each square asking for one kind (never a core), and every kind
+  asked for about as often as the others. The pool is dealt from a shuffled bag: every blueprint
+  comes once before any comes again, so a player who knows the pool knows what is still to come.
+  Blueprints never turn.
 - **A fit.** Drop a blueprint where the bay holds its parts in its shape, a core standing for any
   one. Those parts are taken, and a new part appears in each cell they left, in reading order.
   Nothing else in the bay moves. A new blueprint takes the used one's place in the tray.
@@ -43,8 +44,8 @@ another as one chain, each on cells of its own.**
 ## Luck and skill
 
 - **Luck:** the opening bay and its cores, the parts that appear after each fit, whether one is a
-  core, and each new blueprint. Each is drawn from its own stream (ADR 0075): the parts, the cores
-  and the blueprints, so playing differently never changes which blueprints come next. Everything a
+  core, and the order the bag deals the pool in. Each is drawn from its own stream (ADR 0075): the
+  parts, the cores and the bag, so playing differently never changes which blueprints come next. Everything a
   player plans around is shown: the whole bay and all six blueprints.
 - **First skill:** the ways. Seeing that a girder can carry a panel sideways, a cable can carry a
   strut to a corner, and a panel is moved only by its neighbours.
@@ -75,7 +76,9 @@ its name and one-line card are `assembly.stage.<id>` and `_intro`.
 ## Input and feedback
 
 - Pointer: drag a part onto any of its eight neighbours to swap the two (the drag's angle picks the
-  neighbour), or tap a part (an amber ring holds it) and then a neighbour. Drag a blueprint from the
+  neighbour), and keep dragging: the part goes on swapping along the path, across a side or through
+  a corner, as far as its way allows, with a bump where a swap is not allowed. Or tap a part (an
+  amber ring holds it) and then a neighbour. Drag a blueprint from the
   tray onto the bay, or tap it (an amber ring round its slot) and then tap the bay; its box centres on
   the pointer, and amber frames show the cells it would cover, grey where it does not fit. The strip
   over the bay says what it would score there (`assemblyFitPoints`), or that it does not fit.

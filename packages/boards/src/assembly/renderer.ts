@@ -60,6 +60,8 @@ const HINT_AFTER_MS = 6000;
 const RING_W = 0.07;
 /** A drag this far, in cells, from a part swaps it that way. */
 const DRAG = 0.38;
+/** Past this far from a cell's middle on both axes, in cells, a drag leaving the cell goes corner to corner. */
+const CORNER = 0.36;
 /** A chain called out from this place; the beat from the next. */
 const CALL_CHAIN = 2;
 const BEAT_CHAIN = 4;
@@ -81,7 +83,7 @@ const KEY_STEPS: Readonly<Record<string, readonly [number, number]>> = {
 };
 
 type Press =
-  | { kind: "bay"; cell: number; x: number; y: number }
+  | { kind: "bay"; cell: number; x: number; y: number; moved: boolean; armed: boolean; bumped: number | null; waitMoves: number | null }
   | { kind: "tray"; slot: number; x: number; y: number; dragging: boolean };
 
 /**
@@ -563,7 +565,7 @@ export class AssemblyRenderer extends KitBoard<AssemblyState> {
       return;
     }
     const at = this.grid.at(x, y);
-    if (at) this.press = { kind: "bay", cell: at.index, x, y };
+    if (at) this.press = { kind: "bay", cell: at.index, x, y, moved: false, armed: false, bumped: null, waitMoves: null };
   }
 
   protected override pointerMove(x: number, y: number): void {
@@ -599,14 +601,59 @@ export class AssemblyRenderer extends KitBoard<AssemblyState> {
       this.drawGhost();
       return;
     }
-    if (!far) return;
-    this.press = null;
-    // A drag swaps the part with its neighbour that way: one of eight, by the drag's angle.
-    const angle = Math.atan2(dy, dx);
-    const oct = Math.round(angle / (Math.PI / 4));
-    const dc = Math.round(Math.cos(oct * (Math.PI / 4)));
-    const dr = Math.round(Math.sin(oct * (Math.PI / 4)));
-    this.trySwap(p.cell, this.step(p.cell, dc, dr));
+    this.dragBay(p, x, y, far);
+  }
+
+  /**
+   * A drag carries its part: each time the pointer passes into a neighbour's side of the part's
+   * cell (one of eight, by the angle), the two swap and the drag goes on from the new cell. A
+   * neighbour it cannot swap with bumps once, and the part stays.
+   */
+  private dragBay(p: Extract<Press, { kind: "bay" }>, x: number, y: number, far: boolean): void {
+    const state = this.state;
+    const g = this.grid;
+    if (!state || state.finished) return;
+    // The last swap has not come back yet: the bay as held is not the one the part is on.
+    if (p.waitMoves !== null) {
+      if (state.moveCount === p.waitMoves) return;
+      p.waitMoves = null;
+    }
+    let next: number;
+    if (!p.moved) {
+      // The first step: a flick the drag's own length, its neighbour by the angle, one of eight.
+      if (!far) return;
+      const oct = Math.round(Math.atan2(y - p.y, x - p.x) / (Math.PI / 4));
+      next = this.step(p.cell, Math.round(Math.cos(oct * (Math.PI / 4))), Math.round(Math.sin(oct * (Math.PI / 4))));
+    } else {
+      // After it, the part follows the pointer out of its cell: across a side to that neighbour, or
+      // through a corner to the one corner to corner. It steps again only once the pointer has been
+      // inside the cell the part came to, so a corner step never turns back on itself.
+      const ux = (x - g.x(p.cell)) / g.cell;
+      const uy = (y - g.y(p.cell)) / g.cell;
+      const out = Math.max(Math.abs(ux), Math.abs(uy)) > 0.5;
+      if (!out) {
+        p.armed = true;
+        return;
+      }
+      if (!p.armed) return;
+      const corner = Math.abs(ux) > CORNER && Math.abs(uy) > CORNER;
+      const dc = corner || Math.abs(ux) >= Math.abs(uy) ? Math.sign(ux) : 0;
+      const dr = corner || Math.abs(uy) > Math.abs(ux) ? Math.sign(uy) : 0;
+      next = this.step(p.cell, dc, dr);
+    }
+    if (next < 0 || next === p.bumped) return;
+    p.moved = true;
+    if (assemblySwapIllegalReason(state, p.cell, next) !== null) {
+      p.bumped = next;
+      sfx.bump();
+      return;
+    }
+    const before = state.moveCount;
+    this.trySwap(p.cell, next);
+    p.cell = next;
+    p.armed = false;
+    p.bumped = null;
+    p.waitMoves = before;
   }
 
   protected override pointerUp(x: number, y: number): void {
@@ -624,6 +671,7 @@ export class AssemblyRenderer extends KitBoard<AssemblyState> {
       if (this.slotAt(x, y) === p.slot) this.pick(this.picked === p.slot ? null : p.slot);
       return;
     }
+    if (p.moved) return;
     const at = g.at(x, y);
     if (!at) return;
     if (this.picked !== null) {

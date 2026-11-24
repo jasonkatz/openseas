@@ -5,7 +5,7 @@ import {
   ASSEMBLY_CORE,
   ASSEMBLY_GIRDER,
   ASSEMBLY_PANEL,
-  ASSEMBLY_SHAPES,
+  ASSEMBLY_POOL,
   ASSEMBLY_STRUT,
   DEFAULT_ASSEMBLY_CONFIG,
   InvalidMoveError,
@@ -150,14 +150,39 @@ describe("assembly deal", () => {
     );
   });
 
-  it("every shape has three to five parts and fits a four by four box", () => {
-    for (const s of ASSEMBLY_SHAPES) {
-      expect(s.cells.length).toBeGreaterThanOrEqual(3);
-      expect(s.cells.length).toBeLessThanOrEqual(5);
-      expect(s.width).toBeLessThanOrEqual(4);
-      expect(s.height).toBeLessThanOrEqual(4);
-      for (const c of s.cells) expect(c.dc < s.width && c.dr < s.height).toBe(true);
+  it("the pool holds sixteen blueprints of three to five parts, each kind asked for", () => {
+    expect(ASSEMBLY_POOL).toHaveLength(16);
+    const kinds = new Set<number>();
+    for (const p of ASSEMBLY_POOL) {
+      expect(p.parts.length).toBeGreaterThanOrEqual(3);
+      expect(p.parts.length).toBeLessThanOrEqual(5);
+      expect(p.width).toBeLessThanOrEqual(4);
+      expect(p.height).toBeLessThanOrEqual(4);
+      for (const c of p.parts) {
+        expect(c.dc < p.width && c.dr < p.height).toBe(true);
+        kinds.add(c.kind);
+      }
     }
+    expect([...kinds].sort()).toEqual([0, 1, 2, 3]);
+  });
+
+  it("deals the pool from a bag: every blueprint once before any twice", () => {
+    let s = createAssemblyGame("bag", cfg);
+    const dealt = s.tray.map((bp) => bp.shape);
+    // Fit whatever fits, else swap, until sixteen blueprints have been dealt.
+    for (let i = 0; i < 4000 && dealt.length < 16; i++) {
+      const fits = assemblyLegalFits(s);
+      if (fits.length > 0) {
+        s = reduceAssembly(s, { type: "fit", ...fits[0]! });
+        dealt.push(s.lastMove!.fit!.next.shape);
+      } else {
+        const swaps = assemblyLegalSwaps(s);
+        s = reduceAssembly(s, { type: "swap", ...swaps[i % swaps.length]! });
+      }
+    }
+    expect(dealt).toHaveLength(16);
+    expect(new Set(dealt).size).toBe(16);
+    for (const bp of s.tray) expect(bp.parts).toEqual(ASSEMBLY_POOL[bp.shape]!.parts);
   });
 
   it("refuses a config out of bounds", () => {
@@ -166,7 +191,6 @@ describe("assembly deal", () => {
     expect(() => validateAssemblyConfig({ ...cfg, kindWeights: [1, 1, 1] })).toThrow();
     expect(() => validateAssemblyConfig({ ...cfg, startCores: 4, maxCores: 3 })).toThrow();
     expect(() => validateAssemblyConfig({ ...cfg, chainCap: 0 })).toThrow();
-    expect(() => validateAssemblyConfig({ ...cfg, sizeWeights: [0, 0, 0] })).toThrow();
   });
 });
 

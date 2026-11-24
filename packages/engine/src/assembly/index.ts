@@ -10,7 +10,7 @@ export {
   hashAssemblyState,
   summarizeAssembly,
   validateConfig as validateAssemblyConfig,
-  ASSEMBLY_SHAPES,
+  ASSEMBLY_POOL,
   isPart as assemblyIsPart,
   wayOf as assemblyWayOf,
   wayBetween as assemblyWayBetween,
@@ -30,7 +30,7 @@ export {
   idx as assemblyIdx,
   colOf as assemblyColOf,
   rowOf as assemblyRowOf,
-  type AssemblyShape,
+  type AssemblyPoolPrint,
   type AssemblySummary,
 } from "./reduce.js";
 

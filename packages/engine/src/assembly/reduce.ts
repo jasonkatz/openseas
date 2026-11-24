@@ -26,76 +26,47 @@ export const colOf = (cfg: AssemblyConfig, cell: number): number => cell % cfg.w
 export const rowOf = (cfg: AssemblyConfig, cell: number): number => Math.floor(cell / cfg.width);
 
 /**
- * Every blueprint shape, as rows of `#` and `.`, read without turning: a shape and its turn are two
- * shapes, as on a real drawing. Three parts, four, then five; none is wider or taller than four.
+ * The pool: the sixteen blueprints a round deals, the same in every round. Each is drawn as rows,
+ * one character a square: the kind's digit (0 panel, 1 girder, 2 strut, 3 cable), `.` where it has
+ * no part. Six of three parts, six of four, four of five; none wider or taller than three, and every
+ * kind asked for about as often as the others.
  */
-const SHAPE_ROWS: readonly (readonly string[])[] = [
+const POOL_ROWS: readonly (readonly string[])[] = [
   // Three parts.
-  ["###"],
-  ["#", "#", "#"],
-  ["##", "#."],
-  ["##", ".#"],
-  ["#.", "##"],
-  [".#", "##"],
+  ["123"],
+  ["1", "2", "3"],
+  ["10", "3."],
+  ["21", ".0"],
+  ["0.", "32"],
+  [".2", "13"],
   // Four.
-  ["####"],
-  ["#", "#", "#", "#"],
-  ["##", "##"],
-  ["###", ".#."],
-  [".#.", "###"],
-  ["#.", "##", "#."],
-  [".#", "##", ".#"],
-  ["###", "#.."],
-  ["###", "..#"],
-  ["#..", "###"],
-  ["..#", "###"],
-  ["#.", "#.", "##"],
-  [".#", ".#", "##"],
-  ["##", "#.", "#."],
-  ["##", ".#", ".#"],
-  ["##.", ".##"],
-  [".##", "##."],
-  ["#.", "##", ".#"],
-  [".#", "##", "#."],
+  ["12", "30"],
+  ["131", ".2."],
+  ["0.", "2.", "31"],
+  [".3", "20", "1."],
+  ["21.", ".03"],
+  ["2", "0", "1", "3"],
   // Five.
-  [".#.", "###", ".#."],
-  ["###", ".#.", ".#."],
-  [".#.", ".#.", "###"],
-  ["#..", "###", "#.."],
-  ["..#", "###", "..#"],
-  ["#.#", "###"],
-  ["###", "#.#"],
-  ["##", "#.", "##"],
-  ["##", ".#", "##"],
-  ["#..", "#..", "###"],
-  ["..#", "..#", "###"],
-  ["###", "#..", "#.."],
-  ["###", "..#", "..#"],
-  ["##", "##", "#."],
-  ["##", "##", ".#"],
-  ["#.", "##", "##"],
-  [".#", "##", "##"],
+  [".1.", "203", ".1."],
+  ["312", "0.2"],
+  ["1..", "2..", "031"],
+  ["23", "10", "2."],
 ];
 
-export interface AssemblyShape {
+export interface AssemblyPoolPrint {
   readonly width: number;
   readonly height: number;
-  readonly cells: ReadonlyArray<{ readonly dc: number; readonly dr: number }>;
+  readonly parts: readonly AssemblyPart[];
 }
 
-/** The shapes a blueprint is drawn in, three parts first, then four, then five. */
-export const ASSEMBLY_SHAPES: readonly AssemblyShape[] = SHAPE_ROWS.map((rows) => {
-  const cells: Array<{ dc: number; dr: number }> = [];
+/** The pool's blueprints, in the order above; a dealt blueprint names its place here. */
+export const ASSEMBLY_POOL: readonly AssemblyPoolPrint[] = POOL_ROWS.map((rows) => {
+  const parts: AssemblyPart[] = [];
   rows.forEach((line, dr) => {
-    for (let dc = 0; dc < line.length; dc++) if (line[dc] === "#") cells.push({ dc, dr });
+    for (let dc = 0; dc < line.length; dc++) if (line[dc] !== ".") parts.push({ dc, dr, kind: Number(line[dc]) });
   });
-  return { width: rows[0]!.length, height: rows.length, cells };
+  return { width: Math.max(...rows.map((r) => r.length)), height: rows.length, parts };
 });
-
-/** The shapes of each size: index 0 holds the three-part shapes, 1 the four, 2 the five. */
-const SHAPES_BY_SIZE: readonly (readonly number[])[] = [3, 4, 5].map((n) =>
-  ASSEMBLY_SHAPES.map((s, i) => (s.cells.length === n ? i : -1)).filter((i) => i >= 0),
-);
 
 /** Deals tried before the opening bay is made to hold a fit by construction. */
 const MAX_DEALS = 40;
@@ -110,7 +81,6 @@ export function validateConfig(cfg: AssemblyConfig): void {
     // Something must move: a bay of panels alone has no swap.
     cfg.kindWeights[ASSEMBLY_GIRDER]! + cfg.kindWeights[ASSEMBLY_STRUT]! + cfg.kindWeights[ASSEMBLY_CABLE]! > 0 &&
     int(cfg.traySize, 1, 8) &&
-    weights(cfg.sizeWeights, 3) &&
     int(cfg.fitPoints, 0, 1000) &&
     int(cfg.chainCap, 1, 20) &&
     int(cfg.corePoints, 0, 1000) &&
@@ -268,23 +238,33 @@ function weighted(rng: PrngState, w: readonly number[]): { value: number; state:
   return { value: w.length - 1, state: r.state };
 }
 
-/** Draw a blueprint: its size by sizeWeights, its shape evenly among that size's, each part's kind by kindWeights. */
-function drawBlueprint(cfg: AssemblyConfig, rngIn: PrngState, id: number): { bp: AssemblyBlueprint; rng: PrngState } {
+/** A fresh bag: the whole pool in a shuffled order, from the blueprints' own stream. */
+function fillBag(rngIn: PrngState): { bag: number[]; rng: PrngState } {
   let rng = rngIn;
-  const size = weighted(rng, cfg.sizeWeights);
-  rng = size.state;
-  const pool = SHAPES_BY_SIZE[size.value]!;
-  const pick = nextInt(rng, pool.length);
-  rng = pick.state;
-  const shapeIndex = pool[pick.value]!;
-  const shape = ASSEMBLY_SHAPES[shapeIndex]!;
-  const parts: AssemblyPart[] = [];
-  for (const c of shape.cells) {
-    const k = weighted(rng, cfg.kindWeights);
-    rng = k.state;
-    parts.push({ dc: c.dc, dr: c.dr, kind: k.value });
+  const bag = ASSEMBLY_POOL.map((_, i) => i);
+  for (let i = bag.length - 1; i > 0; i--) {
+    const r = nextInt(rng, i + 1);
+    rng = r.state;
+    [bag[i], bag[r.value]] = [bag[r.value]!, bag[i]!];
   }
-  return { bp: { id, shape: shapeIndex, width: shape.width, height: shape.height, parts }, rng };
+  return { bag, rng };
+}
+
+/**
+ * Deal the next blueprint from the bag. Every blueprint of the pool comes once before any comes
+ * again: when the bag is empty it is filled afresh.
+ */
+function drawBlueprint(bagIn: readonly number[], rngIn: PrngState, id: number): { bp: AssemblyBlueprint; bag: readonly number[]; rng: PrngState } {
+  let bag = bagIn;
+  let rng = rngIn;
+  if (bag.length === 0) {
+    const f = fillBag(rng);
+    bag = f.bag;
+    rng = f.rng;
+  }
+  const index = bag[0]!;
+  const print = ASSEMBLY_POOL[index]!;
+  return { bp: { id, shape: index, width: print.width, height: print.height, parts: print.parts }, bag: bag.slice(1), rng };
 }
 
 /** True when the bay holds a fit now, or after one swap: a new player can score in their first seconds. */
@@ -313,10 +293,12 @@ export function createAssemblyGame(seed: string, config: AssemblyConfig = DEFAUL
   };
   let nextId = 1;
   let prints = streams.prints;
+  let bag: readonly number[] = [];
   const tray: AssemblyBlueprint[] = [];
   for (let s = 0; s < config.traySize; s++) {
-    const d = drawBlueprint(config, prints, nextId++);
+    const d = drawBlueprint(bag, prints, nextId++);
     prints = d.rng;
+    bag = d.bag;
     tray.push(d.bp);
   }
   const n = config.width * config.height;
@@ -347,6 +329,7 @@ export function createAssemblyGame(seed: string, config: AssemblyConfig = DEFAUL
       config,
       cells,
       tray,
+      bag,
       streams: { parts, cores, prints },
       nextId,
       score: 0,
@@ -440,7 +423,7 @@ function fit(state: AssemblyState, move: Extract<AssemblyMove, { type: "fit" }>)
     cells[cell] = piece;
     spawned.push({ id: piece.id, cell, kind });
   }
-  const d = drawBlueprint(cfg, prints, nextId++);
+  const d = drawBlueprint(state.bag, prints, nextId++);
   prints = d.rng;
   const tray = state.tray.slice();
   tray[move.slot] = d.bp;
@@ -452,6 +435,7 @@ function fit(state: AssemblyState, move: Extract<AssemblyMove, { type: "fit" }>)
     config: cfg,
     cells,
     tray,
+    bag: d.bag,
     streams: { parts, cores: coreRng, prints },
     nextId,
     score: state.score + points,
@@ -506,6 +490,8 @@ export function hashAssemblyState(state: AssemblyState): string {
     h.int(bp.id).int(bp.shape).int(bp.parts.length);
     for (const part of bp.parts) h.int(part.dc).int(part.dr).int(part.kind);
   }
+  h.int(state.bag.length);
+  for (const i of state.bag) h.int(i);
   for (const s of [state.streams.parts, state.streams.cores, state.streams.prints]) h.int(s.a).int(s.b).int(s.c).int(s.d);
   h.int(state.nextId).int(state.score).int(state.moveCount).int(state.swaps).int(state.fits).int(state.chain);
   h.int(state.bestChain).int(state.bigFits).int(state.coresUsed);
