@@ -211,9 +211,12 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
     l.fill({ color: INK.dim });
   }
 
-  /** Only the clock moved, or a logged wait repeats what was shown: nothing new to play. */
+  /**
+   * Only the clock moved, or a logged wait repeats what was shown: nothing new to play. The tower
+   * must be the same one too: a new round starts at event 0 just as the tower shown before it did.
+   */
   protected override keepsPlaying(state: RefiningState, prev: RefiningState | null): boolean {
-    return prev !== null && state.eventSeq === prev.eventSeq && state.eventSeq === this.shownSeq;
+    return prev !== null && state.cells === prev.cells && state.eventSeq === prev.eventSeq && state.eventSeq === this.shownSeq;
   }
 
   protected onState(state: RefiningState, prev: RefiningState | null): void {
@@ -226,7 +229,7 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
       this.layout(this.app.screen.width, this.app.screen.height);
       return;
     }
-    if (state.eventSeq === this.shownSeq && prev !== null) {
+    if (state.eventSeq === this.shownSeq && prev !== null && state.cells === prev.cells) {
       this.refreshLabel();
       return;
     }

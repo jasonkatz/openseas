@@ -179,3 +179,13 @@ test("one Refining drag carries its piece through every swap it is dragged over"
   expect(await boardString(page)).toBe(swapped(swapped(before, a, b), b, c));
   await expectViewMatchesState(page, "refining");
 });
+
+test("a Refining round started from the start card draws the tower it was dealt, not the preview behind the card", async ({ page }) => {
+  await page.goto("/play/refining?hints=0");
+  await expect(page.getByTestId("play-start")).toBeVisible();
+  await expectViewMatchesState(page, "refining");
+  const preview = await boardString(page);
+  await page.getByTestId("play-start").click();
+  await expect.poll(() => boardString(page)).not.toBe(preview);
+  await expectViewMatchesState(page, "refining");
+});
