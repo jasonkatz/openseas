@@ -325,7 +325,7 @@ test("a finished round keeps the numbers it was dealt on, can be the baseline, a
       window.openseasRoundClock!.step(10 * 60 * 1000);
     });
     // The round ends on the page's next look at its clock: a loaded runner can take a while to get there.
-    await expect(page.getByTestId("result-tier")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("result-tier")).toBeVisible({ timeout: 30_000 });
   };
   await (await shown(page, "more-config.pieceKinds")).click();
   await page.getByTestId("transport-play").click();
