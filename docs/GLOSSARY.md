@@ -436,7 +436,8 @@ Freefall is an eleventh, the same kind: it succeeds Treasure Drop (ADR 0081).
 Showdown is a twelfth, the same kind: it succeeds Poker (ADR 0082).
 Forging is a thirteenth of the same kind: it succeeds Blacksmithing (ADR 0083).
 Assembly is a fourteenth, the same kind: it succeeds Shipwrightry (ADR 0084).
-Pouring is a fifteenth, the same kind: it succeeds Drinking (ADR 0085).
+Pact is a fifteenth, the same kind: it succeeds Spades (ADR 0087).
+Pouring is a sixteenth, the same kind: it succeeds Drinking (ADR 0085).
 Their words follow the naming rules above. Each puzzle's own words (its pieces, its callouts) are in
 its design file under `docs/prototypes/` and its message file under
 `content/data/messages/prototypes/`; promoting a puzzle may rename them.
@@ -445,7 +446,7 @@ its design file under `docs/prototypes/` and its message file under
 |---|---|---|
 | Salvage | `salvage` | Tethers a line of debris and hauls it; a closed line is a net that brings in every crate |
 | Overload | `overload` | Charges capacitors with taps; a full one bursts into its neighbours |
-| Deflectors | `deflectors` | Flips mirrors so each beam leaves by its own exit port |
+| Deflectors | `deflectors` | Places mirrors and lenses from a queue so beams from three emitters light targets through exactly the lenses of their recipes; a shot is multiplied by the targets it lights and spends what it used |
 | Reactor | `reactor` | Swipes fuel rods together to fuse them and pushes hot rods out through ports |
 | Scanner | `scanner` | Pings a fogged sector and locks the contacts the pings give away |
 | Tug | `tug` | Flicks cargo pods, which slide until stopped, onto the lit clamp |
@@ -457,6 +458,7 @@ its design file under `docs/prototypes/` and its message file under
 | Showdown (formerly Poker) | `showdown` | Folds, calls or raises at a fixed-limit hold'em table against rivals who each play one style (brick, sponge, hothead, shark), from a stack of chips until one player holds them all. Card words (hand, pot, blind, button, fold, call, raise, all in, side pot, stack) are not of the sea and stay; the suits are its own: stars, moons, rings and comets |
 | Forging (formerly Blacksmithing) | `forging` | Strikes a hot plate spot by spot with the press; each spot's mark says where the next strike lands, and a stall is a strike with nowhere to go |
 | Assembly (formerly Shipwrightry) | `assembly` | Swaps parts in a shipyard's bay, each kind its own way (girders sideways, struts up and down, cables corner to corner, panels only when pushed), and fits them to blueprints; fits made with no swap between are a chain |
+| Pact (formerly Spades) | `pact` | Bids the tricks it will take with a partner across the table, then plays a card to each trick against two rivals; a side's bids together are its **pact**. Card words (trick, trump, suit, lead, follow, bid, nil, bag, set) are not of the sea and stay, and so do the four traditional suits |
 | Pouring (formerly Drinking) | `pouring` | Takes turns with rivals setting drinks down on one bar, each where it suits its neighbours by glass or brew; a full row or column is served |
 
 Words shared by all of them: a **prototype** is one of these puzzles; the **kit** is the shared

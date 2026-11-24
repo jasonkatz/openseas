@@ -16,7 +16,7 @@ export const PUZZLE_CUES: Readonly<Record<PuzzleId, readonly string[]>> = {
   swordfight: ["drop", "clash", "heavy", "swing", "scrap", "out", "won", "lost", "swapQuiet", "clear", "multi", "streak", "streakLost", "charge", "slag", "crack", "vent", "alarm", "bump", "thud", "whoosh", "zap", "bad", "tick", "end", "beat"],
   salvage: ["pop", "good", "rise", "slag", "crack", "bump", "thud", "whoosh", "beat"],
   overload: ["pop", "power", "zap", "good", "slag", "streak", "streakLost", "swapQuiet", "bump", "whoosh", "beat"],
-  deflectors: ["swap", "pop", "power", "zap", "good", "bad", "multi", "bump", "thud", "tick", "beat"],
+  deflectors: ["swap", "pop", "zap", "good", "multi", "bump", "thud", "whoosh", "beat"],
   reactor: ["swap", "swapQuiet", "pop", "power", "charge", "clear", "zap", "bad", "streakLost", "bump", "tick", "beat"],
   scanner: ["ping", "pop", "good", "bad", "streakLost", "swapQuiet", "bump", "whoosh", "beat"],
   tug: ["pop", "ping", "clear", "good", "bad", "streak", "swapQuiet", "bump", "thud", "whoosh", "beat"],
@@ -28,6 +28,7 @@ export const PUZZLE_CUES: Readonly<Record<PuzzleId, readonly string[]>> = {
   showdown: ["swapQuiet", "tick", "pop", "whoosh", "bump", "good", "bad", "beat"],
   forging: ["pop", "good", "streak", "streakLost", "bad", "zap", "bump", "beat"],
   assembly: ["swap", "pop", "clear", "good", "rise", "bump", "beat"],
+  pact: ["swapQuiet", "pop", "tick", "whoosh", "bump", "good", "bad", "beat"],
   pouring: ["pop", "clear", "good", "bad", "rise", "thud", "bump", "whoosh", "beat"],
 };
 

@@ -274,6 +274,22 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
       <rect x="8" y="28" width="24" height="24" rx="4" fill="none" stroke="#e2a94b" strokeWidth="2" />
     </svg>
   ),
+  pact: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
+      <rect x="22" y="8" width="20" height="26" rx="3" fill="#141d30" stroke="#27344f" />
+      <rect x="22" y="32" width="20" height="26" rx="3" fill="#141d30" stroke="#27344f" />
+      <rect x="8" y="20" width="20" height="26" rx="3" fill="#141d30" stroke="#27344f" />
+      <rect x="36" y="20" width="20" height="26" rx="3" fill="#141d30" stroke="#27344f" />
+      <path d="M32 37l5 6h-10z" fill="#ece3cf" />
+      <circle cx="29.5" cy="44" r="3" fill="#ece3cf" />
+      <circle cx="34.5" cy="44" r="3" fill="#ece3cf" />
+      <path d="M31 46h2l1.5 5h-5z" fill="#ece3cf" />
+      <circle cx="15.5" cy="30" r="3" fill="#d897b2" />
+      <circle cx="20.5" cy="30" r="3" fill="#d897b2" />
+      <path d="M12.6 31.2h10.8L18 38z" fill="#d897b2" />
+    </svg>
+  ),
   pouring: (
     <svg viewBox="0 0 64 64" width="56" height="56">
       <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />

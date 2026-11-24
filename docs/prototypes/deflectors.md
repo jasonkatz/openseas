@@ -1,163 +1,201 @@
 # Deflectors
 
-Status: built. Prototype (ADR 0036), in the studio at `/deflectors`. Ticked (ADR 0015): volleys
-charge and fire on the engine's clock. A 120 second round.
+Status: built. Prototype (ADR 0036), in the studio at `/deflectors`. Ticked (ADR 0015): the round runs on
+the engine's clock, but nothing comes on it: every piece waits for the player. A 180 second round.
+
+Version 1.0 (ADR 0079). History:
+
+- **1.0:** a set supply of pieces, seen a few ahead and placed anywhere or binned; splitters that split a beam in two; three emitters that all fire at once; targets with
+  lens recipes; a shot multiplied by the targets it lights; what a shot used is spent. An open
+  building puzzle with no right move, after the owner asked for one in the spirit of the original's
+  potion puzzle: strategy and decisions, not finding the one answer. An earlier draft of 1.0 (never
+  merged) kept a fixed grid of mirrors to flip, each volley dealt with one best setting the engine
+  searched for. It was rigorous, but it was a puzzle with a solution, and it was replaced. A second
+  draft dealt pieces on a timer into a queue that dropped its oldest on the grid when full; the
+  owner found that too much pressure, and asked for strategy first and pace second.
+- **0.1:** beams in volleys on a count, a grid that never changed, one beam at first and two later.
 
 ## The puzzle
 
-A six by six grid with fourteen mirrors on it (`mirrors`), each set as `/` or `\`. A tap on a mirror
-flips it. That is the one verb. Mirrors never move, and empty cells let a beam pass straight through.
+A six by six grid (`size`) that starts with a few mirrors (`mirrors`) and lenses (`lenses`). Three
+**emitters** (`emitters`) sit on the left edge, each with a sign: a disc, a square, a triangle.
+Five **targets** (`targets`) sit at ports on the other three edges.
 
-Beams come in from ports on the edge, in volleys. A volley is one beam for the first 35 seconds
-(`rampTicks`) and two beams after that (`maxBeams`). A volley is announced before it fires: each
-beam's entry port wears its sign, its exit port wears the same sign with its middle cut out, and one count
-runs for the whole volley, as a bar over the grid. The count is 18 seconds at the start of the round and 13 by the end
-(`chargeTicks`, `chargeTicksMin`), with 5 more for a second beam (`beamTicks`).
+**Pieces.** A round deals fifty pieces (`pieces`): mirrors set as `/` or `\`, now and then a lens
+of one of three kinds (`lensChance`, 22 percent): a diamond, a hexagon, a cross, and now and then a
+**splitter** (`splitterChance`, 8 percent). The **queue**
+under the grid shows the next three (`queueSize`). The player puts the next piece on any cell, empty
+or not; it replaces what was there. A mirror can be turned before it goes down. A piece the player
+does not want goes in the **bin**: it is used up and put nowhere. Nothing comes on a timer and
+nothing is ever placed for the player. The round ends when the clock runs out, or once the pieces
+are all used and the grid lights nothing.
 
-When the count ends every beam fires at once. It runs straight, turns at every mirror it meets, and
-leaves by some port.
+Fifty pieces in 180 seconds is 3.6 seconds a piece. That is the balance: a player who thinks at
+that pace uses every piece, one who rushes gains nothing for the spare time, and one who dwells
+leaves pieces unplaced. Strategy decides what each piece is worth; pace only decides whether the
+last few get played.
 
-- **Home.** Out through its own exit, a beam scores by the mirrors it turned at: (turns + 1)
-  squared (`beamPoints`). Three turns are 16, seven are 64, eleven are 144.
-- **Hull.** Out anywhere else, it costs 40 (`hullPenalty`). The score never goes below zero.
+**Recipes.** Each target asks for a set of lens kinds, drawn small outside it: none, one or two
+(`recipeWeights`, 25, 45 and 30). A beam that leaves by a target **lights** it if it passed exactly
+those kinds: every one, and no other.
 
-A volley with every beam home is clean. Clean volleys build a streak that multiplies the next clean
-one: 100, 110, 120 and so on to 200 percent at nine (`streakPercent`). One beam into the hull ends
-the streak.
+**The shot.** Tapping the emitters fires all three. Each beam runs straight, turns at every mirror,
+passes straight through a lens, and leaves by some port. A beam that meets a splitter ends there,
+and two go on from it, one each way across the way it came; each counts the split as one of its
+turns and carries the lenses passed before it. A branch that comes to a cell heading a way some
+branch of the same beam already went stops there, so splitters that loop end; a beam is followed
+into at most sixteen branches. Each target lights at most once a shot, claimed by the emitters in
+order and each emitter's branches in the order they leave.
 
-Every volley is dealt exits that one setting of the mirrors reaches together; the engine searches
-the settings when it deals. It keeps the most the volley can be worth as its `best`, and the strip
-over the grid shows it beside what the volley is worth now. A clean volley worth its best is
-perfect and scores half as much again (`perfectPercent`). No beam is dealt the exit it already runs
-to, so a volley left alone goes into the hull.
+- A beam that lights a target scores (turns + 1) squared (`bouncePoints`, turns capped at 16 by
+  `bounceCap`), and half as much again for each lens in the recipe (`lensPercent`). Three turns
+  through no lens are 16, through one are 24; seven turns through two are 128.
+- The shot's total is multiplied by the targets it lit: 100, 200 or 400 percent for one, two or
+  three or more (`litPercent`; past its last entry, the last).
+- A beam that lights nothing scores nothing and costs nothing.
 
-A tap on a lit entry port fires the volley now. The next one is dealt 0.6 seconds after a volley
-fires (`respawnTicks`), so a quick hand sees more volleys in a round.
+**Spending.** Every mirror any beam turned at and every splitter it split at, lit or not, and every
+lens a lighting beam passed,
+leave the grid (`spend`). Each lit target is dealt a new recipe. The emitters then recharge for one
+second (`fireTicks`).
+
+There is no hull, no count and no best. Nothing tells the player what the right shot is; the strip
+says only what a shot now would be worth.
 
 ## Luck and skill
 
-- **Luck:** where the mirrors are, and where beams enter and must leave.
-- **First skill:** getting a beam home. The board draws two lines for a beam that is not home: a
-  broken line from its entry to where it would leave, and dots running back from its exit. Where the
-  two cross at a mirror, flipping that mirror joins them. When they do not cross, a flip on either
-  line moves it.
-- **Second skill:** two beams on one grid. A mirror flipped for the second beam may be on the first
-  beam's route, and both lines show it at once.
-- **Third skill:** pace. A player who fires early scores more than twice one who waits out every
-  count.
-- **Fourth skill:** the long way round. The first route found is worth about a third of the best
-  one. Seeing the long route, not stumbling on it, is what the top scores are made of.
+- **Luck:** the starting grid, the order of pieces (mirror or lens, which lens, which way a mirror
+  comes), and the recipes dealt. A mirror's way is not much luck, since
+  the player can turn it.
+- **First skill:** placing a piece so a beam reaches a target through its recipe. The board draws
+  every beam's route as the grid stands, so this is reading, not search.
+- **Second skill:** when to fire. A shot that lights one target is worth the least it can be; two is
+  double and three is four times. Each piece placed while holding can break a lit route, and
+  pieces are few. The ladder below shows the best threshold is in the middle: holding for 800
+  beats firing at 150 or at 1,500.
+- **Third skill:** length. Turns are squared, so lengthening a lit route with one more mirror is
+  often worth more than lighting another target.
+- **Third and a half:** the queue. Three pieces ahead is enough to see that a useless mirror now is
+  the one the piece after it needs, and to choose between a corner and the bin.
+- **Fourth skill:** the next shot. What a shot spends is what clears the grid. A player who keeps the
+  next build off this shot's routes, and keeps a lens no shot spends until a recipe wants it, starts
+  the next shot half built. No bot plays this; it is the top of the ceiling.
 
 ## Input and feedback
 
-- Tap a mirror to flip it. Tap a lit entry port to fire the volley.
-- Keyboard: arrows or WASD move a cursor, space or enter flips the mirror under it, F fires.
-- Unrated and lab rounds pulse a cream ring on the next mirror to flip after five seconds idle: a
-  flip towards the volley's best setting. Following it keeps it coming.
+- **Mouse:** hovering a cell shows the next piece there as a ghost, and every route, target ring and
+  the strip redraw as if it were down. A click locks it in. Nothing is spent by looking.
+- **Touch:** press the next piece in the queue and drag it over the grid. It rides 0.8 cells above
+  the finger so the thumb does not hide it, and the cell under it gets the same ghost preview.
+  Lifting over a cell drops it there; lifting off the grid puts it back. A tap on the grid places
+  nothing, so a stray touch never spends a piece. A tap on the next piece without a drag turns it.
+- Tap the bin, left of the queue, to bin the next piece. Tap the emitters to fire.
+- **Keyboard:** arrows or WASD move a cursor, which shows the ghost too; space or enter puts the
+  piece at the cursor, R turns it, X bins it, F fires.
+- Unrated and lab rounds pulse a cream ring after six seconds idle on a cell where the next piece
+  would make the shot worth more (`deflectorsHint`, one ply). It is a suggestion, not the answer.
 
-The board is restyled to the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws its pieces
-in code (`boards/src/deflectors/pieces.ts`), loads no atlas and has no marks setting.
+The board follows the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws its pieces in code
+(`boards/src/deflectors/pieces.ts`) and loads no atlas.
 
-- **Pieces.** A mirror is a bar on a pivot. A `/` and a `\` are the same picture a quarter turn
-  apart, so the way a mirror is set is its outline. Each beam has a sign with a silhouette of its
-  own: a disc, a square, a triangle, in sand, rose and moss. An entry port wears the sign solid,
-  with a small arrow into the grid; an exit port wears it with its middle cut out, and it fills
-  when the beam is home.
-- **The board.** Bare ground under the strip, the ports and the grid. The one hairline is round
-  the grid, because a beam leaves across it. No frame and no grid lines: a small dot marks every
-  cell, so an empty one a beam runs straight through is seen, and every port.
-- **The strip** over the grid says, in mono, what the volley is worth now and the best it could be,
-  and under it the count is a plain bar that drains. The last three seconds tick and the bar turns
-  to danger.
-- **A waiting beam's lines.** Home, its route is a solid line in its colour, beaded with its own
-  sign so two routes that cross are told apart. Astray, it is a broken line to the port it would
-  leave by, with a cross there in danger, and dots run back from its exit. When every beam is home
-  the entries are ringed in amber: the thing to tap.
-- **A flip** turns the mirror in 120ms. **A fired beam** draws its whole path as one flat line
-  with a cream dot at its head and a rising note at each turn, and its points rise in cream at the
-  port it leaves by. A beam into the hull leaves one ring in danger at that port, its cost, and
-  the callout in danger. A streak of three or more is called out.
-- **The beat**, one amber pulse of the whole board, is kept for two things: the long way round (a
-  route of eight turns or more, stronger the longer it is) and a perfect volley (strongest when it
-  also went the long way). There is no shake, no flash and no sparks.
+- **Pieces.** A mirror is a bar on a pivot; `/` and `\` are the same picture a quarter turn apart,
+  so the way it is set is its outline. Each emitter wears its sign: a disc, a square, a triangle, in
+  sand, rose and moss. A target is a bullseye in ice, a silhouette no sign or lens shares. Each lens
+  is a glass of its own outline: a diamond in lilac, a hexagon in teal, a cross in rust. A splitter
+  is a fork of three arms round a hub, in olive, with no setting.
+- **The board.** Bare ground; one hairline round the grid; a dot in every cell. The ring round the
+  grid holds the emitters, the targets and the recipe glasses outside them.
+- **Routes.** Every beam's route is drawn as the grid stands. One that would light a target is a
+  solid line in its emitter's colour, beaded with its sign, and the target is ringed in that colour.
+  Any other is thin and broken to where it leaves. A lens ringed in danger is spoiling a beam on its
+  way to a target. A recipe glass is faint until the route into that target passes it.
+- **The strip** over the grid says, in mono, what a shot now is worth and how many it lights.
+- **The emitters** dim while recharging, and are ringed in amber when a shot would light something.
+- **The ghost** is the next piece at half strength on its cell, in a faint cream outline, with
+  whatever it would replace dimmed under it.
+- **The queue** sits under the grid: the bin on the left, an open tub under a lid in hairline ink,
+  then the next piece large in its slot, the two after it smaller, and the count of pieces left in
+  mono. A binned piece leaves a dim ring at the bin and a soft thud.
+- **A shot** draws each beam as one flat line with a cream dot at its head and a rising note at each
+  turn; points rise in cream at a lit target, and two or three lit are called out with the
+  multiplier. Then the spent cells shrink away with a soft rush of air.
+- **The beat**, one amber pulse of the whole board, is kept for a shot that lights two or more
+  (stronger for three) and a long route (eight turns or more).
 
 ## Engine
 
-`packages/engine/src/deflectors/`. Moves: `{ type: "flip", cell, tick }`, `{ type: "fire", volley,
-tick }`, `{ type: "wait", tick }`, `{ type: "end", tick }`. The reducer first carries the grid to
-the move's tick: a volley whose count has ended fires, and the next is dealt when it is due. A fire
-names the volley it means, so a tap that lands after its volley has gone fires nothing.
+`packages/engine/src/deflectors/`. Moves: `{ type: "place", cell, tick }`, `{ type: "turn", tick }`, `{ type: "bin", tick }`,
+`{ type: "fire", tick }`, `{ type: "wait", tick }`, `{ type: "end", tick }`. A cell is empty (0), a
+mirror (1 for `/`, 2 for `\`), a lens (3 + kind) or a splitter (6). Ports are numbered side by side, top, right,
+bottom, left, `side × size + i`; the emitters sit on rows spread evenly down the left.
 
-`trace` runs one beam through the mirrors as they stand. `resolve` is what a volley does fired now:
-the board previews with it (`outlook`) and the reducer scores with the same function. Events are
-`deal` and `fire`, numbered with a rising `seq`.
+The reducer first carries the round to the move's tick (`simulate`); nothing happens on the clock.
+A place or a bin takes the next piece, and the supply (`left`) refills the queue behind it. `traceBeams` runs one emitter's beam and returns every branch: its port (or where it stopped), turns and lens mask. `resolve` is what
+a shot does fired now, each target lit once in emitter order; the board previews with it
+(`deflectorsOutlook`) and the reducer scores with it. `fire` spends, deals new recipes to lit
+targets and starts the recharge. Events are `piece`, `bin` and `fire`, numbered with a rising `seq`.
 
-The search (`volleyOptions`, `volleyRoute`) walks the beams in order and tries both settings of
-each mirror the first time a beam meets it, so it visits each thing one grid can do once. It is in
-a fixed order and stops after 40,000 mirror meetings. On the content grid a search spends a median of 95
-meetings, and 915 at most over 3,000 sampled volleys. A reduce on the content config takes 0.03 ms
-on average. A player who fires every volley the tick it is dealt (199 volleys) costs 6 ms for the
-whole round. The budget is only reached on lab grids far from content (eight by eight with thirty
-mirrors and three beams): a deal there costs about 5 ms and deals the best exits found so far.
+There is no search. The engine never knows a best shot, and nothing is scored against one.
 
 ## Tuning notes
 
-Set from bots, not people (ADR 0036). Sixty rounds a bot on the content config.
+Set from bots, not people (ADR 0036). `pnpm --filter @openseas/bots ladder deflectors --seeds 24`
+on the content config, a person's pace modelled as 1 s a piece and 0.5 s to fire:
 
-| Bot | Score | Volleys | Beams home | Hull | Share of best |
-|---|---|---|---|---|---|
-| Never flips | 0 | 6.0 | 0.1 | 9.9 | 0% |
-| Joins lines, 1.5 s a flip | 258 | 7.5 | 9.1 | 2.5 | 28% |
-| Joins lines, 1.1 s a flip | 462 | 9.1 | 12.6 | 1.7 | 32% |
-| Joins lines, 0.8 s a flip | 750 | 11.8 | 17.3 | 1.4 | 35% |
-| Joins lines, 0.6 s a flip | 1166 | 14.9 | 23.0 | 1.0 | 39% |
-| Joins lines, 0.4 s a flip | 1781 | 19.6 | 30.9 | 0.9 | 42% |
-| Joins lines, 0.8 s, never fires early | 286 | 6.0 | 9.1 | 0.9 | 33% |
-| Joins, then tries three times to lengthen, 0.8 s | 608 | 8.2 | 11.6 | 1.4 | 42% |
-| Longest route, 8 s a beam | 1139 | 7.3 | 8.3 | 2.9 | 77% |
-| Longest route, 6 s a beam | 2265 | 8.9 | 13.3 | 0.2 | 98% |
-| Longest route, 4 s a beam | 3729 | 12.6 | 19.5 | 0.0 | 100% |
-| Longest route, 2.5 s a beam | 5910 | 18.6 | 29.2 | 0.0 | 100% |
+| Bot | Score | Tier |
+|---|---|---|
+| careless | 16 | Green |
+| one move | 210 | Steady |
+| rollout | 1,233 | Sharp |
+| eager, fires at the first light (the bait) | 158 | Green |
+| builder, fires at 1 | 395 | Steady |
+| builder, fires at 150 | 1,446 | Sharp |
+| builder, fires at 800 | 2,692 | Masterful |
+| builder, fires at 1,500 | 3,370 | Masterful |
+| builder, fires at 3,000 | 3,745 | Masterful |
+| builder, fires at 6,000 | 3,469 | Masterful |
+| builder, fires at 800, 2.5 s a piece | 2,692 | Masterful |
+| builder, fires at 800, 5 s a piece | 1,796 | Sharp |
 
-The joining bot plays as the two lines suggest: it flips a mirror where a beam's line and the way
-back cross, and otherwise flips something on either line and looks again. The longest bot is handed
-the best setting by the search and only pays for thinking time.
+The eager bot puts each piece where the shot is worth most now and fires as soon as anything lights.
+A builder puts each piece where the grid is worth most counting one mirror more, bins a piece that
+would make it worth less anywhere, and fires when a shot reaches its threshold, when the pieces run
+out, or near the end. One move and rollout play the generic choice list, which fires too early.
 
-- **Volleys, not beams with a count each.** The brief had two or three beams waiting, each with its
-  own count, and a tap to fire one. With that, a player sets the mirrors for one beam, fires it, and
-  sets them for the next: beams never share the grid, and the second beam is only a look ahead. A
-  volley fires together, so two beams must be home on one setting. The joining bot still brings both
-  home in 85 percent of two-beam volleys at 0.8 s a flip, so it is harder without being a wall.
-- **Mirror wear is dropped.** The brief had mirrors burn out after three turns and reappear
-  elsewhere. That was not simulated. It was dropped because it moves the grid while a volley waits:
-  the route a player has half built changes under them, the best has to be worked out again, and a
-  beam may need a new exit mid-count. The first builder had reached the same view. The grid shifting
-  all round is the thing lost; whether a round on one grid goes stale is a question for play.
-- **Fourteen mirrors, not sixteen.** With sixteen the best routes are longer (8.2 turns a beam
-  against 7.0) but the joining bot needs a median of four flips for one beam and six for two, and a
-  tenth of its volleys are not home after forty flips. With fourteen the medians are two and four.
-  With twelve, half of all volleys are one flip a beam and there is little to find.
-- **The way back from the exit is drawn.** Without it, finding a route is trial and error. With it
-  there is a rule to learn, and the joining bot is that rule.
-- **Trying flips to lengthen a route does not pay.** From a route that is home, a second route one
-  or two flips away that is longer exists for about one mirror in twenty. The bot that spends three
-  tries on it scores 608 against 750 for firing at once. The long route has to be seen, which the
-  longest bot stands in for: at six seconds a beam it scores three times the joining bot. This is
-  the weakest part of the design; see the open questions.
-- **No beam is dealt the exit it already runs to.** Otherwise about one beam in twelve is home
-  untouched, and firing volleys as they come is worth a little for no thought.
-- **The hint goes to the best setting, not the nearest.** A hint to the nearest clean setting and
-  then to the best would send a player back and forth; towards the best, each flip is one fewer to
-  go.
-- **Thresholds.** 150, 400, 800, 1500, 2600 and 4000 for ratings 1100 to 2100. The slow joiner
-  clears the first, the 0.8 s joiner sits at the third, the fastest joiner clears the fourth, and
-  the last two need long routes at six and four seconds a beam.
+- **There is no right threshold, but there is a better one.** Holding too little and holding too
+  much both lose: 1,446 at 150, 3,745 at 3,000, 3,469 at 6,000. That interior optimum is what the
+  owner asked for: a choice that matters, with no answer handed over.
+- **Splitters raise the ceiling, not the floor.** Without them (`splitterChance: 0`) the best
+  builder held for 800 and scored 1,978, and the eager bot 198. With them the best holds for
+  3,000 and scores 3,745, while the eager bot falls to 158: a splitter is worth most to a player
+  who builds a shot round it, and a splitter fired early is a turn spent. The optimum hold moves
+  up because one split route can light two targets and reach the ×4 sooner.
+- **Strategy first, pace second.** The same builder scores 2,692 at 1 s a piece and at 2.5 s: up
+  to the pieces' pace, thinking costs nothing. At 5 s a piece it scores 1,796, a third less, as
+  the clock runs out with pieces unplaced. Choosing when to fire is worth more than half again. The
+  round was 120 seconds at first (2.4 s a piece); the owner ran out of time playing it, so it is
+  180, and pace only bites on a player slower than about 3.6 s a piece.
+- **The bin must be used with care.** A builder that bins every piece that adds nothing now scores
+  under half of one that bins only what would make the grid worse: the supply is small, and a
+  mirror in a corner often pays later.
+- **The multiplier makes holding pay, and spending keeps it hard.** Measured on the timed draft
+  (12 seeds): with every shot at ×1 the best builder fell by a third and holding for 800 by
+  four fifths; with nothing spent builders reached 9,393 against the eager bot's 324, a round that
+  is one long build. Both still hold with a supply: they do not depend on how pieces come.
+- **Thresholds.** 60, 200, 800, 1,500, 2,400 and 3,400 for ratings 1100 to 2100. The bait reads
+  Green, a player who builds before firing Steady to Sharp, a well-timed builder high Sharp, and
+  Masterful and above wait for planning the next shot, which no bot does.
 
 ## Open questions for play
 
-- Can a person learn to see the long route in the time a volley gives, or is the best only ever a
-  number on the strip? If the second, the perfect bonus is dead and something nearer should pay.
-- Does one grid for the whole round go stale, or is knowing it part of the skill?
-- Is five more seconds enough for a second beam late in the round?
-- Do the dots make the first skill too easy once the crossing rule is known?
-- Three beams a volley is a lab preset. Is it a puzzle or a mess?
+- Is three targets lit ever reached by a person, or does the ×4 only tempt? If never, ×3 may read
+  better.
+- With splitters four or five targets can light at once and still pay ×4. Should they pay more, or
+  would that make one split shot the whole round?
+- Is fifty the right supply for a person? The bots say a careful pace costs little; a person may
+  think slower than 3.6 s a piece. `few_pieces` and `many_pieces` are presets.
+- Is three pieces ahead enough to plan with, or too much to read? `long_view` shows five.
+- Are three emitters too many routes to read at once? `two_emitters` is a preset.
+- Do players plan the next shot through what this one spends, or does it feel like noise?
+- No ladder yet (rule 26): the obvious stages are recipes off (`no_recipes`), one lens, then the
+  whole puzzle.

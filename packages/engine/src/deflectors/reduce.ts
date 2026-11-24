@@ -5,8 +5,10 @@ import {
   DEFAULT_DEFLECTORS_CONFIG,
   DEFLECTORS_BACKSLASH,
   DEFLECTORS_EMPTY,
+  DEFLECTORS_LENS,
+  DEFLECTORS_LENS_KINDS,
   DEFLECTORS_SLASH,
-  type DeflectorsBeam,
+  DEFLECTORS_SPLITTER,
   type DeflectorsConfig,
   type DeflectorsEvent,
   type DeflectorsMove,
@@ -14,23 +16,12 @@ import {
   type DeflectorsOutcome,
   type DeflectorsShot,
   type DeflectorsState,
+  type DeflectorsTarget,
   type DeflectorsTrace,
-  type DeflectorsVolley,
 } from "./types.js";
 
 const DX = [0, 1, 0, -1] as const;
 const DY = [-1, 0, 1, 0] as const;
-
-/**
- * How many mirror meetings one search of a volley's settings may spend. The search tries both
- * settings of every mirror the beams could meet, which is exponential at worst; on the content grid
- * it ends long before this. A grid that runs out gets the settings found so far, the same on every
- * machine.
- */
-const SEARCH_BUDGET = 40_000;
-
-/** How many sets of entry ports a deal tries before it settles for the best exits it has seen. */
-const DEAL_TRIES = 4;
 
 export const portCount = (cfg: DeflectorsConfig): number => cfg.size * 4;
 export const portSide = (cfg: DeflectorsConfig, port: number): number => Math.floor(port / cfg.size);
@@ -72,475 +63,398 @@ export function turn(mirror: number, dir: number): number {
   return mirror === DEFLECTORS_SLASH ? dir ^ 1 : 3 - dir;
 }
 
+/** True for a cell that holds a mirror, either way. */
+export const isMirror = (cell: number): boolean => cell === DEFLECTORS_SLASH || cell === DEFLECTORS_BACKSLASH;
+
+/** The kind of lens a cell holds, or -1 when it holds none. */
+export const lensKind = (cell: number): number => (cell >= DEFLECTORS_LENS && cell < DEFLECTORS_LENS + DEFLECTORS_LENS_KINDS ? cell - DEFLECTORS_LENS : -1);
+
+/** True for a cell that holds a splitter. */
+export const isSplitter = (cell: number): boolean => cell === DEFLECTORS_SPLITTER;
+
+/** The most branches one emitter's beam is followed into. A grid that would split it further stops there. */
+const MAX_BRANCHES = 16;
+
+/** Lens kinds in a recipe mask. */
+export function recipeSize(mask: number): number {
+  let n = 0;
+  for (let m = mask; m > 0; m >>= 1) n += m & 1;
+  return n;
+}
+
+/** The most lenses a recipe can ask for under `cfg`: 0 when recipes are off. */
+export const recipeLenses = (cfg: DeflectorsConfig): number => cfg.recipeWeights.length - 1;
+
+/** The emitters' ports: spread down the left edge, top to bottom. */
+export function emitterPorts(cfg: DeflectorsConfig): number[] {
+  const n = cfg.size;
+  return Array.from({ length: cfg.emitters }, (_, i) => 3 * n + Math.floor(((2 * i + 1) * n) / (2 * cfg.emitters)));
+}
+
 export function validateConfig(cfg: DeflectorsConfig): void {
   const int = (n: number, lo: number, hi: number): boolean => Number.isInteger(n) && n >= lo && n <= hi;
+  const cells = cfg.size * cfg.size;
+  const weights = cfg.recipeWeights;
   const ok =
     int(cfg.size, 3, 10) &&
-    int(cfg.mirrors, 1, cfg.size * cfg.size) &&
-    int(cfg.maxBeams, 1, 3) &&
-    int(cfg.rampTicks, 1, 100_000) &&
-    int(cfg.minBest, 0, 64) &&
+    int(cfg.emitters, 1, cfg.size) &&
+    int(cfg.targets, 1, Math.min(8, cfg.size * 3)) &&
+    int(cfg.mirrors, 0, cells) &&
+    int(cfg.lenses, 0, cells - cfg.mirrors) &&
+    Array.isArray(weights) &&
+    weights.length >= 1 &&
+    weights.length <= DEFLECTORS_LENS_KINDS + 1 &&
+    weights.every((w) => int(w, 0, 1000)) &&
+    weights.some((w) => w > 0) &&
+    int(cfg.lensPercent, 0, 1000) &&
     int(cfg.bouncePoints, 0, 1000) &&
     int(cfg.bounceCap, 1, 64) &&
-    int(cfg.perfectPercent, 100, 1000) &&
-    int(cfg.hullPenalty, 0, 100_000) &&
-    Array.isArray(cfg.streakPercent) &&
-    cfg.streakPercent.length >= 1 &&
-    cfg.streakPercent.length <= 16 &&
-    cfg.streakPercent.every((p) => Number.isInteger(p) && p >= 100 && p <= 1000) &&
+    Array.isArray(cfg.litPercent) &&
+    cfg.litPercent.length >= 1 &&
+    cfg.litPercent.length <= 10 &&
+    cfg.litPercent.every((p) => int(p, 0, 10_000)) &&
+    typeof cfg.spend === "boolean" &&
+    int(cfg.pieces, 1, 1000) &&
+    int(cfg.queueSize, 1, 8) &&
+    int(cfg.lensChance, 0, 100) &&
+    int(cfg.splitterChance, 0, 100) &&
+    cfg.lensChance + cfg.splitterChance <= 100 &&
+    // A recipe asking for lenses needs lenses to keep coming.
+    (weights.length === 1 || cfg.lensChance > 0) &&
+    int(cfg.fireTicks, 0, 10_000) &&
     int(cfg.tickMs, 20, 5000) &&
     int(cfg.maxTick, 1, 100_000) &&
-    int(cfg.maxMoves, 1, 1_000_000) &&
-    int(cfg.openingTicks, 0, 10_000) &&
-    int(cfg.chargeTicks, 1, 10_000) &&
-    int(cfg.chargeTicksMin, 1, cfg.chargeTicks) &&
-    int(cfg.beamTicks, 0, 10_000) &&
-    int(cfg.respawnTicks, 0, 10_000);
+    int(cfg.maxMoves, 1, 1_000_000);
   if (!ok) throw new Error("invalid deflectors config");
 }
 
-/** A value that falls evenly from `start` at tick 0 to `end` by the last tick of the round. */
-function eased(cfg: DeflectorsConfig, start: number, end: number, tick: number): number {
-  const span = start - end;
-  if (span <= 0) return start;
-  const steps = Math.floor(((span + 1) * Math.max(0, Math.min(tick, cfg.maxTick))) / cfg.maxTick);
-  return Math.max(end, start - steps);
-}
-
-/** How many beams a volley dealt at `tick` holds: one at first, one more every rampTicks, up to maxBeams. */
-export function beamsAt(cfg: DeflectorsConfig, tick: number): number {
-  return Math.min(cfg.maxBeams, 1 + Math.floor(Math.max(0, tick) / cfg.rampTicks));
-}
-
-/** Ticks a volley of `beams` beams dealt at `tick` waits before it fires. */
-export function chargeTicksAt(cfg: DeflectorsConfig, tick: number, beams = 1): number {
-  return eased(cfg, cfg.chargeTicks, cfg.chargeTicksMin, tick) + cfg.beamTicks * Math.max(0, beams - 1);
-}
-
-/** The way a beam from `entry` runs through `mirrors` as they stand. */
-export function trace(cfg: DeflectorsConfig, mirrors: readonly number[], entry: number): DeflectorsTrace {
+/**
+ * Every branch of the beam from `entry` through `cells` as they stand. A splitter ends the beam that
+ * meets it and starts two, turned each way across it, each counting the split as a turn; the first
+ * is the one turned anticlockwise. A branch that comes to a cell heading a way some branch of this
+ * beam already went stops there, so a loop of splitters ends. Branches are in the order they leave.
+ */
+export function traceBeams(cfg: DeflectorsConfig, cells: readonly number[], entry: number): DeflectorsTrace[] {
   const n = cfg.size;
-  let { col, row, dir } = portEntry(cfg, entry);
-  const turns: number[] = [];
-  // A path through two-sided mirrors can be run backwards, so a beam from outside always leaves; the bound is for a bad grid only.
-  for (let step = 0; step < n * n * 4 + 4; step++) {
-    if (col < 0 || col >= n || row < 0 || row >= n) break;
-    const cell = row * n + col;
-    const mirror = mirrors[cell]!;
-    if (mirror !== DEFLECTORS_EMPTY) {
-      dir = turn(mirror, dir);
-      turns.push(cell);
-    }
-    col += DX[dir]!;
-    row += DY[dir]!;
+  const start = portEntry(cfg, entry);
+  const seen = new Set<number>();
+  const out: DeflectorsTrace[] = [];
+  interface Branch {
+    col: number;
+    row: number;
+    dir: number;
+    turns: number[];
+    lensCells: number[];
+    lenses: number;
   }
-  return { out: exitPort(cfg, col - DX[dir]!, row - DY[dir]!, dir), bounces: turns.length, turns };
-}
-
-/**
- * Every way beams from `entries` could leave together, over every setting of the mirrors they
- * could meet: `visit` is called with each beam's port and turns, and the settings those routes use
- * (0 for a mirror no beam meets). A mirror one beam has set stays set for the beams after it, so
- * what is visited is what one grid can do. The order is fixed and the work bounded, so every
- * machine sees the same.
- */
-function explore(cfg: DeflectorsConfig, mirrors: readonly number[], entries: readonly number[], visit: (outs: readonly number[], bounces: readonly number[], setting: readonly number[]) => void): void {
-  const n = cfg.size;
-  const setting = new Array<number>(n * n).fill(0);
-  const outs: number[] = [];
-  const bounces: number[] = [];
-  let budget = SEARCH_BUDGET;
-  const start = (k: number): void => {
-    if (k === entries.length) {
-      visit(outs, bounces, setting);
-      return;
-    }
-    const e = portEntry(cfg, entries[k]!);
-    go(k, e.col, e.row, e.dir, 0);
-  };
-  const go = (k: number, colIn: number, rowIn: number, dirIn: number, countIn: number): void => {
-    let col = colIn;
-    let row = rowIn;
-    let dir = dirIn;
-    let count = countIn;
+  const todo: Branch[] = [{ ...start, turns: [], lensCells: [], lenses: 0 }];
+  while (todo.length > 0 && out.length < MAX_BRANCHES) {
+    const b = todo.shift()!;
+    let { col, row, dir } = b;
+    let stop = -1;
     for (;;) {
-      if (col < 0 || col >= n || row < 0 || row >= n) {
-        outs.push(exitPort(cfg, col - DX[dir]!, row - DY[dir]!, dir));
-        bounces.push(count);
-        start(k + 1);
-        outs.pop();
-        bounces.pop();
-        return;
-      }
+      if (col < 0 || col >= n || row < 0 || row >= n) break;
       const cell = row * n + col;
-      if (mirrors[cell] === DEFLECTORS_EMPTY) {
-        col += DX[dir]!;
-        row += DY[dir]!;
-        continue;
+      const key = cell * 4 + dir;
+      if (seen.has(key)) {
+        stop = cell;
+        break;
       }
-      if (--budget < 0) return;
-      const set = setting[cell]!;
-      if (set !== 0) {
-        // Met before, by this beam or one before it: it is set already.
-        dir = turn(set, dir);
-        count++;
-        col += DX[dir]!;
-        row += DY[dir]!;
-        continue;
+      seen.add(key);
+      const here = cells[cell]!;
+      if (isMirror(here)) {
+        dir = turn(here, dir);
+        b.turns.push(cell);
+      } else if (isSplitter(here)) {
+        const turns = [...b.turns, cell];
+        for (const d of [(dir + 3) % 4, (dir + 1) % 4]) todo.push({ col: col + DX[d]!, row: row + DY[d]!, dir: d, turns: [...turns], lensCells: [...b.lensCells], lenses: b.lenses });
+        stop = -2;
+        break;
+      } else if (lensKind(here) >= 0) {
+        b.lenses |= 1 << lensKind(here);
+        b.lensCells.push(cell);
       }
-      for (let way = DEFLECTORS_SLASH; way <= DEFLECTORS_BACKSLASH; way++) {
-        setting[cell] = way;
-        const d = turn(way, dir);
-        go(k, col + DX[d]!, row + DY[d]!, d, count + 1);
-      }
-      setting[cell] = 0;
-      return;
+      col += DX[dir]!;
+      row += DY[dir]!;
     }
-  };
-  start(0);
+    // A split ends this beam where its two branches begin: they are followed instead.
+    if (stop === -2) continue;
+    const t = { bounces: b.turns.length, turns: b.turns, lenses: b.lenses, lensCells: b.lensCells };
+    out.push(stop >= 0 ? { out: -1, stop, ...t } : { out: exitPort(cfg, col - DX[dir]!, row - DY[dir]!, dir), stop: -1, ...t });
+  }
+  return out;
 }
 
-/** A beam's own points for leaving by its exit after `bounces` turns. */
-export function beamPoints(cfg: DeflectorsConfig, bounces: number): number {
+/** The way a beam from `entry` runs through `cells` as they stand: its first branch, the whole beam on a grid with no splitter. */
+export function trace(cfg: DeflectorsConfig, cells: readonly number[], entry: number): DeflectorsTrace {
+  return traceBeams(cfg, cells, entry)[0]!;
+}
+
+/** A beam's own points for lighting a target with a recipe of `recipe` (a mask) after `bounces` turns: (turns + 1) squared, and lensPercent more for each lens. */
+export function beamPoints(cfg: DeflectorsConfig, bounces: number, recipe = 0): number {
   const b = Math.min(bounces, cfg.bounceCap);
-  return cfg.bouncePoints * (b + 1) * (b + 1);
+  const turned = cfg.bouncePoints * (b + 1) * (b + 1);
+  return Math.floor((turned * (100 + cfg.lensPercent * recipeSize(recipe))) / 100);
 }
 
-/** What the streak multiplies a clean volley by, in percent, at a streak of `streak` clean volleys. */
-export function streakPercentAt(cfg: DeflectorsConfig, streak: number): number {
-  if (streak <= 0) return 100;
-  return cfg.streakPercent[Math.min(streak, cfg.streakPercent.length) - 1]!;
+/** What a shot lighting `lit` targets is multiplied by, in percent. */
+export function litPercentAt(cfg: DeflectorsConfig, lit: number): number {
+  if (lit <= 0) return 0;
+  return cfg.litPercent[Math.min(lit, cfg.litPercent.length) - 1]!;
 }
 
-/** What a volley's hits come to: their own points, multiplied when the volley is perfect, and by the streak it stands at. */
-export function volleyPoints(cfg: DeflectorsConfig, base: number, perfect: boolean, streak: number): number {
-  const routed = perfect ? Math.floor((base * cfg.perfectPercent) / 100) : base;
-  return Math.floor((routed * streakPercentAt(cfg, streak)) / 100);
+/** True when a beam that left by `out` having passed `lenses` lights `target`: its port, and exactly its recipe. */
+export function lights(target: DeflectorsTarget, out: number, lenses: number): boolean {
+  return out === target.port && lenses === target.recipe;
 }
 
-/** One way beams could be given exits: the ports, and the most and the least the beams' own points come to over the settings that reach them. */
-export interface DeflectorsOption {
-  readonly exits: readonly number[];
-  readonly best: number;
-  readonly least: number;
+/** What firing every emitter through `cells` does to `targets`: beams in emitter order, each branch in turn, each target lit once. */
+export function resolve(cfg: DeflectorsConfig, cells: readonly number[], emitters: readonly number[], targets: readonly DeflectorsTarget[]): DeflectorsOutcome {
+  const lit = new Set<number>();
+  const shots: DeflectorsShot[] = emitters.flatMap((entry, emitter) =>
+    traceBeams(cfg, cells, entry).map((t) => {
+      const target = targets.find((g) => !lit.has(g.id) && lights(g, t.out, t.lenses));
+      if (!target) return { entry, emitter, ...t, target: -1, points: 0 };
+      lit.add(target.id);
+      return { entry, emitter, ...t, target: target.id, points: beamPoints(cfg, t.bounces, target.recipe) };
+    }),
+  );
+  const base = shots.reduce((a, s) => a + s.points, 0);
+  const pct = litPercentAt(cfg, lit.size);
+  return { shots, lit: lit.size, base, litPercent: pct, points: Math.floor((base * pct) / 100) };
 }
 
-/**
- * Every set of exits beams from `entries` can reach together, whatever the mirrors are set to: an
- * exit is a port no beam of the volley comes in by, and no two beams share one. Only where the
- * mirrors are matters, not how they are set. In a fixed order: by the first beam's exit, then the
- * next.
- */
-export function volleyOptions(cfg: DeflectorsConfig, mirrors: readonly number[], entries: readonly number[]): DeflectorsOption[] {
-  const ports = portCount(cfg);
-  const found = new Map<number, { best: number; least: number }>();
-  explore(cfg, mirrors, entries, (outs, bounces) => {
-    let key = 0;
-    let total = 0;
-    for (let i = 0; i < outs.length; i++) {
-      const out = outs[i]!;
-      if (entries.includes(out)) return;
-      for (let j = 0; j < i; j++) if (outs[j] === out) return;
-      key = key * ports + out;
-      total += beamPoints(cfg, bounces[i]!);
-    }
-    const seen = found.get(key);
-    if (!seen) found.set(key, { best: total, least: total });
-    else {
-      if (total > seen.best) seen.best = total;
-      if (total < seen.least) seen.least = total;
-    }
-  });
-  return [...found.keys()]
-    .sort((a, b) => a - b)
-    .map((key) => {
-      const exits = new Array<number>(entries.length);
-      let rest = key;
-      for (let i = entries.length - 1; i >= 0; i--) {
-        exits[i] = rest % ports;
-        rest = Math.floor(rest / ports);
-      }
-      return { exits, best: found.get(key)!.best, least: found.get(key)!.least };
-    });
+/** What firing now would do. */
+export function outlook(state: DeflectorsState): DeflectorsOutcome {
+  return resolve(state.config, state.mirrors, state.emitters, state.targets);
 }
 
-/**
- * A setting of the mirrors worth the most there is with every beam out through its exit: the beams'
- * own points under it, and the mirrors to flip, in the order the beams meet them, to get there from
- * `mirrors` as they stand. Of the settings worth that much, the one the fewest flips away. Null
- * when no setting sends every beam home.
- */
-export function volleyRoute(cfg: DeflectorsConfig, mirrors: readonly number[], beams: readonly DeflectorsBeam[]): { base: number; flips: number[] } | null {
-  const entries = beams.map((b) => b.entry);
-  let bestBase = -1;
-  let bestFlips = 0;
-  let bestSetting: number[] | null = null;
-  explore(cfg, mirrors, entries, (outs, bounces, setting) => {
-    let base = 0;
-    for (let i = 0; i < outs.length; i++) {
-      if (outs[i] !== beams[i]!.exit) return;
-      base += beamPoints(cfg, bounces[i]!);
-    }
-    if (base < bestBase) return;
-    let flips = 0;
-    for (let c = 0; c < setting.length; c++) if (setting[c] !== 0 && setting[c] !== mirrors[c]) flips++;
-    if (base === bestBase && flips >= bestFlips) return;
-    bestBase = base;
-    bestFlips = flips;
-    bestSetting = setting.slice();
-  });
-  if (bestSetting === null) return null;
-  const want: number[] = bestSetting;
-  const set = mirrors.map((m, cell) => (want[cell] !== 0 ? want[cell]! : m));
-  const flips: number[] = [];
-  for (const beam of beams) for (const cell of trace(cfg, set, beam.entry).turns) if (mirrors[cell] !== set[cell] && !flips.includes(cell)) flips.push(cell);
-  return { base: bestBase, flips };
-}
-
-/** The most the beams' own points come to over every setting that sends each out through its exit, or -1 when none does. */
-export function volleyBest(cfg: DeflectorsConfig, mirrors: readonly number[], beams: readonly DeflectorsBeam[]): number {
-  return volleyRoute(cfg, mirrors, beams)?.base ?? -1;
-}
-
-/**
- * What `volley` does fired through `mirrors` as they stand, at a streak of `combo` and a score of
- * `score`. The board shows this while the volley waits; the reducer scores with it.
- */
-export function resolve(cfg: DeflectorsConfig, mirrors: readonly number[], volley: DeflectorsVolley, combo: number, score: number): DeflectorsOutcome {
-  const traces = volley.beams.map((beam) => trace(cfg, mirrors, beam.entry));
-  let hits = 0;
-  let base = 0;
-  volley.beams.forEach((beam, i) => {
-    if (traces[i]!.out !== beam.exit) return;
-    hits++;
-    base += beamPoints(cfg, traces[i]!.bounces);
-  });
-  const clean = hits === volley.beams.length;
-  const perfect = clean && base >= volley.best;
-  const streak = clean ? combo + 1 : 0;
-  const gained = volleyPoints(cfg, base, perfect, streak);
-  // The hits are banked first, then the hull takes its due for each miss, never below zero.
-  let left = score + gained;
-  let lost = 0;
-  const shots: DeflectorsShot[] = volley.beams.map((beam, i) => {
-    const t = traces[i]!;
-    const hit = t.out === beam.exit;
-    let points = 0;
-    if (hit) points = beamPoints(cfg, t.bounces);
-    else {
-      const take = Math.min(left, cfg.hullPenalty);
-      left -= take;
-      lost += take;
-      if (take > 0) points = -take;
-    }
-    return { sign: beam.sign, entry: beam.entry, exit: beam.exit, out: t.out, bounces: t.bounces, turns: t.turns, hit, points };
-  });
-  return { shots, hits, clean, perfect, base, streak, streakPercent: streakPercentAt(cfg, streak), gained, lost, points: gained - lost };
-}
-
-/** What the waiting volley would do if it fired now, or null when none waits. */
-export function outlook(state: DeflectorsState): DeflectorsOutcome | null {
-  if (!state.volley) return null;
-  return resolve(state.config, state.mirrors, state.volley, state.combo, state.score);
-}
-
-/** What the waiting volley would add fired perfect now, or 0 when none waits. */
-export function bestPoints(state: DeflectorsState): number {
-  if (!state.volley) return 0;
-  return volleyPoints(state.config, state.volley.best, true, state.combo + 1);
-}
-
-export function flipIllegalReason(state: DeflectorsState, cell: number): string | null {
-  if (state.finished) return "game is finished";
+/** Why the next piece cannot go on `cell` now, or null when it can. */
+export function placeIllegalReason(state: DeflectorsState, cell: number): string | null {
   if (!Number.isInteger(cell) || cell < 0 || cell >= state.mirrors.length) return "no such cell";
-  if (state.mirrors[cell] === DEFLECTORS_EMPTY) return "no mirror there";
+  if (state.queue.length === 0) return "no piece waiting";
   return null;
+}
+
+/** Why the emitters cannot fire now, or null when they can. */
+export function fireIllegalReason(state: DeflectorsState, tick: number): string | null {
+  return tick < state.fireTick ? "the emitters are not ready" : null;
+}
+
+/** A recipe drawn by the weights: how many lenses, then which. */
+function drawRecipe(cfg: DeflectorsConfig, rng: PrngState): { recipe: number; rng: PrngState } {
+  const total = cfg.recipeWeights.reduce((a, w) => a + w, 0);
+  let r = nextInt(rng, total);
+  let pick = r.value;
+  let size = 0;
+  while (pick >= cfg.recipeWeights[size]!) pick -= cfg.recipeWeights[size++]!;
+  let mask = 0;
+  while (recipeSize(mask) < size) {
+    r = nextInt(r.state, DEFLECTORS_LENS_KINDS);
+    mask |= 1 << r.value;
+  }
+  return { recipe: mask, rng: r.state };
+}
+
+/** A piece drawn: a lens of some kind lensChance in a hundred, a splitter splitterChance in a hundred, else a mirror set at random. */
+function drawPiece(cfg: DeflectorsConfig, rng: PrngState): { piece: number; rng: PrngState } {
+  const roll = nextInt(rng, 100);
+  if (roll.value < cfg.lensChance) {
+    const k = nextInt(roll.state, DEFLECTORS_LENS_KINDS);
+    return { piece: DEFLECTORS_LENS + k.value, rng: k.state };
+  }
+  if (roll.value < cfg.lensChance + cfg.splitterChance) return { piece: DEFLECTORS_SPLITTER, rng: roll.state };
+  const way = nextInt(roll.state, 2);
+  return { piece: way.value === 0 ? DEFLECTORS_SLASH : DEFLECTORS_BACKSLASH, rng: way.state };
+}
+
+/** A cell picked at random from the empty ones, or from all when none is empty. */
+function pickCell(cells: readonly number[], rng: PrngState): { cell: number; rng: PrngState } {
+  const empty = cells.flatMap((c, i) => (c === DEFLECTORS_EMPTY ? [i] : []));
+  const from = empty.length > 0 ? empty : cells.map((_, i) => i);
+  const r = nextInt(rng, from.length);
+  return { cell: from[r.value]!, rng: r.state };
 }
 
 export function createDeflectorsGame(seed: string, config: DeflectorsConfig = DEFAULT_DEFLECTORS_CONFIG): DeflectorsState {
   validateConfig(config);
+  const n = config.size;
   let rng = seedFromString(`deflectors:${seed}`);
-  const cells = config.size * config.size;
-  const mirrors = new Array<number>(cells).fill(DEFLECTORS_EMPTY);
-  const free: number[] = [];
-  for (let c = 0; c < cells; c++) free.push(c);
-  for (let m = 0; m < config.mirrors; m++) {
-    const pick = nextInt(rng, free.length);
-    rng = pick.state;
-    const cell = free.splice(pick.value, 1)[0]!;
-    const way = nextInt(rng, 2);
+  const mirrors = new Array<number>(n * n).fill(DEFLECTORS_EMPTY);
+  for (let i = 0; i < config.mirrors; i++) {
+    const c = pickCell(mirrors, rng);
+    const way = nextInt(c.rng, 2);
+    mirrors[c.cell] = way.value === 0 ? DEFLECTORS_SLASH : DEFLECTORS_BACKSLASH;
     rng = way.state;
-    mirrors[cell] = way.value === 0 ? DEFLECTORS_SLASH : DEFLECTORS_BACKSLASH;
+  }
+  for (let i = 0; i < config.lenses; i++) {
+    const c = pickCell(mirrors, rng);
+    mirrors[c.cell] = DEFLECTORS_LENS + (i % DEFLECTORS_LENS_KINDS);
+    rng = c.rng;
+  }
+  // Targets on the top, right and bottom edges, no two on one port.
+  const ports = Array.from({ length: 3 * n }, (_, i) => i);
+  const targets: DeflectorsTarget[] = [];
+  for (let id = 0; id < config.targets; id++) {
+    const p = nextInt(rng, ports.length);
+    const port = ports.splice(p.value, 1)[0]!;
+    const r = drawRecipe(config, p.state);
+    targets.push({ id, port, recipe: r.recipe });
+    rng = r.rng;
+  }
+  targets.sort((a, b) => a.port - b.port);
+  const queue: number[] = [];
+  const shown = Math.min(config.queueSize, config.pieces);
+  for (let i = 0; i < shown; i++) {
+    const d = drawPiece(config, rng);
+    queue.push(d.piece);
+    rng = d.rng;
   }
   return {
     config,
     tick: 0,
     mirrors,
-    volley: null,
-    nextDealTick: config.openingTicks,
+    emitters: emitterPorts(config),
+    targets: targets.map((t, id) => ({ ...t, id })),
+    queue,
+    left: config.pieces - shown,
+    fireTick: 0,
     rng,
-    nextVolleyId: 1,
     eventSeq: 0,
     logLength: 0,
-    flips: 0,
-    volleys: 0,
-    hits: 0,
-    misses: 0,
-    perfects: 0,
+    placed: 0,
+    binned: 0,
+    shots: 0,
+    lit: 0,
+    spent: 0,
+    bestShot: 0,
+    bestLit: 0,
     longest: 0,
     score: 0,
-    combo: 0,
-    bestCombo: 0,
     lastMove: null,
     finished: false,
   };
 }
 
-/** The mutable copy of a state the reducer works on. */
+/** The mutable copy a move works on. */
 interface Work {
   cfg: DeflectorsConfig;
   tick: number;
   mirrors: number[];
-  volley: DeflectorsVolley | null;
-  nextDealTick: number;
+  targets: DeflectorsTarget[];
+  queue: number[];
+  left: number;
+  fireTick: number;
   rng: PrngState;
-  nextVolleyId: number;
   eventSeq: number;
-  events: DeflectorsEvent[];
-  flips: number;
-  volleys: number;
-  hits: number;
-  misses: number;
-  perfects: number;
+  placed: number;
+  binned: number;
+  shots: number;
+  lit: number;
+  spent: number;
+  bestShot: number;
+  bestLit: number;
   longest: number;
   score: number;
-  combo: number;
-  bestCombo: number;
-  finished: boolean;
+  events: DeflectorsEvent[];
 }
 
-function startWork(state: DeflectorsState): Work {
+function startWork(s: DeflectorsState): Work {
   return {
-    cfg: state.config,
-    tick: state.tick,
-    mirrors: state.mirrors.slice(),
-    volley: state.volley,
-    nextDealTick: state.nextDealTick,
-    rng: state.rng,
-    nextVolleyId: state.nextVolleyId,
-    eventSeq: state.eventSeq,
+    cfg: s.config,
+    tick: s.tick,
+    mirrors: [...s.mirrors],
+    targets: [...s.targets],
+    queue: [...s.queue],
+    left: s.left,
+    fireTick: s.fireTick,
+    rng: s.rng,
+    eventSeq: s.eventSeq,
+    placed: s.placed,
+    binned: s.binned,
+    shots: s.shots,
+    lit: s.lit,
+    spent: s.spent,
+    bestShot: s.bestShot,
+    bestLit: s.bestLit,
+    longest: s.longest,
+    score: s.score,
     events: [],
-    flips: state.flips,
-    volleys: state.volleys,
-    hits: state.hits,
-    misses: state.misses,
-    perfects: state.perfects,
-    longest: state.longest,
-    score: state.score,
-    combo: state.combo,
-    bestCombo: state.bestCombo,
-    finished: state.finished,
   };
 }
 
-function finishWork(state: DeflectorsState, w: Work): DeflectorsState {
+function finishWork(s: DeflectorsState, w: Work): DeflectorsState {
   return {
-    ...state,
+    ...s,
     tick: w.tick,
     mirrors: w.mirrors,
-    volley: w.volley,
-    nextDealTick: w.nextDealTick,
+    targets: w.targets,
+    queue: w.queue,
+    left: w.left,
+    fireTick: w.fireTick,
     rng: w.rng,
-    nextVolleyId: w.nextVolleyId,
     eventSeq: w.eventSeq,
-    flips: w.flips,
-    volleys: w.volleys,
-    hits: w.hits,
-    misses: w.misses,
-    perfects: w.perfects,
+    placed: w.placed,
+    binned: w.binned,
+    shots: w.shots,
+    lit: w.lit,
+    spent: w.spent,
+    bestShot: w.bestShot,
+    bestLit: w.bestLit,
     longest: w.longest,
     score: w.score,
-    combo: w.combo,
-    bestCombo: w.bestCombo,
-    finished: w.finished,
   };
 }
 
-/**
- * Announce a volley at `tick`: entry ports drawn at random, and exits the mirrors can reach
- * together. A few sets of entries are tried for exits worth routing to; failing that the best seen
- * will do, and a grid too bare for the volley's size deals a smaller one.
- */
-function deal(w: Work, tick: number): void {
-  const cfg = w.cfg;
-  const ports: number[] = [];
-  for (let p = 0; p < portCount(cfg); p++) ports.push(p);
-  for (let i = ports.length - 1; i > 0; i--) {
-    const j = nextInt(w.rng, i + 1);
-    w.rng = j.state;
-    const t = ports[i]!;
-    ports[i] = ports[j.value]!;
-    ports[j.value] = t;
-  }
-  let chosen: { entries: number[]; exits: readonly number[]; best: number } | null = null;
-  for (let size = beamsAt(cfg, tick); size >= 1 && !chosen; size--) {
-    const floor = size * beamPoints(cfg, cfg.minBest);
-    let fallback: { entries: number[]; exits: readonly number[]; best: number } | null = null;
-    for (let attempt = 0; attempt < DEAL_TRIES && (attempt + 1) * size <= ports.length; attempt++) {
-      const entries = ports.slice(attempt * size, attempt * size + size);
-      const now = entries.map((entry) => trace(cfg, w.mirrors, entry).out);
-      const options = volleyOptions(cfg, w.mirrors, entries);
-      // Worth routing to: a long way round, a cheaper way that is not it, and no beam home already.
-      const rich = options.filter((o) => o.best >= floor && o.least < o.best && o.exits.every((exit, i) => exit !== now[i]));
-      if (rich.length > 0) {
-        const pick = nextInt(w.rng, rich.length);
-        w.rng = pick.state;
-        const o = rich[pick.value]!;
-        chosen = { entries, exits: o.exits, best: o.best };
-        break;
-      }
-      for (const o of options) if (!fallback || o.best > fallback.best) fallback = { entries, exits: o.exits, best: o.best };
-    }
-    chosen ??= fallback;
-  }
-  // One beam alone always has somewhere to go, so a volley is always dealt.
-  if (!chosen) return;
-  const got = chosen;
-  const beams: DeflectorsBeam[] = got.entries.map((entry, sign) => ({ sign, entry, exit: got.exits[sign]! }));
-  const volley: DeflectorsVolley = { id: w.nextVolleyId++, beams, dealTick: tick, fireTick: tick + chargeTicksAt(cfg, tick, beams.length), best: got.best };
-  w.volley = volley;
-  w.events.push({ seq: ++w.eventSeq, tick, type: "deal", volley });
-}
-
-/** Fire the waiting volley at `tick` through the mirrors as they stand, and score it. */
-function fire(w: Work, volley: DeflectorsVolley, tick: number, early: boolean): void {
-  const outcome = resolve(w.cfg, w.mirrors, volley, w.combo, w.score);
-  w.volley = null;
-  w.volleys++;
-  w.hits += outcome.hits;
-  w.misses += outcome.shots.length - outcome.hits;
-  if (outcome.perfect) w.perfects++;
-  for (const shot of outcome.shots) if (shot.hit) w.longest = Math.max(w.longest, shot.bounces);
-  w.combo = outcome.streak;
-  w.bestCombo = Math.max(w.bestCombo, w.combo);
-  w.score += outcome.points;
-  w.events.push({ seq: ++w.eventSeq, tick, type: "fire", volley, early, outcome });
-  // The next volley follows closely, so a quick hand sees more of them.
-  w.nextDealTick = tick + w.cfg.respawnTicks;
-}
-
-/** Carry the grid forward to `tick`: a volley whose count has ended fires, and the next is dealt when it is due. */
+/** Carry the round forward to `tick`. Nothing comes on the clock, so only the tick moves. */
 function simulate(state: DeflectorsState, tick: number): Work {
   const w = startWork(state);
-  while (!w.finished) {
-    const at = w.volley ? w.volley.fireTick : Math.max(w.nextDealTick, w.tick);
-    if (at > tick) break;
-    w.tick = at;
-    if (w.volley) fire(w, w.volley, at, false);
-    else deal(w, at);
-  }
   w.tick = Math.max(w.tick, tick);
   return w;
+}
+
+/** The next piece leaves the queue, and the supply refills it if any is left. */
+function takeNext(w: Work, tick: number): number {
+  const piece = w.queue.shift()!;
+  if (w.left > 0) {
+    const d = drawPiece(w.cfg, w.rng);
+    w.rng = d.rng;
+    w.queue.push(d.piece);
+    w.left--;
+    w.events.push({ seq: ++w.eventSeq, tick, type: "piece", piece: d.piece });
+  }
+  return piece;
+}
+
+/** Fire every emitter at `tick`: score the shot, spend what it used, and give lit targets new recipes. */
+function fire(w: Work, emitters: readonly number[], tick: number): void {
+  const outcome = resolve(w.cfg, w.mirrors, emitters, w.targets);
+  w.shots++;
+  w.lit += outcome.lit;
+  w.score += outcome.points;
+  w.bestShot = Math.max(w.bestShot, outcome.points);
+  w.bestLit = Math.max(w.bestLit, outcome.lit);
+  for (const shot of outcome.shots) if (shot.target >= 0) w.longest = Math.max(w.longest, shot.bounces);
+  let spent: number[] = [];
+  if (w.cfg.spend) {
+    const cells = new Set<number>();
+    for (const shot of outcome.shots) {
+      for (const c of shot.turns) cells.add(c);
+      if (shot.target >= 0) for (const c of shot.lensCells) cells.add(c);
+    }
+    spent = [...cells].sort((a, b) => a - b);
+    for (const c of spent) w.mirrors[c] = DEFLECTORS_EMPTY;
+    w.spent += spent.length;
+  }
+  const litIds = new Set(outcome.shots.filter((s) => s.target >= 0).map((s) => s.target));
+  w.targets = w.targets.map((t) => {
+    if (!litIds.has(t.id)) return t;
+    const r = drawRecipe(w.cfg, w.rng);
+    w.rng = r.rng;
+    return { ...t, recipe: r.recipe };
+  });
+  w.fireTick = tick + w.cfg.fireTicks;
+  w.events.push({ seq: ++w.eventSeq, tick, type: "fire", outcome, spent, targets: w.targets });
 }
 
 export function reduceDeflectors(state: DeflectorsState, move: DeflectorsMove): DeflectorsState {
@@ -548,23 +462,36 @@ export function reduceDeflectors(state: DeflectorsState, move: DeflectorsMove): 
   if (!Number.isInteger(move.tick) || move.tick < state.tick) throw new InvalidMoveError("tick must not go backwards", move);
   if (move.tick > state.config.maxTick) throw new InvalidMoveError("tick beyond the round", move);
   const w = simulate(state, move.tick);
+  const now = finishWork(state, w);
   switch (move.type) {
     case "wait":
       break;
     case "end":
-      w.finished = true;
       break;
-    case "flip": {
-      const reason = flipIllegalReason(state, move.cell);
+    case "place": {
+      const reason = placeIllegalReason(now, move.cell);
       if (reason !== null) throw new InvalidMoveError(reason, move);
-      w.mirrors[move.cell] = w.mirrors[move.cell] === DEFLECTORS_SLASH ? DEFLECTORS_BACKSLASH : DEFLECTORS_SLASH;
-      w.flips++;
+      w.mirrors[move.cell] = takeNext(w, move.tick);
+      w.placed++;
+      break;
+    }
+    case "bin": {
+      if (w.queue.length === 0) throw new InvalidMoveError("no piece waiting", move);
+      const piece = takeNext(w, move.tick);
+      w.binned++;
+      w.events.push({ seq: ++w.eventSeq, tick: move.tick, type: "bin", piece });
+      break;
+    }
+    case "turn": {
+      const next = w.queue[0];
+      if (next === undefined || !isMirror(next)) throw new InvalidMoveError("no mirror waiting", move);
+      w.queue[0] = next === DEFLECTORS_SLASH ? DEFLECTORS_BACKSLASH : DEFLECTORS_SLASH;
       break;
     }
     case "fire": {
-      // A volley whose count ended on this very tick has fired already: there is nothing left to fire.
-      if (!w.volley || w.volley.id !== move.volley) throw new InvalidMoveError("no such volley waiting", move);
-      fire(w, w.volley, move.tick, true);
+      const reason = fireIllegalReason(now, move.tick);
+      if (reason !== null) throw new InvalidMoveError(reason, move);
+      fire(w, state.emitters, move.tick);
       break;
     }
     default: {
@@ -574,11 +501,14 @@ export function reduceDeflectors(state: DeflectorsState, move: DeflectorsMove): 
   }
   const logLength = state.logLength + 1;
   const report: DeflectorsMoveReport = { move, events: w.events, points: w.score - state.score };
+  const next = finishWork(state, w);
+  // With the supply used up, a grid that lights nothing has nothing left to give.
+  const spentOut = w.queue.length === 0 && outlook(next).lit === 0;
   return {
-    ...finishWork(state, w),
+    ...next,
     logLength,
     lastMove: report,
-    finished: w.finished || logLength >= state.config.maxMoves || w.tick >= state.config.maxTick,
+    finished: move.type === "end" || spentOut || logLength >= state.config.maxMoves || w.tick >= state.config.maxTick,
   };
 }
 
@@ -599,15 +529,15 @@ export function hashDeflectorsState(state: DeflectorsState): string {
   const h = new Hasher();
   h.int(state.config.size).int(state.tick);
   for (const m of state.mirrors) h.int(m);
-  const v = state.volley;
-  h.int(v ? v.beams.length : -1);
-  if (v) {
-    h.int(v.id).int(v.dealTick).int(v.fireTick).int(v.best);
-    for (const b of v.beams) h.int(b.sign).int(b.entry).int(b.exit);
-  }
-  h.int(state.nextDealTick).int(state.nextVolleyId).int(state.eventSeq).int(state.logLength);
-  h.int(state.flips).int(state.volleys).int(state.hits).int(state.misses).int(state.perfects).int(state.longest);
-  h.int(state.score).int(state.combo).int(state.bestCombo);
+  h.int(state.emitters.length);
+  for (const e of state.emitters) h.int(e);
+  h.int(state.targets.length);
+  for (const t of state.targets) h.int(t.id).int(t.port).int(t.recipe);
+  h.int(state.queue.length);
+  for (const q of state.queue) h.int(q);
+  h.int(state.left).int(state.fireTick).int(state.eventSeq).int(state.logLength);
+  h.int(state.placed).int(state.binned).int(state.shots).int(state.lit).int(state.spent);
+  h.int(state.bestShot).int(state.bestLit).int(state.longest).int(state.score);
   h.int(state.rng.a).int(state.rng.b).int(state.rng.c).int(state.rng.d);
   h.int(state.finished ? 1 : 0);
   return h.digest();
@@ -619,34 +549,55 @@ export interface DeflectorsSummary {
   readonly bestCombo: number;
 }
 
-/** `moves` is volleys fired: the count a player would recognise. */
+/** `moves` is shots fired, and `bestCombo` the most targets one shot lit: the counts a player would recognise. */
 export function summarizeDeflectors(state: DeflectorsState): DeflectorsSummary {
-  return { score: state.score, moves: state.volleys, bestCombo: state.bestCombo };
+  return { score: state.score, moves: state.shots, bestCombo: state.bestLit };
 }
 
 /**
- * The mirror to flip next, for the idle hint in unrated practice: the first flip towards a setting
- * worth the most the waiting volley can be. Null when the volley is perfect as the mirrors stand,
- * or none waits. Following it flip by flip always arrives: each flip is one fewer to go.
+ * Where the next piece would make the shot worth the most right now, for the idle hint in unrated
+ * practice, and whether to turn it first. One way among many, and a short-sighted one: it never
+ * looks past the next shot. Null when no cell makes the shot worth more than it is, or no piece waits.
  */
-export function hint(state: DeflectorsState): { cell: number } | null {
-  const volley = state.volley;
-  if (!volley || state.finished) return null;
-  if (resolve(state.config, state.mirrors, volley, state.combo, state.score).perfect) return null;
-  const cell = volleyRoute(state.config, state.mirrors, volley.beams)?.flips[0];
-  return cell === undefined ? null : { cell };
+export function hint(state: DeflectorsState): { cell: number; turn: boolean } | null {
+  const next = state.queue[0];
+  if (next === undefined || state.finished) return null;
+  const cfg = state.config;
+  const cells = [...state.mirrors];
+  const now = resolve(cfg, cells, state.emitters, state.targets).points;
+  const ways = isMirror(next) ? [next, next === DEFLECTORS_SLASH ? DEFLECTORS_BACKSLASH : DEFLECTORS_SLASH] : [next];
+  let best: { cell: number; turn: boolean; points: number } | null = null;
+  for (let cell = 0; cell < cells.length; cell++) {
+    const was = cells[cell]!;
+    ways.forEach((way, k) => {
+      cells[cell] = way;
+      const points = resolve(cfg, cells, state.emitters, state.targets).points;
+      if (points > now && (!best || points > best.points)) best = { cell, turn: k === 1, points };
+    });
+    cells[cell] = was;
+  }
+  const found = best as { cell: number; turn: boolean; points: number } | null;
+  return found ? { cell: found.cell, turn: found.turn } : null;
+}
+
+/** A cell as one character: `.` empty, `/` and `\\` mirrors, `a`, `b`, `c` lenses. */
+export function cellChar(cell: number): string {
+  if (cell === DEFLECTORS_SLASH) return "/";
+  if (cell === DEFLECTORS_BACKSLASH) return "\\";
+  if (cell === DEFLECTORS_SPLITTER) return "*";
+  return lensKind(cell) >= 0 ? String.fromCharCode(97 + lensKind(cell)) : ".";
 }
 
 /**
- * The grid as text: one character a cell, row by row (`.` empty, `/` and `\` mirrors), then a bar
- * and the waiting beams as sign:entry>exit, in order. What the board draws must match it.
+ * The board as text: one character a cell, row by row, then a bar and the targets as port~recipe in
+ * port order, then a bar and the queue, next first. What the board draws must match it.
  */
-export function viewString(mirrors: readonly number[], beams: ReadonlyArray<{ readonly sign: number; readonly entry: number; readonly exit: number }>): string {
-  const grid = mirrors.map((m) => (m === DEFLECTORS_SLASH ? "/" : m === DEFLECTORS_BACKSLASH ? "\\" : ".")).join("");
-  const waiting = beams
+export function viewString(cells: readonly number[], targets: ReadonlyArray<{ readonly port: number; readonly recipe: number }>, queue: readonly number[]): string {
+  const grid = cells.map(cellChar).join("");
+  const goals = targets
     .slice()
-    .sort((a, b) => a.sign - b.sign)
-    .map((b) => `${b.sign}:${b.entry}>${b.exit}`)
+    .sort((a, b) => a.port - b.port)
+    .map((t) => `${t.port}~${t.recipe}`)
     .join(",");
-  return `${grid}|${waiting}`;
+  return `${grid}|${goals}|${queue.map(cellChar).join("")}`;
 }

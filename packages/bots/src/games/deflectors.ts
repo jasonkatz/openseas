@@ -1,236 +1,173 @@
 /**
- * Deflectors for the bots: a choice is a whole volley plan, the mirrors to flip and then a fire,
- * each move landing at the tick a person would get to it. Plans come from the engine's own search
- * (the best setting, `volleyRoute`) and from the rule the board teaches (join a beam's line to the
- * dots running back from its exit). Beside them are the single flips a person might try on a drawn
- * line, firing now, and waiting out the count. With no volley up, the one thing to do is wait.
+ * Deflectors for the bots: a choice is one piece put down (turned first when that is the way it
+ * goes), the next piece binned, or a shot fired. Each lands at the tick a person would get to it.
+ * Beside the three every puzzle gets are two ways to play: the eager bot puts each piece where the
+ * shot is worth most now and fires at the first light; the builder looks one piece further ahead,
+ * bins a piece that helps nothing, and holds its fire for a shot worth a set amount. The builder
+ * is played at two paces, so the ladder shows what thinking longer costs against what it earns.
  */
 import {
+  DEFLECTORS_BACKSLASH,
   DEFLECTORS_DEF,
+  DEFLECTORS_EMPTY,
+  DEFLECTORS_SLASH,
+  deflectorsIsMirror,
   deflectorsOutlook,
   deflectorsResolve,
-  deflectorsTrace,
-  deflectorsVolleyRoute,
   type DeflectorsConfig,
   type DeflectorsMove,
   type DeflectorsState,
-  type DeflectorsVolley,
 } from "@openseas/engine";
-import type { Bot, BotGame, Choice, Rng } from "../core.js";
+import type { Bot, BotGame, Choice } from "../core.js";
 
-/** A person's pace at the rule the board teaches, from the tuning notes: the 0.8 s joiner. */
-const SECONDS_PER_FLIP = 0.8;
-/** The time to see the long way round, from the tuning notes: the longest bot at 6 s a beam. */
-const SECONDS_PER_BEAM = 6;
-/** The joiner gives up on a volley after this many flips. */
-const MAX_JOIN_FLIPS = 40;
-/** The bait's tries at a longer route once every beam is home. */
-const LENGTHEN_TRIES = 3;
+/** A person's time to put a piece down: see where it goes, turn it, tap. */
+const SECONDS_PER_PLACE = 1;
+/** A careful person's time for the same, and a slow one's. */
+const CAREFUL_SECONDS = 2.5;
+const SLOW_SECONDS = 5;
+/** A person's time to see a shot is ready and fire it. */
+const SECONDS_TO_FIRE = 0.5;
+/** What the builder gives the best a next mirror could make of a grid, against a shot it has now, in percent. */
+const AHEAD_PERCENT = 80;
 
 const ticks = (cfg: DeflectorsConfig, seconds: number): number => Math.max(1, Math.round((seconds * 1000) / cfg.tickMs));
 
-/** Each beam home as the mirrors stand. */
-function homes(cfg: DeflectorsConfig, mirrors: readonly number[], volley: DeflectorsVolley): boolean[] {
-  return volley.beams.map((b) => deflectorsTrace(cfg, mirrors, b.entry).out === b.exit);
+/** The two ways a piece can go down: as it is, and turned, for a mirror. */
+function ways(piece: number): Array<{ piece: number; turn: boolean }> {
+  if (!deflectorsIsMirror(piece)) return [{ piece, turn: false }];
+  return [
+    { piece, turn: false },
+    { piece: piece === DEFLECTORS_SLASH ? DEFLECTORS_BACKSLASH : DEFLECTORS_SLASH, turn: true },
+  ];
 }
 
-/**
- * The moves of a plan from `state`: each flip at its own tick, then a fire. Flips that would land
- * after the count ends are dropped, and a fire that would is replaced by waiting for the volley to
- * fire by itself; then a wait for the next volley to be dealt. Nothing goes past the round's last
- * tick. Null when nothing fits.
- */
-function planMoves(state: DeflectorsState, flips: readonly number[], at: readonly number[], fireAt: number): Choice<DeflectorsMove> | null {
-  const cfg = state.config;
-  const volley = state.volley;
-  if (!volley) return null;
-  const moves: DeflectorsMove[] = [];
-  for (let i = 0; i < flips.length; i++) {
-    const tick = state.tick + at[i]!;
-    if (tick >= volley.fireTick || tick > cfg.maxTick) break;
-    moves.push({ type: "flip", cell: flips[i]!, tick });
-  }
-  let fired = state.tick + fireAt;
-  if (fired < volley.fireTick && fired <= cfg.maxTick) moves.push({ type: "fire", volley: volley.id, tick: fired });
-  else fired = volley.fireTick;
-  // Then on to the next volley, so every decision is made with one in sight.
-  const next = fired + cfg.respawnTicks;
-  if (next <= cfg.maxTick) moves.push({ type: "wait", tick: next });
-  else if (fired <= cfg.maxTick && moves.at(-1)?.type !== "fire") moves.push({ type: "wait", tick: fired });
-  return moves.length ? { moves } : null;
+/** Put the next piece on `cell`, turned first or not, a placing's time from now. Null past the round. */
+function place(state: DeflectorsState, cell: number, turn: boolean, seconds = SECONDS_PER_PLACE): Choice<DeflectorsMove> | null {
+  const tick = state.tick + ticks(state.config, seconds);
+  // The round is over at its last tick, so a turn there would leave the piece unplaced.
+  if (tick >= state.config.maxTick) return null;
+  const moves: DeflectorsMove[] = turn ? [{ type: "turn", tick }, { type: "place", cell, tick }] : [{ type: "place", cell, tick }];
+  return { moves };
 }
 
-/** Flips one after another at a person's flip pace, then a fire one flip later. */
-function pacedPlan(state: DeflectorsState, flips: readonly number[]): Choice<DeflectorsMove> | null {
-  const step = ticks(state.config, SECONDS_PER_FLIP);
-  return planMoves(state, flips, flips.map((_, i) => (i + 1) * step), (flips.length + 1) * step);
+/** Fire, as soon as a person would and the emitters are ready. Null past the round. */
+function fire(state: DeflectorsState): Choice<DeflectorsMove> | null {
+  const tick = Math.max(state.fireTick, state.tick + ticks(state.config, SECONDS_TO_FIRE));
+  return tick <= state.config.maxTick ? { moves: [{ type: "fire", tick }] } : null;
 }
 
-/** The best setting, as the engine's search finds it, seen in a person's time for each beam and fired. */
-function longestPlan(state: DeflectorsState, secondsPerBeam = SECONDS_PER_BEAM): Choice<DeflectorsMove> | null {
-  const volley = state.volley;
-  if (!volley) return null;
-  const route = deflectorsVolleyRoute(state.config, state.mirrors, volley.beams);
-  if (!route) return null;
-  const total = ticks(state.config, secondsPerBeam * volley.beams.length);
-  const n = route.flips.length;
-  return planMoves(state, route.flips, route.flips.map((_, i) => Math.round((total * (i + 1)) / (n + 1))), total);
+/** Bin the next piece, a placing's time from now. Null past the round. */
+function bin(state: DeflectorsState, seconds = SECONDS_PER_PLACE): Choice<DeflectorsMove> | null {
+  const tick = state.tick + ticks(state.config, seconds);
+  return tick < state.config.maxTick ? { moves: [{ type: "bin", tick }] } : null;
 }
 
-/** The mirrors on any waiting beam's drawn lines: its route as it stands and the dots back from its exit. */
-function drawnMirrors(cfg: DeflectorsConfig, mirrors: readonly number[], volley: DeflectorsVolley): number[] {
-  const out: number[] = [];
-  for (const b of volley.beams) {
-    for (const cell of deflectorsTrace(cfg, mirrors, b.entry).turns) if (!out.includes(cell)) out.push(cell);
-    for (const cell of deflectorsTrace(cfg, mirrors, b.exit).turns) if (!out.includes(cell)) out.push(cell);
-  }
-  return out.sort((a, b) => a - b);
-}
-
-/**
- * The joining rule, played on a copy of the mirrors: for the first beam astray, flip a mirror where
- * its line and the way back from its exit cross (one that leaves the other beams as they are, when
- * there is one), and otherwise any mirror on either line, then look again. `pick` chooses among
- * equals. Returns the flips and the mirrors they leave.
- */
-function join(cfg: DeflectorsConfig, start: readonly number[], volley: DeflectorsVolley, pick: (n: number) => number): { flips: number[]; mirrors: number[] } {
-  const mirrors = start.slice();
-  const flips: number[] = [];
-  let last = -1;
-  const flip = (cell: number): void => {
-    mirrors[cell] = 3 - mirrors[cell]!;
-    flips.push(cell);
-    last = cell;
-  };
-  while (flips.length < MAX_JOIN_FLIPS) {
-    const home = homes(cfg, mirrors, volley);
-    const astray = home.indexOf(false);
-    if (astray < 0) break;
-    const beam = volley.beams[astray]!;
-    const line = deflectorsTrace(cfg, mirrors, beam.entry).turns;
-    const back = deflectorsTrace(cfg, mirrors, beam.exit).turns;
-    const crossings = [...new Set(line.filter((c) => back.includes(c)))].sort((a, b) => a - b);
-    if (crossings.length) {
-      // Of the crossings, those that keep every other beam home stay home.
-      const keeps = crossings.filter((c) => {
-        const tried = mirrors.slice();
-        tried[c] = 3 - tried[c]!;
-        const after = homes(cfg, tried, volley);
-        return home.every((h, i) => i === astray || !h || after[i]);
-      });
-      const from = keeps.length ? keeps : crossings;
-      flip(from[pick(from.length)]!);
-      continue;
-    }
-    let either = [...new Set([...line, ...back])].sort((a, b) => a - b);
-    if (either.length > 1) either = either.filter((c) => c !== last);
-    if (either.length === 0) break;
-    // Looking again: a flip that makes the two lines cross, when one does.
-    const crosses = either.filter((c) => {
-      const tried = mirrors.slice();
-      tried[c] = 3 - tried[c]!;
-      const l = deflectorsTrace(cfg, tried, beam.entry);
-      if (l.out === beam.exit) return true;
-      const b = deflectorsTrace(cfg, tried, beam.exit).turns;
-      return l.turns.some((t) => b.includes(t));
-    });
-    const from = crosses.length ? crosses : either;
-    flip(from[pick(from.length)]!);
-  }
-  return { flips, mirrors };
-}
-
-/** Wait for the next volley to be dealt, or null when none comes before the round ends. */
-function waitForDeal(state: DeflectorsState): Choice<DeflectorsMove> | null {
-  const tick = Math.max(state.nextDealTick, state.tick + 1);
+/** Wait for the emitters to recharge. Null past the round. */
+function waitToFire(state: DeflectorsState): Choice<DeflectorsMove> | null {
+  const tick = Math.max(state.fireTick, state.tick + 1);
   return tick <= state.config.maxTick ? { moves: [{ type: "wait", tick }] } : null;
 }
 
-/** Every decision worth weighing: the best plan, the joined plan, a flip on a drawn line, fire now, or wait. */
+/** Every decision: the next piece on any cell either way, binned, or a shot. */
 function choices(state: DeflectorsState): Choice<DeflectorsMove>[] {
   if (state.finished) return [];
-  const cfg = state.config;
-  const volley = state.volley;
-  if (!volley) {
-    const w = waitForDeal(state);
-    return w ? [w] : [];
-  }
   const out: Choice<DeflectorsMove>[] = [];
   const push = (c: Choice<DeflectorsMove> | null): void => {
     if (c) out.push(c);
   };
-  push(longestPlan(state));
-  const joined = join(cfg, state.mirrors, volley, () => 0);
-  if (joined.flips.length && homes(cfg, joined.mirrors, volley).every(Boolean)) push(pacedPlan(state, joined.flips));
-  const step = ticks(cfg, SECONDS_PER_FLIP);
-  for (const cell of drawnMirrors(cfg, state.mirrors, volley)) {
-    const tick = state.tick + step;
-    if (tick <= cfg.maxTick) out.push({ moves: [{ type: "flip", cell, tick }] });
+  const next = state.queue[0];
+  if (next !== undefined) {
+    for (let cell = 0; cell < state.mirrors.length; cell++) for (const w of ways(next)) if (state.mirrors[cell] !== w.piece) push(place(state, cell, w.turn));
+    push(bin(state));
   }
-  push(pacedPlan(state, []));
-  push(planMoves(state, [], [], Infinity));
+  if (deflectorsOutlook(state).lit > 0) push(fire(state));
+  if (out.length === 0) push(waitToFire(state));
   return out;
 }
 
-/** What a waiting volley is worth fired now, when every beam is home; nothing otherwise. */
-function pending(state: DeflectorsState): number {
-  const o = deflectorsOutlook(state);
-  return o && o.clean ? o.points : 0;
+/** A shot's worth on `cells`. */
+const shotOn = (state: DeflectorsState, cells: readonly number[]): number => deflectorsResolve(state.config, cells, state.emitters, state.targets).points;
+
+/** The best a mirror on any cell, either way, could make the shot on `cells`. */
+function bestNext(state: DeflectorsState, cells: number[]): number {
+  let best = 0;
+  for (let c = 0; c < cells.length; c++) {
+    const was = cells[c]!;
+    for (const way of [DEFLECTORS_SLASH, DEFLECTORS_BACKSLASH]) {
+      if (way === was) continue;
+      cells[c] = way;
+      best = Math.max(best, shotOn(state, cells));
+    }
+    cells[c] = was;
+  }
+  return best;
 }
 
-/** The joining bot of the tuning notes, with its own coin flips among equal mirrors. */
-function joinerBot(): Bot<DeflectorsState, DeflectorsMove> {
-  return {
-    name: "joiner",
-    about: `Joins each beam's line to the way back from its exit, ${SECONDS_PER_FLIP} s a flip, and fires once every beam is home.`,
-    choose(state, ctx) {
-      const volley = state.volley;
-      if (!volley) return waitForDeal(state);
-      const { flips } = join(state.config, state.mirrors, volley, (n) => ctx.rng.int(n));
-      return pacedPlan(state, flips);
-    },
-  };
+/**
+ * Where to put the next piece: the cell and way that make the grid worth most. With `ahead`, a grid is
+ * worth the better of its shot now and most of what one more mirror could make it. Ties go to an
+ * empty cell, then the first.
+ */
+function bestPlace(state: DeflectorsState, ahead: boolean): { cell: number; turn: boolean; value: number } | null {
+  const next = state.queue[0];
+  if (next === undefined) return null;
+  const cells = [...state.mirrors];
+  let best: { cell: number; turn: boolean; value: number } | null = null;
+  for (let cell = 0; cell < cells.length; cell++) {
+    const was = cells[cell]!;
+    for (const w of ways(next)) {
+      if (w.piece === was) continue;
+      cells[cell] = w.piece;
+      const now = shotOn(state, cells);
+      const value = (ahead ? Math.max(now, Math.floor((bestNext(state, cells) * AHEAD_PERCENT) / 100)) : now) * 2 + (was === DEFLECTORS_EMPTY ? 1 : 0);
+      if (!best || value > best.value) best = { cell, turn: w.turn, value };
+    }
+    cells[cell] = was;
+  }
+  return best;
 }
 
-/** The longest bot of the tuning notes: handed the best setting, it pays only for the time to see it. */
-function longestBot(): Bot<DeflectorsState, DeflectorsMove> {
+/** What the builder makes of the grid as it stands, on the scale bestPlace uses, without the empty-cell tie-break. */
+function standing(state: DeflectorsState): number {
+  const cells = [...state.mirrors];
+  return Math.max(shotOn(state, cells), Math.floor((bestNext(state, cells) * AHEAD_PERCENT) / 100)) * 2;
+}
+
+/** The last tick a shot can still be fired by a person who decides now, or no pieces are left to build with. */
+const lastCall = (state: DeflectorsState, seconds: number): boolean => state.queue.length === 0 || state.tick + ticks(state.config, seconds + SECONDS_TO_FIRE) > state.config.maxTick;
+
+/** Puts each piece where the shot is worth most now, and fires at the first light (the bait). */
+function eagerBot(): Bot<DeflectorsState, DeflectorsMove> {
   return {
-    name: "longest",
-    about: `Takes the best setting the search finds, ${SECONDS_PER_BEAM} s a beam to see it, and fires.`,
+    name: "eager",
+    about: `Puts each piece where the shot is worth most now, ${SECONDS_PER_PLACE} s a piece, and fires as soon as anything lights (the bait).`,
     choose(state) {
-      return state.volley ? longestPlan(state) : waitForDeal(state);
+      if (deflectorsOutlook(state).lit > 0 && state.tick >= state.fireTick - ticks(state.config, SECONDS_TO_FIRE)) {
+        const f = fire(state);
+        if (f) return f;
+      }
+      const p = bestPlace(state, false);
+      return (p ? place(state, p.cell, p.turn) : null) ?? waitToFire(state);
     },
   };
 }
 
-/** One try at a longer route from a home one: flip a mirror on a route and keep it if every beam is still home and worth more. */
-function lengthen(cfg: DeflectorsConfig, mirrors: number[], volley: DeflectorsVolley, rng: Rng, flips: number[]): void {
-  const route: number[] = [];
-  for (const b of volley.beams) for (const c of deflectorsTrace(cfg, mirrors, b.entry).turns) if (!route.includes(c)) route.push(c);
-  if (route.length === 0) return;
-  const cell = rng.pick(route.sort((a, b) => a - b));
-  const before = deflectorsResolve(cfg, mirrors, volley, 0, 0).base;
-  mirrors[cell] = 3 - mirrors[cell]!;
-  flips.push(cell);
-  const after = deflectorsResolve(cfg, mirrors, volley, 0, 0);
-  if (after.clean && after.base > before) return;
-  mirrors[cell] = 3 - mirrors[cell]!;
-  flips.push(cell);
-}
-
-/** The bait: the joiner, but once home it tries three times to lengthen the route before it fires. */
-function lengthenerBot(): Bot<DeflectorsState, DeflectorsMove> {
+/** Looks one piece ahead, bins a piece that helps nothing, and holds its fire for a shot worth `hold`, or the round's end. */
+function builderBot(hold: number, seconds = SECONDS_PER_PLACE): Bot<DeflectorsState, DeflectorsMove> {
   return {
-    name: "lengthener",
-    about: `The joiner, but once every beam is home it tries ${LENGTHEN_TRIES} flips for a longer route before it fires (the bait).`,
-    choose(state, ctx) {
-      const volley = state.volley;
-      if (!volley) return waitForDeal(state);
-      const cfg = state.config;
-      const joined = join(cfg, state.mirrors, volley, (n) => ctx.rng.int(n));
-      const flips = joined.flips;
-      if (homes(cfg, joined.mirrors, volley).every(Boolean)) for (let t = 0; t < LENGTHEN_TRIES; t++) lengthen(cfg, joined.mirrors, volley, ctx.rng, flips);
-      return pacedPlan(state, flips);
+    name: seconds === SECONDS_PER_PLACE ? `builder ${hold}` : `builder ${hold}, ${seconds} s`,
+    about: `Puts each piece where the grid is worth most counting one mirror more, ${seconds} s a piece, bins one that adds nothing, and fires at a shot worth ${hold} or at the end.`,
+    choose(state) {
+      const o = deflectorsOutlook(state);
+      if (o.lit > 0 && (o.points >= hold || lastCall(state, seconds))) {
+        const f = fire(state);
+        if (f) return f;
+      }
+      const p = bestPlace(state, true);
+      if (!p) return waitToFire(state);
+      // A piece that makes the grid worth no more than it is goes in the bin, kept off the grid.
+      if (Math.floor(p.value / 2) * 2 < standing(state)) return bin(state, seconds) ?? waitToFire(state);
+      return place(state, p.cell, p.turn, seconds) ?? waitToFire(state);
     },
   };
 }
@@ -238,12 +175,14 @@ function lengthenerBot(): Bot<DeflectorsState, DeflectorsMove> {
 export const DEFLECTORS_BOTS: BotGame<DeflectorsState, DeflectorsMove, DeflectorsConfig> = {
   id: "deflectors",
   def: DEFLECTORS_DEF,
-  pace: `${SECONDS_PER_FLIP} s a flip, ${SECONDS_PER_BEAM} s a beam to see the long way round`,
+  pace: `${SECONDS_PER_PLACE} s a piece, ${SECONDS_TO_FIRE} s to fire`,
   elapsed: (s) => (s.tick * s.config.tickMs) / 1000,
   choices,
   end: (s, roundSeconds) => ({ type: "end", tick: Math.min(s.config.maxTick, Math.max(s.tick, Math.round((roundSeconds * 1000) / s.config.tickMs))) }),
-  worth: (before, after) => after.score + pending(after) - (before.score + pending(before)),
+  // What a careful player sees: points scored, and half of what the shot would score now.
+  worth: (before, after) => after.score - before.score + (deflectorsOutlook(after).points - deflectorsOutlook(before).points) / 2,
   open: true,
-  bots: [joinerBot(), longestBot(), lengthenerBot()],
-  baits: [{ bait: "lengthener", beats: "joiner" }],
+  bots: [eagerBot(), builderBot(1), builderBot(150), builderBot(800), builderBot(1500), builderBot(3000), builderBot(6000), builderBot(800, CAREFUL_SECONDS), builderBot(800, SLOW_SECONDS)],
+  baits: [{ bait: "eager", beats: "builder 150" }],
+  slow: ["builder 1", "builder 150", "builder 800", "builder 1500", "builder 3000", "builder 6000", `builder 800, ${CAREFUL_SECONDS} s`, `builder 800, ${SLOW_SECONDS} s`],
 };

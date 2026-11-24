@@ -96,6 +96,7 @@ import { FREEFALL_DEF } from "./freefall/index.js";
 import { SHOWDOWN_DEF } from "./showdown/index.js";
 import { FORGING_DEF } from "./forging/index.js";
 import { ASSEMBLY_DEF } from "./assembly/index.js";
+import { PACT_DEF } from "./pact/index.js";
 import { POURING_DEF } from "./pouring/index.js";
 
 export type { PuzzleDef, PuzzleSummary } from "./def.js";
@@ -107,7 +108,7 @@ export type CorePuzzleId = (typeof CORE_PUZZLE_IDS)[number];
  * Prototype puzzles (ADR 0036): whole engines the server verifies like any other, dealt only on the
  * studio. Nothing in the game deals one until it is promoted, which is a decision of its own.
  */
-export const PROTOTYPE_PUZZLE_IDS = ["salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting", "tractor", "refining", "freefall", "showdown", "forging", "assembly", "pouring"] as const;
+export const PROTOTYPE_PUZZLE_IDS = ["salvage", "overload", "deflectors", "reactor", "scanner", "tug", "racks", "cutting", "tractor", "refining", "freefall", "showdown", "forging", "assembly", "pact", "pouring"] as const;
 export type PrototypePuzzleId = (typeof PROTOTYPE_PUZZLE_IDS)[number];
 /** Every puzzle the engine knows about. */
 export const PUZZLE_IDS = [...CORE_PUZZLE_IDS, ...PROTOTYPE_PUZZLE_IDS] as const;
@@ -227,6 +228,7 @@ export const PUZZLES: Readonly<Record<PuzzleId, AnyPuzzleDef>> = {
   showdown: SHOWDOWN_DEF as unknown as AnyPuzzleDef,
   forging: FORGING_DEF as unknown as AnyPuzzleDef,
   assembly: ASSEMBLY_DEF as unknown as AnyPuzzleDef,
+  pact: PACT_DEF as unknown as AnyPuzzleDef,
   pouring: POURING_DEF as unknown as AnyPuzzleDef,
 };
 

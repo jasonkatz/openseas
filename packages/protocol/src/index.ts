@@ -25,6 +25,7 @@ export * from "./freefall.js";
 export * from "./showdown.js";
 export * from "./forging.js";
 export * from "./assembly.js";
+export * from "./pact.js";
 export * from "./pouring.js";
 export * from "./ws.js";
 export * from "./studio.js";

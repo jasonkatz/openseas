@@ -1,6 +1,6 @@
 # Prototype puzzles
 
-Fourteen puzzles, built to be played and judged in the studio (ADR 0036). None is in the game.
+Fifteen puzzles, built to be played and judged in the studio (ADR 0036). None is in the game.
 Eight are the game's own design: inspired by the feel of the original's puzzles, ported from none of
 them. All eight follow the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): each draws its pieces
 in code as flat pictograms of its own subject, on the game's one palette, and loads no image. The
@@ -10,7 +10,7 @@ generated sprites they first shipped with (ADR 0037) and the tooling that made t
 |---|---|---|---|
 | Salvage | Drag a tether through matching debris; close it into a net | `/salvage` | [salvage.md](./salvage.md) |
 | Overload | Tap a capacitor to charge it; a full one bursts into its neighbours | `/overload` | [overload.md](./overload.md) |
-| Deflectors | Tap a mirror to flip it; route each beam to its exit | `/deflectors` | [deflectors.md](./deflectors.md) |
+| Deflectors | Place mirrors and lenses from a queue; fire when the shot lights enough targets through their recipes | `/deflectors` | [deflectors.md](./deflectors.md) |
 | Reactor | Swipe the whole board; fuse rods and push hot ones out a port | `/reactor` | [reactor.md](./reactor.md) |
 | Scanner | Ping the fog and work out where the contacts are | `/scanner` | [scanner.md](./scanner.md) |
 | Tug | Flick a pod; it slides until something stops it | `/tug` | [tug.md](./tug.md) |
@@ -22,6 +22,7 @@ generated sprites they first shipped with (ADR 0037) and the tooling that made t
 | Showdown | Fold, call or raise at a fixed-limit hold'em table against three rivals who each play one way | `/showdown` | [showdown.md](./showdown.md) |
 | Forging | Strike a spot of a hot plate; its mark says where the press lands next | `/forging` | [forging.md](./forging.md) |
 | Assembly | Swap each part its own way; fit blueprints, several in a chain | `/assembly` | [assembly.md](./assembly.md) |
+| Pact | Bid the tricks you will take with a partner, then play a card to each trick; spades are trumps | `/pact` | [pact.md](./pact.md) |
 | Pouring | Set a drink down where it suits its neighbours; serve a full row or column before a rival does | `/pouring` | [pouring.md](./pouring.md) |
 
 Tractor is the ninth and of another kind: a successor to one of the original's later puzzles,
@@ -34,8 +35,10 @@ fixed limit against rivals the engine plays (ADR 0082).
 Forging is the thirteenth and the same kind: a successor to the crafting puzzle Blacksmithing
 (ADR 0083).
 Assembly is the fourteenth, the same kind: a successor to Shipwrightry, the original's shipyard
-crafting puzzle (ADR 0084). Pouring is the fifteenth: Drinking's successor, played against rivals
-the engine takes the turns of (ADR 0085).
+crafting puzzle (ADR 0084).
+Pact is the fifteenth, the same kind again: a successor to Spades, played with a partner and
+against two rivals the engine plays (ADR 0087). Pouring is the sixteenth: Drinking's successor,
+played against rivals the engine takes the turns of (ADR 0085).
 
 M11's pitches (a layer, a bait and stages for each puzzle but Salvage, with their bot checks) are in [m11-pitches.md](./m11-pitches.md), for the owner to pick from.
 
