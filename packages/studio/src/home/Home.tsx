@@ -263,6 +263,17 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
       <rect x="41" y="41" width="14" height="14" rx="3" fill="#c27f66" />
     </svg>
   ),
+  assembly: (
+    <svg viewBox="0 0 64 64" width="56" height="56">
+      <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />
+      <path d="M10 18l4-5h14l4 5-4 5h-14z" fill="#7fb0d8" />
+      <path d="M44 10l5 4v14l-5 4-5-4v-14z" fill="#8ebd88" />
+      <rect x="10" y="30" width="20" height="20" rx="3" fill="#d8c690" />
+      <path d="M46 36l7 4v8l-7 4-7-4v-8z" fill="#ece3cf" />
+      <circle cx="46" cy="44" r="3" fill="#0b1526" />
+      <rect x="8" y="28" width="24" height="24" rx="4" fill="none" stroke="#e2a94b" strokeWidth="2" />
+    </svg>
+  ),
   pact: (
     <svg viewBox="0 0 64 64" width="56" height="56">
       <rect x="4" y="4" width="56" height="56" rx="6" fill="#0b1526" />

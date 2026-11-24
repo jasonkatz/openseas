@@ -22,6 +22,7 @@ import refining from "../../data/pieces/refining.json" with { type: "json" };
 import freefall from "../../data/pieces/freefall.json" with { type: "json" };
 import showdown from "../../data/pieces/showdown.json" with { type: "json" };
 import forging from "../../data/pieces/forging.json" with { type: "json" };
+import assembly from "../../data/pieces/assembly.json" with { type: "json" };
 import pact from "../../data/pieces/pact.json" with { type: "json" };
 
 /**
@@ -30,7 +31,7 @@ import pact from "../../data/pieces/pact.json" with { type: "json" };
  * `pieces.ts` paints from here, composing a drawing with what only code can say (a plate's
  * footprint, a rod's numeral). The studio's draft may lay its own drawings over these.
  */
-const FILES: Record<PuzzleId, unknown> = { cooling, engines, plating, gunnery, navigation, battle, swordfight, salvage, overload, deflectors, reactor, scanner, tug, racks, cutting, tractor, refining, freefall, showdown, forging, pact };
+const FILES: Record<PuzzleId, unknown> = { cooling, engines, plating, gunnery, navigation, battle, swordfight, salvage, overload, deflectors, reactor, scanner, tug, racks, cutting, tractor, refining, freefall, showdown, forging, assembly, pact };
 
 export const SHIPPED_PIECES: Readonly<Record<PuzzleId, PiecesFile>> = Object.fromEntries(Object.entries(FILES).map(([id, file]) => [id, PiecesFileSchema.parse(file)])) as Record<PuzzleId, PiecesFile>;
 

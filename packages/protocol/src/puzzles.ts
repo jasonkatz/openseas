@@ -20,6 +20,7 @@ import { RefiningConfigSchema, RefiningMoveSchema } from "./refining.js";
 import { FreefallConfigSchema, FreefallMoveSchema } from "./freefall.js";
 import { ShowdownConfigSchema, ShowdownMoveSchema } from "./showdown.js";
 import { ForgingConfigSchema, ForgingMoveSchema } from "./forging.js";
+import { AssemblyConfigSchema, AssemblyMoveSchema } from "./assembly.js";
 import { PactConfigSchema, PactMoveSchema } from "./pact.js";
 
 /**
@@ -47,6 +48,7 @@ export const PUZZLE_MOVE_SCHEMAS = {
   freefall: FreefallMoveSchema,
   showdown: ShowdownMoveSchema,
   forging: ForgingMoveSchema,
+  assembly: AssemblyMoveSchema,
   pact: PactMoveSchema,
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
@@ -71,6 +73,7 @@ export const PUZZLE_CONFIG_SCHEMAS = {
   freefall: FreefallConfigSchema,
   showdown: ShowdownConfigSchema,
   forging: ForgingConfigSchema,
+  assembly: AssemblyConfigSchema,
   pact: PactConfigSchema,
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
@@ -96,6 +99,7 @@ export const AnyMoveSchema = z.union([
   FreefallMoveSchema,
   ShowdownMoveSchema,
   ForgingMoveSchema,
+  AssemblyMoveSchema,
   PactMoveSchema,
 ]);
 export type AnyMoveWire = z.infer<typeof AnyMoveSchema>;

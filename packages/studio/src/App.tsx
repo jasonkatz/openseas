@@ -24,6 +24,7 @@ import { RefiningPractice } from "./pages/RefiningPractice.jsx";
 import { FreefallPractice } from "./pages/FreefallPractice.jsx";
 import { ShowdownPractice } from "./pages/ShowdownPractice.jsx";
 import { ForgingPractice } from "./pages/ForgingPractice.jsx";
+import { AssemblyPractice } from "./pages/AssemblyPractice.jsx";
 import { PactPractice } from "./pages/PactPractice.jsx";
 import { RoundFrame, type FrameMode } from "./frame/RoundFrame.jsx";
 import { useMediaQuery } from "./practice/PracticeShell.jsx";
@@ -55,6 +56,7 @@ const PAGES: Readonly<Record<PuzzleId, ComponentType>> = {
   freefall: FreefallPractice,
   showdown: ShowdownPractice,
   forging: ForgingPractice,
+  assembly: AssemblyPractice,
   pact: PactPractice,
 };
 

@@ -27,6 +27,7 @@ export const PUZZLE_CUES: Readonly<Record<PuzzleId, readonly string[]>> = {
   freefall: ["pop", "thud", "ping", "multi", "whoosh", "good", "bad", "bump", "tick", "beat"],
   showdown: ["swapQuiet", "tick", "pop", "whoosh", "bump", "good", "bad", "beat"],
   forging: ["pop", "good", "streak", "streakLost", "bad", "zap", "bump", "beat"],
+  assembly: ["swap", "pop", "clear", "good", "rise", "bump", "beat"],
   pact: ["swapQuiet", "pop", "tick", "whoosh", "bump", "good", "bad", "beat"],
 };
 
