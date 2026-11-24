@@ -87,4 +87,5 @@ that supersedes it.
 | [0079](./0079-a-puzzle-has-a-version-and-a-judged-round-is-final.md) | A puzzle has a version, `major.minor`, and a judged round is final: the major marks a change to how a round replays |
 | [0080](./0080-distillings-successor-starts-as-a-prototype.md) | Distilling's successor starts as a prototype: Refining, dealt only in the studio |
 | [0081](./0081-treasure-drops-successor-starts-as-a-prototype.md) | Treasure Drop's successor starts as a prototype: Freefall, dealt only in the studio, against a rival in the engine |
-| [0082](./0082-blacksmithings-successor-starts-as-a-prototype.md) | Blacksmithing's successor starts as a prototype: Forging, dealt only in the studio |
+| [0082](./0082-pokers-successor-starts-as-a-prototype.md) | Poker's successor starts as a prototype: Showdown, dealt only in the studio, against rivals in the engine at a fixed limit |
+| [0083](./0083-blacksmithings-successor-starts-as-a-prototype.md) | Blacksmithing's successor starts as a prototype: Forging, dealt only in the studio |

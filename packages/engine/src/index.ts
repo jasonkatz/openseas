@@ -19,6 +19,7 @@ export * from "./cutting/index.js";
 export * from "./tractor/index.js";
 export * from "./refining/index.js";
 export * from "./freefall/index.js";
+export * from "./showdown/index.js";
 export * from "./forging/index.js";
 export * from "./rating/index.js";
 export * from "./registry.js";

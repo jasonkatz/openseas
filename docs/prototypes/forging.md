@@ -1,6 +1,6 @@
 # Forging
 
-Status: built. Prototype (ADR 0036, ADR 0082), in the studio at `/play/forging`. Untimed: the
+Status: built. Prototype (ADR 0036, ADR 0083), in the studio at `/play/forging`. Untimed: the
 round ends when the plate is set or the press has nowhere to land, and no clock is shown.
 
 Forging is a successor, not one of the game's own new designs: it follows the original's
@@ -36,7 +36,7 @@ six spots.
   been struck twice.
 - **Stalls.** A strike that leaves the press nowhere to land is a stall, and the round ends on it,
   as the original's session does. The strike scores; every blow left on the plate is score never
-  made. The owner's call, against rule 8 (ADR 0082 decision 3).
+  made. The owner's call, against rule 8 (ADR 0083 decision 3).
 
 ## Scoring
 

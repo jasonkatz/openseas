@@ -1,4 +1,4 @@
-# 0082. Blacksmithing's successor starts as a prototype: Forging
+# 0083. Blacksmithing's successor starts as a prototype: Forging
 
 Status: Accepted. Builds on [0001](./0001-spiritual-successor.md), [0036](./0036-prototype-puzzles.md),
 [0066](./0066-a-puzzle-is-learned-on-a-ladder-of-stages.md) and
@@ -43,9 +43,10 @@ ADR 0078 built Treasure Haul's successor, Tractor, early as a prototype. The sam
 
 ## Consequences
 
-- The prototype count is twelve, with Refining (ADR 0080) and Freefall (ADR 0081). Documents that say eleven (CLAUDE.md, DESIGN.md 3.12, the glossary, the
-  prototypes README) say twelve, and count Forging with Tractor, Refining and Freefall as successors.
+- The prototype count is thirteen, with Refining (ADR 0080), Freefall (ADR 0081) and Showdown (ADR
+  0082). Documents that say twelve (CLAUDE.md, DESIGN.md 3.12, the glossary, the prototypes README)
+  say thirteen, and count Forging with Tractor, Refining, Freefall and Showdown as successors.
 - Its thresholds are set from bots, like every prototype's, until people have played it.
 - Crafting stays on the later list as a game role: what a tier of a forged plate makes for a ship
   is decided when crafting is built, with the promotion.
-- Freefall merged first as ADR 0081, so this one is 0082.
+- Refining, Freefall and Showdown merged first as ADRs 0080 to 0082, so this one is 0083.
