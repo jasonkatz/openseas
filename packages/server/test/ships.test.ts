@@ -705,11 +705,15 @@ describeDb("ships over the wire", () => {
       await a.until("puzzle.started", (m) => m.puzzle === "swordfight");
       await b.until("puzzle.started", (m) => m.puzzle === "swordfight");
       const run = room().melee!;
+      // A board's bot can clear one load of scrap on some seeds and stand to the deadline, so every
+      // board still standing with nothing waiting is buried again before each wait.
       let crew = run.crew;
-      crew.boards.forEach((_, i) => {
-        crew = reduceSwordfight(crew, { type: "incoming", board: i, scrap: 200, blade: 0, tick: crew.tick });
-      });
-      for (let i = 0; i < 40 && !crew.finished; i++) crew = reduceSwordfight(crew, { type: "wait", tick: Math.min(crew.config.maxTick, crew.tick + 20) });
+      for (let i = 0; i < 40 && !crew.finished; i++) {
+        crew.boards.forEach((board, j) => {
+          if (!board.out && board.pending.length === 0) crew = reduceSwordfight(crew, { type: "incoming", board: j, scrap: 200, blade: 0, tick: crew.tick });
+        });
+        crew = reduceSwordfight(crew, { type: "wait", tick: Math.min(crew.config.maxTick, crew.tick + 20) });
+      }
       expect(crew.finished).toBe(true);
       run.crew = crew;
       await turn();

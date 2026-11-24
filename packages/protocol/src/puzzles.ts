@@ -21,6 +21,7 @@ import { FreefallConfigSchema, FreefallMoveSchema } from "./freefall.js";
 import { ShowdownConfigSchema, ShowdownMoveSchema } from "./showdown.js";
 import { ForgingConfigSchema, ForgingMoveSchema } from "./forging.js";
 import { AssemblyConfigSchema, AssemblyMoveSchema } from "./assembly.js";
+import { PactConfigSchema, PactMoveSchema } from "./pact.js";
 
 /**
  * Per-puzzle wire schemas. The server validates a move against the schema of the session's puzzle,
@@ -48,6 +49,7 @@ export const PUZZLE_MOVE_SCHEMAS = {
   showdown: ShowdownMoveSchema,
   forging: ForgingMoveSchema,
   assembly: AssemblyMoveSchema,
+  pact: PactMoveSchema,
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
 export const PUZZLE_CONFIG_SCHEMAS = {
@@ -72,6 +74,7 @@ export const PUZZLE_CONFIG_SCHEMAS = {
   showdown: ShowdownConfigSchema,
   forging: ForgingConfigSchema,
   assembly: AssemblyConfigSchema,
+  pact: PactConfigSchema,
 } as const satisfies Record<PuzzleIdWire, z.ZodType>;
 
 /** Every puzzle's move shapes, for consumers that want the union type. Not used on the wire (see ws.ts). */
@@ -97,6 +100,7 @@ export const AnyMoveSchema = z.union([
   ShowdownMoveSchema,
   ForgingMoveSchema,
   AssemblyMoveSchema,
+  PactMoveSchema,
 ]);
 export type AnyMoveWire = z.infer<typeof AnyMoveSchema>;
 

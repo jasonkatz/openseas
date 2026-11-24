@@ -25,6 +25,7 @@ import { FreefallPractice } from "./pages/FreefallPractice.jsx";
 import { ShowdownPractice } from "./pages/ShowdownPractice.jsx";
 import { ForgingPractice } from "./pages/ForgingPractice.jsx";
 import { AssemblyPractice } from "./pages/AssemblyPractice.jsx";
+import { PactPractice } from "./pages/PactPractice.jsx";
 import { RoundFrame, type FrameMode } from "./frame/RoundFrame.jsx";
 import { useMediaQuery } from "./practice/PracticeShell.jsx";
 import { STUDIO_PUZZLES } from "./puzzles.js";
@@ -56,6 +57,7 @@ const PAGES: Readonly<Record<PuzzleId, ComponentType>> = {
   showdown: ShowdownPractice,
   forging: ForgingPractice,
   assembly: AssemblyPractice,
+  pact: PactPractice,
 };
 
 const isPuzzle = (id: string): id is PuzzleId => Object.hasOwn(PAGES, id);

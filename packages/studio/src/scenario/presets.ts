@@ -14,6 +14,7 @@ import { FREEFALL_PRESETS } from "./prototypes/freefall.js";
 import { SHOWDOWN_PRESETS } from "./prototypes/showdown.js";
 import { FORGING_PRESETS } from "./prototypes/forging.js";
 import { ASSEMBLY_PRESETS } from "./prototypes/assembly.js";
+import { PACT_PRESETS } from "./prototypes/pact.js";
 
 /** A named starting point for a draft (DESIGN.md 3.14): numbers worth tuning from. Names live in the message table under `studio.preset.<id>`. */
 export interface Preset {
@@ -122,6 +123,7 @@ export const PRESETS: Readonly<Record<PuzzleId, readonly Preset[]>> = {
   showdown: SHOWDOWN_PRESETS,
   forging: FORGING_PRESETS,
   assembly: ASSEMBLY_PRESETS,
+  pact: PACT_PRESETS,
 };
 
 /** One preset per Space Battle board, so a fight can be pinned to a board the seed would not have picked. */
