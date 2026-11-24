@@ -37,17 +37,17 @@ test("the home grid lists every puzzle alike and pictures each board from this b
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   const tiles = page.getByTestId("puzzle-grid").locator("li");
-  // Seventeen puzzles with engines of their own, and the domain engine's one (ADR 0080), which shows its pieces, not a picture of its board.
-  await expect(tiles).toHaveCount(18);
+  // Eighteen puzzles with engines of their own, and the domain engine's one (ADR 0082), which shows its pieces, not a picture of its board.
+  await expect(tiles).toHaveCount(19);
   // A tile stands on its glyph until its picture is taken, then shows the board itself.
-  await expect(page.getByTestId("puzzle-grid").locator('img[data-testid^="thumb-"]')).toHaveCount(17, { timeout: 60_000 });
+  await expect(page.getByTestId("puzzle-grid").locator('img[data-testid^="thumb-"]')).toHaveCount(18, { timeout: 60_000 });
   const picture = page.getByTestId("thumb-salvage");
   await expect(picture).toHaveAttribute("src", /^data:image\/webp/);
   expect(await picture.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(100);
   // The frame is gone once the last picture is in, and the pictures are kept for the tab.
   await expect(page.locator("iframe")).toHaveCount(0);
   await page.reload();
-  await expect(page.getByTestId("puzzle-grid").locator('img[data-testid^="thumb-"]')).toHaveCount(17, { timeout: 2000 });
+  await expect(page.getByTestId("puzzle-grid").locator('img[data-testid^="thumb-"]')).toHaveCount(18, { timeout: 2000 });
 
   await page.getByTestId("tile-play-salvage").click();
   await expect(page).toHaveURL(/\/play\/salvage$/);

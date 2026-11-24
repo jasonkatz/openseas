@@ -1,6 +1,6 @@
 # Swap
 
-Version 0.1. The first puzzle on the domain engine (ADR 0080): the game's Cooling written again as a
+Version 0.1. The first puzzle on the domain engine (ADR 0082): the game's Cooling written again as a
 puzzle document and its rules, by `docs/puzzles/DOMAIN.md`. It is shown in the studio's grid and played
 alone at `/play/swap`. The game does not deal it, and Cooling is unchanged.
 

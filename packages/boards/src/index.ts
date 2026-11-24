@@ -73,9 +73,12 @@ export { CUTTING_ORES } from "./cutting/pieces.js";
 export { TractorBoard, type TractorBoardProps } from "./tractor/TractorBoard.jsx";
 export { TractorBeaconIcon, TractorCacheIcon, TractorLootIcon } from "./tractor/TractorIcon.jsx";
 export { TRACTOR_KINDS } from "./tractor/pieces.js";
+export { RefiningBoard, type RefiningBoardProps } from "./refining/RefiningBoard.jsx";
+export { RefiningIcon } from "./refining/RefiningIcon.jsx";
+export { REFINING_KINDS } from "./refining/pieces.js";
 export { FreefallBoard, type FreefallBoardProps } from "./freefall/FreefallBoard.jsx";
 export { FreefallIcon } from "./freefall/FreefallIcon.jsx";
-// The domain board (ADR 0080): one board for any puzzle of the domain engine, dressed by a skin and the game's theme.
+// The domain board (ADR 0082): one board for any puzzle of the domain engine, dressed by a skin and the game's theme.
 export { PlayBoard, PlayPieceIcon, type PlayBoardProps } from "./play/PlayBoard.jsx";
 export { type PlayFrame } from "./play/renderer.js";
 export { fill, skinOf, spaceTheme } from "./play/theme.js";
