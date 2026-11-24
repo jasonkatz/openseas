@@ -1,6 +1,6 @@
 import { useCallback } from "react";
-import { advanceDeflectors, deflectorsOutlook, deflectorsStreakPercentAt, summarizeDeflectors, type DeflectorsConfig, type DeflectorsMove, type DeflectorsState } from "@openseas/engine";
-import { content, DEFLECTORS_LENSES, DEFLECTORS_SIGNS, DeflectorsBoard, DeflectorsLensIcon, DeflectorsMirrorIcon, DeflectorsSignIcon, t, useTicked } from "@openseas/boards";
+import { advanceDeflectors, deflectorsOutlook, deflectorsRecipeLenses, summarizeDeflectors, type DeflectorsConfig, type DeflectorsMove, type DeflectorsState } from "@openseas/engine";
+import { content, DEFLECTORS_LENSES, DEFLECTORS_SIGNS, DeflectorsBoard, DeflectorsLensIcon, DeflectorsMirrorIcon, DeflectorsSignIcon, DeflectorsTargetIcon, t, useTicked } from "@openseas/boards";
 import { css, type Token } from "@openseas/boards/look";
 import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
@@ -9,7 +9,7 @@ import { DEFLECTORS } from "../prototypes/deflectors.js";
 
 const deflectors = content.puzzles.deflectors;
 const waitAt = (tick: number): DeflectorsMove => ({ type: "wait", tick });
-const BEAM_KEYS = ["deflectors.legend_beam_1", "deflectors.legend_beam_2", "deflectors.legend_beam_3"];
+const EMITTER_KEYS = ["deflectors.legend_emitter_1", "deflectors.legend_emitter_2", "deflectors.legend_emitter_3"];
 const LENS_KEYS = ["deflectors.legend_lens_1", "deflectors.legend_lens_2", "deflectors.legend_lens_3"];
 
 /** Deflectors (prototype, ADR 0036): the shared board in the studio's frame. */
@@ -27,13 +27,15 @@ export function DeflectorsPractice() {
   const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceDeflectors, wait: waitAt });
   const shown = ticked.shown;
 
-  const onFlip = useCallback((cell: number) => void api.apply({ type: "flip", cell, tick: ticked.moveTick() }), [api, ticked]);
-  const onFire = useCallback((volley: number) => void api.apply({ type: "fire", volley, tick: ticked.moveTick() }), [api, ticked]);
+  const onPlace = useCallback((cell: number) => void api.apply({ type: "place", cell, tick: ticked.moveTick() }), [api, ticked]);
+  const onTurn = useCallback(() => void api.apply({ type: "turn", tick: ticked.moveTick() }), [api, ticked]);
+  const onFire = useCallback(() => void api.apply({ type: "fire", tick: ticked.moveTick() }), [api, ticked]);
 
-  // What the waiting volley would do now: the engine's word, as the board's strip shows it.
+  // What a shot now would do: the engine's word, as the board's strip shows it.
   const outlook = deflectorsOutlook(shown);
-  const signs = DEFLECTORS_SIGNS.slice(0, shown.config.beams);
-  const lenses = shown.config.recipeLenses > 0 ? DEFLECTORS_LENSES.slice(0, Math.min(DEFLECTORS_LENSES.length, shown.config.lenses)) : [];
+  const signs = DEFLECTORS_SIGNS.slice(0, Math.min(DEFLECTORS_SIGNS.length, shown.config.emitters));
+  const recipes = deflectorsRecipeLenses(shown.config) > 0;
+  const lenses = recipes ? DEFLECTORS_LENSES : [];
 
   return (
     <PracticeShell
@@ -44,32 +46,32 @@ export function DeflectorsPractice() {
       roundSeconds={api.roundSeconds}
       timeLeft={api.timeLeft}
       score={shown.score}
-      moves={shown.volleys}
+      moves={shown.shots}
       movesLabel={t("deflectors.moves")}
-      combo={shown.combo}
+      combo={shown.bestLit}
       onStart={studio.start}
       ready={studio.ready}
       splash={t("deflectors.go")}
       warn={false}
       howTo={
         <>
-          <p className="how how-kbd">{t("deflectors.lines_note")}</p>
-          <p className="how how-kbd">{t("deflectors.recipe_note")}</p>
+          <p className="how how-kbd">{t("deflectors.shot_note")}</p>
+          {recipes && <p className="how how-kbd">{t("deflectors.recipe_note")}</p>}
           <p className="how how-kbd">{t("deflectors.hint_note")}</p>
         </>
       }
       details={
         <>
           <div className="stat stat-wide">
-            <span className="stat-label">{t("deflectors.volley")}</span>
-            <span className="stat-value" data-testid="hud-volley">
-              {outlook ? t("deflectors.volley_value", { home: outlook.hits, beams: outlook.shots.length }) : t("deflectors.volley_none")}
+            <span className="stat-label">{t("deflectors.shot")}</span>
+            <span className="stat-value" data-testid="hud-shot">
+              {outlook.lit > 0 ? t("deflectors.shot_value", { points: outlook.points, lit: outlook.lit }) : t("deflectors.shot_none")}
             </span>
           </div>
           <div className="stat stat-wide">
-            <span className="stat-label">{t("deflectors.streak_stat")}</span>
-            <span className="stat-value" data-testid="hud-streak">
-              {shown.combo > 0 ? t("deflectors.streak_value", { count: shown.combo, percent: deflectorsStreakPercentAt(shown.config, shown.combo) }) : t("deflectors.streak_none")}
+            <span className="stat-label">{t("deflectors.queue_stat")}</span>
+            <span className="stat-value" data-testid="hud-queue">
+              {t("deflectors.queue_value", { count: shown.queue.length, size: shown.config.queueSize })}
             </span>
           </div>
         </>
@@ -77,20 +79,20 @@ export function DeflectorsPractice() {
       resultRows={
         <>
           <div>
-            <dt>{t("deflectors.result_home")}</dt>
-            <dd>{state.hits}</dd>
+            <dt>{t("deflectors.result_lit")}</dt>
+            <dd>{state.lit}</dd>
           </div>
           <div>
-            <dt>{t("deflectors.result_hull")}</dt>
-            <dd>{state.misses}</dd>
+            <dt>{t("deflectors.result_best")}</dt>
+            <dd>{state.bestShot}</dd>
           </div>
           <div>
-            <dt>{t("deflectors.result_spent")}</dt>
-            <dd>{state.spent}</dd>
+            <dt>{t("deflectors.result_most")}</dt>
+            <dd>{state.bestLit}</dd>
           </div>
           <div>
-            <dt>{t("deflectors.result_perfect")}</dt>
-            <dd>{state.perfects}</dd>
+            <dt>{t("deflectors.result_dropped")}</dt>
+            <dd>{state.dropped}</dd>
           </div>
           <div>
             <dt>{t("deflectors.result_longest")}</dt>
@@ -104,7 +106,7 @@ export function DeflectorsPractice() {
             {signs.map((s, i) => (
               <li key={s.shape}>
                 <DeflectorsSignIcon sign={i} />
-                <span>{t(BEAM_KEYS[i]!)}</span>
+                <span>{t(EMITTER_KEYS[i]!)}</span>
               </li>
             ))}
             {lenses.map((l, i) => (
@@ -117,50 +119,50 @@ export function DeflectorsPractice() {
           <ul className="specials">
             <li>
               <DeflectorsSignIcon sign={0} />
-              <span>{t("deflectors.legend_entry")}</span>
+              <span>{t("deflectors.legend_emitter")}</span>
             </li>
             <li>
-              <DeflectorsSignIcon sign={0} hollow />
-              <span>{t("deflectors.legend_exit")}</span>
+              <DeflectorsTargetIcon />
+              <span>{t("deflectors.legend_target")}</span>
             </li>
             <li>
               <DeflectorsMirrorIcon />
               <span>{t("deflectors.legend_mirror")}</span>
             </li>
-            {lenses.length > 0 && (
+            {recipes && (
               <li>
                 <DeflectorsLensIcon kind={0} />
                 <span>{t("deflectors.legend_recipe")}</span>
               </li>
             )}
             <li>
-              <LineIcon look="home" color={signs[0]!.color} />
-              <span>{t("deflectors.legend_home")}</span>
+              <DeflectorsMirrorIcon />
+              <span>{t("deflectors.legend_queue")}</span>
             </li>
             <li>
-              <LineIcon look="astray" color={signs[0]!.color} />
-              <span>{t("deflectors.legend_astray")}</span>
+              <LineIcon look="lit" color={signs[0]!.color} />
+              <span>{t("deflectors.legend_lit")}</span>
             </li>
             <li>
-              <LineIcon look="back" color={signs[0]!.color} />
-              <span>{t("deflectors.legend_back")}</span>
+              <LineIcon look="miss" color={signs[0]!.color} />
+              <span>{t("deflectors.legend_miss")}</span>
             </li>
           </ul>
+          <p className="muted small proto-note">{t("deflectors.shot_note")}</p>
           <p className="muted small proto-note">{t("deflectors.lines_note")}</p>
-          {lenses.length > 0 && <p className="muted small proto-note">{t("deflectors.recipe_note")}</p>}
+          {recipes && <p className="muted small proto-note">{t("deflectors.recipe_note")}</p>}
           {shown.config.spend && <p className="muted small proto-note">{t("deflectors.spend_note")}</p>}
-          <p className="muted small proto-note">{t("deflectors.streak_note")}</p>
         </>
       }
       board={(interactive) => (
         <DeflectorsBoard
-         
           state={shown}
           logged={state}
           version={api.version}
           interactive={interactive}
           hints={studio.hints}
-          onFlip={onFlip}
+          onPlace={onPlace}
+          onTurn={onTurn}
           onFire={onFire}
           onFrame={api.markRendered}
         />
@@ -169,12 +171,12 @@ export function DeflectorsPractice() {
   );
 }
 
-/** The three looks a waiting beam's lines take, as the board draws them: flat, in the beam's colour. */
-function LineIcon({ look, color }: { look: "home" | "astray" | "back"; color: Token }) {
+/** The two looks a beam's route takes, as the board draws them: flat, in the emitter's colour. */
+function LineIcon({ look, color }: { look: "lit" | "miss"; color: Token }) {
   const ink = css(color);
   return (
     <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" className="kind-icon">
-      {look === "home" && (
+      {look === "lit" && (
         <>
           <path d="M2 17h10V6h10" fill="none" stroke={ink} strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
           <circle cx="7" cy="17" r="2.6" fill={ink} />
@@ -182,13 +184,7 @@ function LineIcon({ look, color }: { look: "home" | "astray" | "back"; color: To
           <circle cx="18" cy="6" r="2.6" fill={ink} />
         </>
       )}
-      {look === "astray" && (
-        <>
-          <path d="M2 17h10V8" fill="none" stroke={ink} strokeWidth="2.4" strokeDasharray="3.5 3" strokeLinecap="round" />
-          <path d="M9 2l6 6m0-6l-6 6" stroke={css("danger")} strokeWidth="2.4" strokeLinecap="round" />
-        </>
-      )}
-      {look === "back" && <path d="M2 17h10V6h10" fill="none" stroke={ink} strokeWidth="2.6" strokeDasharray="0.1 4" strokeLinecap="round" />}
+      {look === "miss" && <path d="M2 17h10V6h10" fill="none" stroke={ink} strokeWidth="1.8" strokeDasharray="3.5 3" strokeLinecap="round" />}
     </svg>
   );
 }

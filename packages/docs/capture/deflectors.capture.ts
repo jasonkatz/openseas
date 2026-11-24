@@ -1,87 +1,57 @@
 import { expect, test, type Page } from "@playwright/test";
 import { loadContent } from "@openseas/content";
 import {
+  DEFLECTORS_BACKSLASH,
+  DEFLECTORS_SLASH,
   createDeflectorsGame,
-  deflectorsBeamPoints,
-  deflectorsIsHome,
   deflectorsIsMirror,
-  deflectorsTrace,
+  deflectorsOutlook,
+  deflectorsRecipeSize,
   deflectorsViewString,
-  reduceDeflectors,
   type DeflectorsConfig,
   type DeflectorsState,
-  type DeflectorsVolley,
 } from "@openseas/engine";
 import { boardGeom, canvasBox, clip, findSeed, hidePointer, openLab, padded, still, type Box } from "./lib.js";
 
-const cfg = loadContent().puzzles.deflectors.config;
+const cfg: DeflectorsConfig = loadContent().puzzles.deflectors.config;
 const N = cfg.size;
-/** One beam a volley: the studio's own preset, for the clips that teach one route at a time. */
-const ONE = { beams: 1 };
-const oneCfg: DeflectorsConfig = { ...cfg, ...ONE };
-/** The strip over the grid and the ring of ports and recipes round it, in cells: the renderer's own layout. */
+/** The strip over the grid, the ring of ports and recipes round it, and the queue under it, in cells: the renderer's own layout. */
 const STRIP = 0.7;
 const RING = 1.36;
+const QUEUE = 1.3;
 
-/** A round with its first volley announced. Nothing before it depends on the clock, so the page deals the same one. */
-function opened(seed: string, config: DeflectorsConfig = cfg): { s: DeflectorsState; v: DeflectorsVolley } | null {
-  const s = reduceDeflectors(createDeflectorsGame(seed, config), { type: "wait", tick: config.openingTicks });
-  return s.volley ? { s, v: s.volley } : null;
+/** The grid as text, without the targets or the queue: what a placement changes. */
+const gridOf = (s: DeflectorsState): string => deflectorsViewString(s.mirrors, [], []).split("|")[0]!;
+
+/** The next piece put on `cell`, turned first when `turn`: the grid it leaves. */
+function placed(s: DeflectorsState, cell: number, turn: boolean): DeflectorsState {
+  const piece = s.queue[0]!;
+  const way = turn ? (piece === DEFLECTORS_SLASH ? DEFLECTORS_BACKSLASH : DEFLECTORS_SLASH) : piece;
+  const mirrors = s.mirrors.slice();
+  mirrors[cell] = way;
+  return { ...s, mirrors, queue: s.queue.slice(1) };
 }
 
-/** One setting of the mirrors that sends every beam of the volley home. */
-interface Way {
-  /** The mirrors to flip to get there from the grid as it stands. */
-  flips: number[];
-  /** The beams' own points. */
-  base: number;
-  /** Turns each beam makes. */
-  turns: number[];
-  /** Some beam meets one mirror on both of its faces. */
-  twice: boolean;
-}
-
-/** Every setting that sends the whole volley home: the grid is small enough to try them all. */
-function ways(s: DeflectorsState, v: DeflectorsVolley): Way[] {
-  const cells = s.mirrors.flatMap((m, c) => (deflectorsIsMirror(m) ? [c] : []));
-  const out: Way[] = [];
-  for (let mask = 0; mask < 1 << cells.length; mask++) {
-    const set = s.mirrors.slice();
-    const flips = cells.filter((_, i) => mask & (1 << i));
-    for (const c of flips) set[c] = 3 - set[c]!;
-    const traces = v.beams.map((b) => deflectorsTrace(s.config, set, b.entry));
-    if (!traces.every((t, i) => deflectorsIsHome(s.config, v.beams[i]!, t.out, t.lenses))) continue;
-    out.push({
-      flips,
-      base: traces.reduce((n, t, i) => n + deflectorsBeamPoints(s.config, t.bounces, v.beams[i]!.recipe), 0),
-      turns: traces.map((t) => t.bounces),
-      twice: traces.some((t) => new Set(t.turns).size < t.turns.length),
-    });
-  }
+/** Every place the first piece can go, either way for a mirror, with the shot it leaves. */
+function placements(s: DeflectorsState): Array<{ cell: number; turn: boolean; after: DeflectorsState }> {
+  const out: Array<{ cell: number; turn: boolean; after: DeflectorsState }> = [];
+  const piece = s.queue[0]!;
+  for (let cell = 0; cell < s.mirrors.length; cell++) for (const turn of deflectorsIsMirror(piece) ? [false, true] : [false]) out.push({ cell, turn, after: placed(s, cell, turn) });
   return out;
 }
 
-const flip = (s: DeflectorsState, cell: number): DeflectorsState => reduceDeflectors(s, { type: "flip", cell, tick: s.tick });
-const view = (s: DeflectorsState): string => deflectorsViewString(s.mirrors, s.volley?.beams ?? []);
-/** Beams of the waiting volley that are home as the mirrors stand. */
-const home = (s: DeflectorsState): boolean[] =>
-  s.volley!.beams.map((b) => {
-    const t = deflectorsTrace(s.config, s.mirrors, b.entry);
-    return deflectorsIsHome(s.config, b, t.out, t.lenses);
-  });
-
 // ---- driving the page
 
-/** The grid, its ring of ports and the strip above, without the canvas's empty margins. */
+/** The strip, the grid with its ring, and the queue, without the canvas's empty margins. */
 async function region(page: Page): Promise<Box> {
   const g = await boardGeom(page, "deflectors");
-  return padded({ x: g.ox - g.cell * RING, y: g.oy - g.cell * (RING + STRIP), width: g.cell * (N + RING * 2), height: g.cell * (N + RING * 2 + STRIP) }, 6, await canvasBox(page, "deflectors"));
+  return padded({ x: g.ox - g.cell * RING, y: g.oy - g.cell * (RING + STRIP), width: g.cell * (N + RING * 2), height: g.cell * (N + RING * 2 + STRIP + QUEUE) }, 6, await canvasBox(page, "deflectors"));
 }
 
-/** Open a lab round and wait for the volley Node planned with. */
-async function openOn(page: Page, seed: string, s: DeflectorsState, config: Record<string, unknown> = {}): Promise<void> {
-  await openLab(page, "deflectors", { seed, config });
-  await expect(page.getByTestId("deflectors-board")).toHaveAttribute("data-board", view(s));
+/** Open a lab round and wait for the grid Node planned with. */
+async function openOn(page: Page, seed: string, s: DeflectorsState): Promise<void> {
+  await openLab(page, "deflectors", { seed });
+  await expect.poll(async () => ((await page.getByTestId("deflectors-board").getAttribute("data-board")) ?? "").split("|")[0]).toBe(gridOf(s));
 }
 
 /** Where the pointer was left, so the next tap's travel starts there. */
@@ -106,133 +76,85 @@ async function tap(page: Page, x: number, y: number, ms = 320): Promise<void> {
   await page.mouse.up();
 }
 
-/** Tap a mirror, and wait for the board to hold the grid Node expects. */
-async function tapMirror(page: Page, s: DeflectorsState, cell: number): Promise<DeflectorsState> {
+/** Turn the next piece if asked, put it on `cell`, and wait for the board to hold the grid Node expects. */
+async function place(page: Page, s: DeflectorsState, cell: number, turn: boolean): Promise<void> {
   const g = await boardGeom(page, "deflectors");
+  if (turn) {
+    await tap(page, g.ox + (N * g.cell) / 2 - g.cell * 1.2, g.oy + g.cell * (N + RING + QUEUE / 2));
+    await page.waitForTimeout(350);
+  }
   await tap(page, g.ox + ((cell % N) + 0.5) * g.cell, g.oy + (Math.floor(cell / N) + 0.5) * g.cell);
-  const next = flip(s, cell);
-  await expect(page.getByTestId("deflectors-board")).toHaveAttribute("data-board", view(next));
-  return next;
+  const want = gridOf(placed(s, cell, turn));
+  await expect.poll(async () => ((await page.getByTestId("deflectors-board").getAttribute("data-board")) ?? "").split("|")[0]).toBe(want);
 }
 
-/** Tap the first beam's lit entry port, and wait for the volley to have fired. */
-async function fire(page: Page, s: DeflectorsState): Promise<void> {
+/** Tap the emitters, and wait for the shot to have fired. */
+async function fire(page: Page): Promise<void> {
   const g = await boardGeom(page, "deflectors");
-  const port = s.volley!.beams[0]!.entry;
-  const at = (port % N) + 0.5;
-  const [x, y] = [[at, -0.5], [N + 0.5, at], [at, N + 0.5], [-0.5, at]][Math.floor(port / N)] as [number, number];
-  await tap(page, g.ox + x * g.cell, g.oy + y * g.cell);
+  await tap(page, g.ox - 0.5 * g.cell, g.oy + (N / 2 + 0.5) * g.cell);
   await expect(page.getByTestId("hud-moves")).toHaveText("1");
 }
 
 test("deflectors: the board", async ({ page }) => {
-  // Two beams waiting, one with a recipe of two lenses, each astray by a route with a few turns in it.
+  // A grid that already lights one target through a lens, with recipes on the others.
   const { seed, found } = findSeed("deflect-hero", (seed) => {
-    const o = opened(seed);
-    if (!o || o.v.beams.length !== 2 || !o.v.beams.some((b) => b.recipe === 3 || b.recipe === 5 || b.recipe === 6)) return null;
-    const now = o.v.beams.map((b) => deflectorsTrace(cfg, o.s.mirrors, b.entry));
-    return now.every((t) => t.bounces >= 2) ? o : null;
+    const s = createDeflectorsGame(seed, cfg);
+    const o = deflectorsOutlook(s);
+    const lit = o.shots.find((x) => x.target >= 0);
+    if (o.lit !== 1 || !lit || lit.bounces < 2) return null;
+    const target = s.targets.find((t) => t.id === lit.target)!;
+    return deflectorsRecipeSize(target.recipe) >= 1 && s.targets.filter((t) => deflectorsRecipeSize(t.recipe) === 2).length >= 1 ? s : null;
   });
-  await openOn(page, seed, found.s, {});
+  await openOn(page, seed, found);
   await hidePointer(page);
   await page.waitForTimeout(500);
   await still(page, "deflectors", "board", { region: await region(page) });
 });
 
-test("deflectors: joining the lines", async ({ page }) => {
-  // The broken line and the dots cross at one mirror, and flipping it brings the beam home.
-  const { seed, found } = findSeed("deflect-join", (seed) => {
-    const o = opened(seed, oneCfg);
-    if (!o) return null;
-    const beam = o.v.beams[0]!;
-    const now = deflectorsTrace(cfg, o.s.mirrors, beam.entry).turns;
-    const back = deflectorsTrace(cfg, o.s.mirrors, beam.exit).turns;
-    const one = ways(o.s, o.v).filter((w) => w.flips.length === 1);
-    const w = one.find((x) => x.turns[0]! >= 3 && x.turns[0]! <= 5 && now.includes(x.flips[0]!) && back.includes(x.flips[0]!));
-    return w && one.length === 1 && now.length >= 2 && back.length >= 2 ? { ...o, cell: w.flips[0]! } : null;
+test("deflectors: lighting a target", async ({ page }) => {
+  // Nothing lit; one mirror put down sends a beam round into a target, and the shot is fired.
+  const { seed, found } = findSeed("deflect-light", (seed) => {
+    const s = createDeflectorsGame(seed, cfg);
+    if (!deflectorsIsMirror(s.queue[0]!) || deflectorsOutlook(s).lit > 0) return null;
+    const p = placements(s).find((x) => {
+      const o = deflectorsOutlook(x.after);
+      return o.lit === 1 && x.turn && s.mirrors[x.cell] === 0 && o.shots.some((sh) => sh.target >= 0 && sh.bounces >= 3);
+    });
+    return p ? { s, p } : null;
   });
-  await openOn(page, seed, found.s, ONE);
-  await clip(page, "deflectors", "join", async () => {
-    const s = await tapMirror(page, found.s, found.cell);
+  await openOn(page, seed, found.s);
+  await clip(page, "deflectors", "light", async () => {
+    await place(page, found.s, found.p.cell, found.p.turn);
     await page.waitForTimeout(900);
-    await fire(page, s);
-  }, { tailMs: 1500, region: await region(page) });
+    await fire(page);
+  }, { tailMs: 1600, region: await region(page) });
 });
 
-test("deflectors: two beams on one grid", async ({ page }) => {
-  // One flip brings the first beam home and a second brings the other, on the same setting.
-  const { seed, found } = findSeed("deflect-two", (seed) => {
-    const o = opened(seed);
-    if (!o || o.v.beams.length !== 2) return null;
-    if (home(o.s).some(Boolean)) return null;
-    for (const w of ways(o.s, o.v)) {
-      if (w.flips.length !== 2 || Math.min(...w.turns) < 2) continue;
-      for (const [a, b] of [w.flips, [w.flips[1]!, w.flips[0]!]] as [number, number][]) {
-        const h = home(flip(o.s, a));
-        if (h[0] && !h[1]) return { ...o, a, b };
-      }
-    }
-    return null;
+test("deflectors: two at once", async ({ page }) => {
+  // One target lit; one mirror put down lights a second, and the shot pays double.
+  const { seed, found } = findSeed("deflect-double", (seed) => {
+    const s = createDeflectorsGame(seed, cfg);
+    if (!deflectorsIsMirror(s.queue[0]!) || deflectorsOutlook(s).lit !== 1) return null;
+    const p = placements(s).find((x) => deflectorsOutlook(x.after).lit === 2 && s.mirrors[x.cell] === 0);
+    return p ? { s, p } : null;
   });
   await openOn(page, seed, found.s);
-  await clip(page, "deflectors", "two-beams", async () => {
-    let s = await tapMirror(page, found.s, found.a);
-    await page.waitForTimeout(800);
-    s = await tapMirror(page, s, found.b);
-    await page.waitForTimeout(800);
-    await fire(page, s);
-  }, { tailMs: 1500, region: await region(page) });
+  await clip(page, "deflectors", "double", async () => {
+    await place(page, found.s, found.p.cell, found.p.turn);
+    await page.waitForTimeout(1000);
+    await fire(page);
+  }, { tailMs: 2200, region: await region(page) });
 });
 
-test("deflectors: the long way round", async ({ page }) => {
-  // The advanced play. One flip brings the beam home by a short route; a few more send it the
-  // longest way there is, through one mirror twice, and the volley is perfect.
-  const { seed, found } = findSeed("deflect-long", (seed) => {
-    const o = opened(seed, oneCfg);
-    if (!o) return null;
-    const all = ways(o.s, o.v);
-    const short = all.find((w) => w.flips.length === 1 && w.turns[0]! <= 3);
-    if (!short) return null;
-    const more = (w: Way): number[] => [...w.flips.filter((c) => !short.flips.includes(c)), ...short.flips.filter((c) => !w.flips.includes(c))];
-    const long = all
-      .filter((w) => w.base === o.v.best && w.turns[0]! >= 6 && more(w).length >= 2 && more(w).length <= 3)
-      .sort((a, b) => more(a).length - more(b).length)[0];
-    return long ? { ...o, first: short.flips[0]!, rest: more(long) } : null;
+test("deflectors: a full queue", async ({ page }) => {
+  // Left alone, the queue fills: its next slot is ringed in danger, and the next piece to come drops the oldest on the grid.
+  const { seed, found } = findSeed("deflect-queue", (seed) => {
+    const s = createDeflectorsGame(seed, cfg);
+    return deflectorsOutlook(s).lit === 0 ? s : null;
   });
-  await openOn(page, seed, found.s, ONE);
-  let s = await tapMirror(page, found.s, found.first);
+  await openOn(page, seed, found);
   await hidePointer(page);
-  hand = [2, 2];
-  await page.waitForTimeout(500);
-  await still(page, "deflectors", "strip", { region: await region(page) });
-  await clip(page, "deflectors", "long-way", async () => {
-    for (const cell of found.rest) {
-      s = await tapMirror(page, s, cell);
-      await page.waitForTimeout(450);
-    }
-    await page.waitForTimeout(500);
-    await fire(page, s);
-  }, { tailMs: 2200, region: await region(page) });
-});
-
-test("deflectors: a perfect pair", async ({ page }) => {
-  // The expert play: two beams, both by a long route on one setting, fired perfect.
-  const { seed, found } = findSeed("deflect-pair", (seed) => {
-    const o = opened(seed);
-    if (!o || o.v.beams.length !== 2) return null;
-    const w = ways(o.s, o.v)
-      .filter((x) => x.base === o.v.best && x.flips.length >= 3 && x.flips.length <= 5 && Math.min(...x.turns) >= 4)
-      .sort((a, b) => a.flips.length - b.flips.length)[0];
-    return w ? { ...o, flips: w.flips } : null;
-  });
-  await openOn(page, seed, found.s);
-  await clip(page, "deflectors", "perfect-pair", async () => {
-    let s = found.s;
-    for (const cell of found.flips) {
-      s = await tapMirror(page, s, cell);
-      await page.waitForTimeout(450);
-    }
-    await page.waitForTimeout(500);
-    await fire(page, s);
-  }, { tailMs: 2200, region: await region(page) });
+  await expect.poll(async () => ((await page.getByTestId("deflectors-board").getAttribute("data-board")) ?? "").split("|")[2]!.length, { timeout: 10_000 }).toBe(cfg.queueSize);
+  await page.waitForTimeout(300);
+  await still(page, "deflectors", "queue", { region: await region(page) });
 });

@@ -1,25 +1,25 @@
 import { expect, test, type Page } from "@playwright/test";
 import { boardGeom, expectViewMatchesState } from "./helpers.js";
 
-/** The content grid: six by six, a port at each end of every row and column. */
+/** The content grid: six by six, a port at each end of every row and column, and three emitters on the left edge. */
 const N = 6;
+const EMITTERS = [3 * N + 1, 3 * N + 3, 3 * N + 5];
 const DX = [0, 1, 0, -1];
 const DY = [-1, 0, 1, 0];
 
-interface Beam {
-  entry: number;
-  exit: number;
-  /** The lens kinds it must pass, as a mask: bit 0 is lens `a`. */
+interface Target {
+  port: number;
+  /** The lens kinds a beam must pass, as a mask: bit 0 is lens `a`. */
   recipe: number;
 }
 
-/** What the page publishes: the grid, one character a cell, and the waiting beams as sign:entry>exit~recipe. */
-async function board(page: Page): Promise<{ grid: string; beams: Beam[] }> {
+/** What the page publishes: the grid, one character a cell; the targets as port~recipe; the queue, next first. */
+async function board(page: Page): Promise<{ grid: string; targets: Target[]; queue: string }> {
   const text = (await page.getByTestId("deflectors-board").getAttribute("data-board")) ?? "";
-  const [grid = "", waiting = ""] = text.split("|");
+  const [grid = "", goals = "", queue = ""] = text.split("|");
   if (grid.length !== N * N) throw new Error(`unexpected board ${text}`);
-  const beams = waiting === "" ? [] : waiting.split(",").map((b) => ({ entry: Number(b.split(":")[1]!.split(">")[0]), exit: Number(b.split(">")[1]!.split("~")[0]), recipe: Number(b.split("~")[1]) }));
-  return { grid, beams };
+  const targets = goals === "" ? [] : goals.split(",").map((g) => ({ port: Number(g.split("~")[0]), recipe: Number(g.split("~")[1]) }));
+  return { grid, targets, queue };
 }
 
 /** The port a beam from `entry` leaves by, and the lenses it passes, as the rules have it: ports run along the top, the right, the bottom, then the left. */
@@ -39,41 +39,33 @@ function leavesBy(grid: string, entry: number): { out: number; lenses: number } 
   return { out: [col - DX[dir]!, N + row - DY[dir]!, 2 * N + col - DX[dir]!, 3 * N + row - DY[dir]!][dir]!, lenses };
 }
 
-/** A beam is home at its exit through exactly its recipe. */
-const isHome = (grid: string, b: Beam): boolean => {
-  const t = leavesBy(grid, b.entry);
-  return t.out === b.exit && t.lenses === b.recipe;
-};
-const isMirror = (ch: string): boolean => ch === "/" || ch === "\\";
-
-const flipped = (grid: string, cell: number): string => grid.slice(0, cell) + (grid[cell] === "/" ? "\\" : "/") + grid.slice(cell + 1);
-
-/** The fewest mirrors to flip so every beam is home. */
-function solve(grid: string, beams: readonly Beam[]): number[] {
-  const mirrors = [...grid].flatMap((ch, c) => (isMirror(ch) ? [c] : []));
-  const home = (g: string): boolean => beams.every((b) => isHome(g, b));
-  let frontier: { grid: string; flips: number[] }[] = [{ grid, flips: [] }];
-  for (let depth = 0; depth <= 5; depth++) {
-    const found = frontier.find((f) => home(f.grid));
-    if (found) return found.flips;
-    frontier = frontier.flatMap((f) => mirrors.filter((c) => c > (f.flips[f.flips.length - 1] ?? -1)).map((c) => ({ grid: flipped(f.grid, c), flips: [...f.flips, c] })));
+/** How many targets a shot through `grid` lights, each once. */
+function lit(grid: string, targets: readonly Target[]): number {
+  const done = new Set<number>();
+  for (const e of EMITTERS) {
+    const t = leavesBy(grid, e);
+    const hit = targets.findIndex((g, i) => !done.has(i) && g.port === t.out && g.recipe === t.lenses);
+    if (hit >= 0) done.add(hit);
   }
-  throw new Error(`no route within five flips on ${grid}`);
+  return done.size;
 }
+
+const put = (grid: string, cell: number, ch: string): string => grid.slice(0, cell) + ch + grid.slice(cell + 1);
+const turned = (ch: string): string => (ch === "/" ? "\\" : ch === "\\" ? "/" : ch);
+const isMirror = (ch: string): boolean => ch === "/" || ch === "\\";
 
 async function tapCell(page: Page, cell: number): Promise<void> {
   const { ox, oy, cell: size } = await boardGeom(page, "deflectors");
   await page.mouse.click(ox + ((cell % N) + 0.5) * size, oy + (Math.floor(cell / N) + 0.5) * size);
 }
 
-async function tapPort(page: Page, port: number): Promise<void> {
+/** A tap on the left edge, where the emitters sit. */
+async function tapEmitters(page: Page): Promise<void> {
   const { ox, oy, cell: size } = await boardGeom(page, "deflectors");
-  const at = (port % N) + 0.5;
-  const [x, y] = [[at, -0.5], [N + 0.5, at], [at, N + 0.5], [-0.5, at]][Math.floor(port / N)] as [number, number];
-  await page.mouse.click(ox + x * size, oy + y * size);
+  await page.mouse.click(ox - 0.5 * size, oy + 3.5 * size);
 }
 
-test("Deflectors plays alone on /play: a round flips a mirror by key and by tap", async ({ page }) => {
+test("Deflectors plays alone on /play: a round puts pieces down by key and by tap", async ({ page }) => {
   await page.goto("/play/deflectors");
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("deflectors-canvas");
@@ -81,62 +73,74 @@ test("Deflectors plays alone on /play: a round flips a mirror by key and by tap"
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
   await expectViewMatchesState(page, "deflectors");
 
-  // Keyboard: walk the cursor to a mirror and flip it.
-  const { grid } = await board(page);
-  const mirrors = [...grid].flatMap((ch, c) => (isMirror(ch) ? [c] : []));
-  const first = mirrors[0]!;
+  // Keyboard: walk the cursor to an empty cell and put the next piece there.
+  const start = await board(page);
+  expect(start.queue.length).toBeGreaterThan(0);
+  const empty = [...start.grid].findIndex((ch) => ch === ".");
   const [col, row] = ((await canvas.getAttribute("data-cursor")) ?? "0,0").split(",").map(Number) as [number, number];
-  for (let c = col; c < first % N; c++) await page.keyboard.press("ArrowRight");
-  for (let c = col; c > first % N; c--) await page.keyboard.press("ArrowLeft");
-  for (let r = row; r < Math.floor(first / N); r++) await page.keyboard.press("ArrowDown");
-  for (let r = row; r > Math.floor(first / N); r--) await page.keyboard.press("ArrowUp");
+  for (let c = col; c < empty % N; c++) await page.keyboard.press("ArrowRight");
+  for (let c = col; c > empty % N; c--) await page.keyboard.press("ArrowLeft");
+  for (let r = row; r < Math.floor(empty / N); r++) await page.keyboard.press("ArrowDown");
+  for (let r = row; r > Math.floor(empty / N); r--) await page.keyboard.press("ArrowUp");
   await page.keyboard.press(" ");
-  await expect.poll(async () => (await board(page)).grid).toBe(flipped(grid, first));
+  await expect.poll(async () => (await board(page)).grid[empty]).toBe(start.queue[0]);
   await expectViewMatchesState(page, "deflectors");
 
-  // Pointer: tap another mirror, then an empty cell and a lens, which do nothing.
-  const second = mirrors[mirrors.length - 1]!;
-  await tapCell(page, second);
-  await expect.poll(async () => (await board(page)).grid).toBe(flipped(flipped(grid, first), second));
-  await tapCell(page, [...grid].findIndex((ch) => ch === "."));
-  await tapCell(page, [...grid].findIndex((ch) => ch >= "a" && ch <= "c"));
+  // A mirror comes, and R turns it before it goes down; a tap puts it on another cell, over what is there.
+  await expect.poll(async () => isMirror((await board(page)).queue[0] ?? ""), { timeout: 15_000 }).toBe(true);
+  const before = await board(page);
+  await page.keyboard.press("r");
+  await expect.poll(async () => (await board(page)).queue[0]).toBe(turned(before.queue[0]!));
+  const other = (empty + 7) % (N * N);
+  await tapCell(page, other);
+  await expect.poll(async () => (await board(page)).grid[other]).toBe(turned(before.queue[0]!));
   await expectViewMatchesState(page, "deflectors");
-  expect((await board(page)).grid).toBe(flipped(flipped(grid, first), second));
 });
 
-test("a Deflectors volley routed home through its recipes and fired from its port scores, the grid settles, and the F key fires the next volley as it stands", async ({ page }) => {
+test("a Deflectors shot built to light a target and fired from the emitters scores, and spends what it used", async ({ page }) => {
   // A pinned lab seed.
   await page.goto("/play/deflectors?seed=smoke-9&start=lab");
   await expect(page.getByTestId("deflectors-canvas")).toBeVisible();
-  // The first volley is announced within a second: two beams, each with a recipe, not home as the mirrors stand.
-  await expect.poll(async () => (await board(page)).beams.length).toBe(2);
-  const { grid, beams } = await board(page);
-  for (const b of beams) expect(b.recipe).toBeGreaterThan(0);
-  const home = (b: { grid: string; beams: Beam[] }): boolean => b.beams.length > 0 && b.beams.every((x) => isHome(b.grid, x));
-  expect(home({ grid, beams })).toBe(false);
-  const flips = solve(grid, beams);
-  expect(flips.length).toBeGreaterThan(0);
-  for (const cell of flips) await tapCell(page, cell);
-  await expect.poll(async () => home(await board(page))).toBe(true);
+  await expect(page.getByTestId("hud-moves")).toHaveText("0");
+  // The round is under way once a second piece has come into the queue.
+  await expect.poll(async () => (await board(page)).queue.length, { timeout: 5_000 }).toBeGreaterThan(1);
+  // Put each piece where it makes a shot light something, as soon as one does; until then where it lights nothing new.
+  let found = false;
+  for (let tries = 0; tries < 12 && !found; tries++) {
+    await expect.poll(async () => (await board(page)).queue.length, { timeout: 5_000 }).toBeGreaterThan(0);
+    const { grid, targets, queue } = await board(page);
+    if (lit(grid, targets) > 0) {
+      found = true;
+      break;
+    }
+    const piece = queue[0]!;
+    const ways = isMirror(piece) ? [piece, turned(piece)] : [piece];
+    let pick: { cell: number; way: string } | null = null;
+    for (let cell = 0; cell < N * N && !pick; cell++) for (const way of ways) if (!pick && grid[cell] !== way && lit(put(grid, cell, way), targets) > 0) pick = { cell, way };
+    const go = pick ?? { cell: tries, way: piece };
+    if (go.way !== piece) {
+      await page.keyboard.press("r");
+      await expect.poll(async () => (await board(page)).queue[0]).toBe(go.way);
+    }
+    await tapCell(page, go.cell);
+    await expect.poll(async () => (await board(page)).grid[go.cell]).toBe(go.way);
+    found = pick !== null;
+  }
+  expect(found).toBe(true);
   await expectViewMatchesState(page, "deflectors");
+  await expect(page.getByTestId("hud-shot")).not.toHaveText(/Nothing/);
   await expect(page.getByTestId("hud-score")).toHaveText("0");
 
-  // There is no count: the volley waits. A tap on the lit entry fires it.
-  await page.waitForTimeout(1500);
-  await expect(page.getByTestId("hud-moves")).toHaveText("0");
-  await tapPort(page, beams[0]!.entry);
+  // Nothing fires on its own. A tap on the emitters fires them all.
+  const built = await board(page);
+  await tapEmitters(page);
   await expect(page.getByTestId("hud-moves")).toHaveText("1");
   await expect.poll(async () => Number(await page.getByTestId("hud-score").textContent())).toBeGreaterThan(0);
-
-  // The mirrors the beams turned at were spent and the grid settled: as many mirrors and lenses, not all where they were.
-  const count = (g: string, f: (ch: string) => boolean): number => [...g].filter(f).length;
-  await expect.poll(async () => (await board(page)).beams.length).toBeGreaterThan(0);
-  const after = await board(page);
-  expect(count(after.grid, isMirror)).toBe(count(grid, isMirror));
-  expect(count(after.grid, (ch) => ch >= "a" && ch <= "c")).toBe(count(grid, (ch) => ch >= "a" && ch <= "c"));
-  expect([...after.grid].map((ch) => isMirror(ch))).not.toEqual([...grid].map((ch) => isMirror(ch)));
-  // The next volley comes once the grid has settled; F fires it where it stands.
+  // What the shot turned at is spent: fewer mirrors than it was built with.
+  const count = (g: string): number => [...g].filter(isMirror).length;
+  await expect.poll(async () => count((await board(page)).grid)).toBeLessThan(count(built.grid) + 1);
   await expectViewMatchesState(page, "deflectors");
+  // The emitters recharge, and F fires them again.
   await expect(async () => {
     await page.keyboard.press("f");
     expect(Number(await page.getByTestId("hud-moves").textContent())).toBeGreaterThanOrEqual(2);

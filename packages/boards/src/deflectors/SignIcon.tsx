@@ -1,10 +1,10 @@
 import { PictogramIcon } from "../kit/PictogramIcon.jsx";
-import { MIRROR_COLOR, MIRROR_PAINT, lensOf, lensPaint, signOf, signPaint } from "./pieces.js";
+import { MIRROR_COLOR, MIRROR_PAINT, TARGET_COLOR, TARGET_PAINT, lensOf, lensPaint, signOf, signPaint } from "./pieces.js";
 
-/** A beam's sign as an image, for a legend: solid as an entry wears it, hollow as a waiting exit does. */
-export function DeflectorsSignIcon({ sign, hollow = false, size = 22 }: { sign: number; hollow?: boolean; size?: number }) {
+/** An emitter's sign as an image, for a legend: the same drawing the board bakes. */
+export function DeflectorsSignIcon({ sign, size = 22 }: { sign: number; size?: number }) {
   const s = signOf(sign);
-  return <PictogramIcon name={`deflectors:sign:${s.shape}:${hollow ? "hollow" : "solid"}`} color={s.color} paint={signPaint(s.shape, hollow)} size={size} />;
+  return <PictogramIcon name={`deflectors:sign:${s.shape}`} color={s.color} paint={signPaint(s.shape)} size={size} />;
 }
 
 /** A mirror as an image, for a legend: the same drawing the board bakes. */
@@ -16,4 +16,9 @@ export function DeflectorsMirrorIcon({ size = 22 }: { size?: number }) {
 export function DeflectorsLensIcon({ kind, size = 22 }: { kind: number; size?: number }) {
   const l = lensOf(kind);
   return <PictogramIcon name={`deflectors:lens:${l.shape}`} color={l.color} paint={lensPaint(l.shape)} size={size} />;
+}
+
+/** A target as an image, for a legend: the same drawing the board bakes. */
+export function DeflectorsTargetIcon({ size = 22 }: { size?: number }) {
+  return <PictogramIcon name="deflectors:target" color={TARGET_COLOR} paint={TARGET_PAINT} size={size} />;
 }

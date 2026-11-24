@@ -55,7 +55,7 @@ export { SalvageCrateIcon, SalvageDebrisIcon, SalvageRubbleIcon, SalvageVolatile
 export { OverloadBoard, type OverloadBoardProps } from "./overload/OverloadBoard.jsx";
 export { CapacitorIcon } from "./overload/CapacitorIcon.jsx";
 export { DeflectorsBoard, type DeflectorsBoardProps } from "./deflectors/DeflectorsBoard.jsx";
-export { DeflectorsLensIcon, DeflectorsMirrorIcon, DeflectorsSignIcon } from "./deflectors/SignIcon.jsx";
+export { DeflectorsLensIcon, DeflectorsMirrorIcon, DeflectorsSignIcon, DeflectorsTargetIcon } from "./deflectors/SignIcon.jsx";
 export { DEFLECTORS_LENSES, DEFLECTORS_SIGNS } from "./deflectors/pieces.js";
 export { ReactorBoard, type ReactorBoardProps } from "./reactor/ReactorBoard.jsx";
 export { ReactorPortIcon, ReactorRodIcon } from "./reactor/RodIcon.jsx";

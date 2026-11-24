@@ -411,7 +411,7 @@ between them (`client/src/world/tones.ts`), and no file in the game's client typ
 
 **The eight prototypes** are restyled too (M10's fifth step). Each draws its pieces in code from a
 `pieces.ts` beside its renderer, on the board kit (3.12): Salvage's wreckage, Overload's
-capacitors with a hole for each charge, Deflectors' mirrors and port signs, Reactor's rods with
+capacitors with a hole for each charge, Deflectors' mirrors, emitters and targets, Reactor's rods with
 their grade cut out as a numeral, Scanner's fog plates, Tug's pods and the clamps cut to them,
 Racks' fuel cells and Cutting's ores. None loads an image and none has a marks toggle; each
 prototype's design file says what it draws.
@@ -612,7 +612,7 @@ are in [`prototypes/`](./prototypes/README.md), one file a puzzle, kept true as 
 |---|---|---|
 | Salvage | Drag a tether through touching debris of one kind | Close the line into a net and haul every crate adrift at once |
 | Overload | Tap a capacitor to charge it | Prime the bank so one tap bursts across it |
-| Deflectors | Flip mirrors | One layout that sends a whole volley of beams home through their recipes, each the long way round |
+| Deflectors | Place pieces | A grid built to light three targets in one shot, each the long way round, fired at the right moment |
 | Reactor | Swipe the whole core | Hot rods stacked at one port and sent out together as a salvo |
 | Scanner | Ping the fog | A sector cleared under par with no contact pinged and no wrong lock |
 | Tug | Flick a pod in zero gravity | A delivery at par, using another pod as the stop |

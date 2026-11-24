@@ -7,169 +7,156 @@ const c = p.config;
 /** Ticks as seconds on the round's clock. */
 const secs = (ticks: number): number => (ticks * c.tickMs) / 1000;
 const lensPct = c.lensPercent;
-/** A beam's own points for getting home after this many turns, with a recipe of this many lenses. */
+/** A beam's own points for lighting a target after this many turns, through a recipe of this many lenses. */
 const pts = (turns: number, lenses = 0): number => deflectorsBeamPoints(c, turns, (1 << lenses) - 1);
-const streak = c.streakPercent;
-const streakMax = streak[streak.length - 1]! / 100;
-const perfect = c.perfectPercent / 100;
-const nth = (n: number): string => ["", "first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"][n] ?? `${n}th`;
-/** What the climb back to a full streak gives up, counted in volleys at no multiplier. */
-const climb = Math.round(streak.reduce((n, pc) => n + (streak[streak.length - 1]! - pc), 0) / 100);
+/** What a shot lighting this many targets is multiplied by. */
+const times = (lit: number): number => c.litPercent[Math.min(lit, c.litPercent.length) - 1]! / 100;
+const most = c.litPercent.length;
+const words = ["no", "one", "two", "three", "four", "five", "six", "seven", "eight"];
+const say = (n: number): string => words[n] ?? String(n);
 
 export const deflectors: Guide = {
   id: "deflectors",
-  tagline: "Flip mirrors to route every beam home through exactly the lenses it asks for.",
+  tagline: "Build a grid of mirrors piece by piece, and fire when the shot is worth it.",
   hero: {
     kind: "still",
     name: "board",
-    alt: "The Deflectors board: a six by six grid of slanted mirrors and three lenses, a diamond, a hexagon and a cross. Two beams wait, each with a solid sign at its entry port and the same sign with its middle cut out at its exit port. Small lenses sit outside each exit: that beam's recipe. Broken lines show where each beam would go now and dots run back from each exit.",
-    caption: "Two beams waiting. The small lenses outside each exit are its recipe: the lenses it must pass through, and no others.",
+    alt: "The Deflectors board: a six by six grid with a few slanted mirrors and lenses. Three emitters sit on the left edge, a disc, a square and a triangle. Bullseye targets sit on the other edges, most with one or two small lenses outside them. One beam's route is drawn solid into a target ringed in its colour; the others are thin broken lines. The next piece waits in its slot under the grid.",
+    caption: "One beam already lights a target. The small lenses outside each target are what a beam must pass to light it. The next piece waits under the grid.",
   },
   theme: {
     setting:
-      "The ship's deflector array is a grid of mirrors and lenses behind the hull. Beams come in through the ports on its edge, and you are the pirate turning mirrors so each beam leaves by the port it is meant for, tuned by the lenses it was meant to pass. A beam that leaves anywhere else, or tuned wrong, burns into the **hull**.",
+      "The ship's deflector array is a grid you build behind the hull. Mirrors and lenses come off the rack one at a time, and you are the pirate setting each one down. Three emitters wait on one edge; targets wait on the others. Fire, and every beam that reaches a target through the right lenses lights it.",
     purpose:
-      "Deflectors is a prototype. It is on the test bench and in no ship yet. It tries out routing as planning: no count, a recipe for every beam, and a grid that every volley changes. It asks you to work out a route that meets every condition at once, and later to see how the route you fire shapes the grid for the next volley.",
+      "Deflectors is a prototype. It is on the test bench and in no ship yet. It tries out building as strategy: there is no one right route, only a grid you shape piece by piece and a choice of when a shot is worth firing.",
   },
   facts: [
-    { label: "Board", value: `${c.size} by ${c.size}, ${c.mirrors} mirrors, ${c.lenses} lenses` },
+    { label: "Board", value: `${c.size} by ${c.size}, ${c.emitters} emitters, ${c.targets} targets` },
     { label: "Round", value: `${p.roundSeconds} seconds` },
     { label: "Rated against", value: "The puzzle" },
     { label: "A solid round", value: `${p.thresholds[2]!.score} points` },
   ],
   rules: [
-    "Every mirror is set one of two ways. **Tap a mirror to flip it.** A beam passes straight through an empty cell and straight through a lens.",
-    `Beams come in **volleys** of ${c.beams}. A beam's entry port wears a solid sign. Its exit port wears the same sign with its middle cut out. Outside the exit sit up to ${c.recipeLenses} small lenses: the beam's **recipe**.`,
-    "A volley waits for as long as you like. **Tap a lit entry to fire it.** Every beam runs straight, turns at every mirror it meets, and leaves by some port.",
-    "A beam is **home** when it leaves by its own exit having passed exactly the lenses of its recipe: every one of them, and no other kind. Anything else hits the hull, even at its own exit.",
-    "While a beam waits, a broken line shows where it would go now and dots run back from its exit. A recipe's small lenses turn solid as the route passes them, and a lens on the route that is not in the recipe is ringed in danger. No beam is dealt home already.",
-    `Every mirror a fired beam turned at is **spent**. It leaves the grid, whatever stood above it in its column drops one cell, and a fresh mirror comes in at the top. The next volley comes ${secs(c.respawnTicks)} seconds after one fires, on the grid as it has settled.`,
+    `Pieces come into the **queue** under the grid, one every ${secs(c.pieceTicks)} seconds: mirrors, and now and then a lens. **Tap a cell to put the next piece there**, on an empty cell or over whatever is there. Tap the next piece to turn a mirror the other way first.`,
+    `The queue holds ${c.queueSize}. When a piece comes to a full queue, the oldest one **drops** on a cell of its own choosing.`,
+    `${say(c.emitters).replace(/^./, (x) => x.toUpperCase())} **emitters** sit on the left edge. **Tap them to fire**, and every one fires at once. Each beam runs straight, turns at every mirror it meets, passes straight through a lens, and leaves by some port.`,
+    "**Targets** sit on the other edges. A beam that leaves by a target **lights** it if it passed exactly the lenses drawn outside that target: every one of them, and no other kind. A target with none drawn wants a beam through no lens at all.",
+    "The board always draws each beam's route as the grid stands: solid into a target it would light, thin and broken anywhere else. A lens ringed in danger is spoiling a beam on its way to a target.",
+    `Firing **spends** every mirror a beam turned at and every lens a lighting beam passed: they leave the grid. Each lit target asks for new lenses. The emitters take ${secs(c.fireTicks)} seconds to recharge.`,
   ],
   rulesMedia: {
     kind: "clip",
-    name: "join",
-    alt: "One beam waits, astray. A mirror where its broken line and the dots from its exit cross is tapped, and the line becomes one solid route from entry to exit through the lens its recipe asks for. A tap on the entry port fires the beam home, and the mirrors it turned at drop out of the grid as the column above them falls.",
-    caption: "Flip the mirror where the two lines cross, through the right lens, and the beam is home. Fire it, and the mirrors it used are spent.",
+    name: "light",
+    alt: "Nothing on the grid lights a target. The next mirror is turned and put down on an empty cell, and one beam's broken line becomes a solid route that winds round several mirrors into a target, which is ringed in the beam's colour. A tap on the emitters fires: the beam runs its route, the target flashes and its points rise from it, and the mirrors the beams turned at shrink away.",
+    caption: "One mirror put down sends a beam round into a target. Fire, and the mirrors the beams used are spent.",
   },
   controls: [
-    { action: "Flip a mirror", touch: "Tap it", desktop: "Click it" },
-    { action: "Fire the volley", touch: "Tap a lit entry port", desktop: "Click a lit entry port, or press F" },
+    { action: "Put the next piece down", touch: "Tap a cell", desktop: "Click a cell" },
+    { action: "Turn the next mirror", touch: "Tap it in the queue", desktop: "Click it in the queue, or press R" },
+    { action: "Fire", touch: "Tap the emitters", desktop: "Click the emitters, or press F" },
     { action: "Move the cursor", touch: "", desktop: "Arrow keys or WASD" },
-    { action: "Flip at the cursor", touch: "", desktop: "Space or Enter" },
+    { action: "Put the piece at the cursor", touch: "", desktop: "Space or Enter" },
   ],
   scoring: [
-    `**A beam home scores by its turns:** turns plus one, squared, and ${lensPct}% more for each lens in its recipe. 3 turns through one lens are ${pts(3, 1)}, through two are ${pts(3, 2)}; 7 turns through two are ${pts(7, 2)}. A mirror met twice counts twice.`,
-    `**A beam into the hull costs ${c.hullPenalty}**, whether it left by the wrong port or by its own through the wrong lenses. The score never goes below zero.`,
-    `A volley with every beam home is **clean**. Clean volleys in a row build a streak: the first pays ${streak[0]}%, the second ${streak[1]}%, and it climbs to ×${streakMax} from the ${nth(streak.length)}. One beam into the hull ends it.`,
-    `The strip over the grid shows the best the volley could be. A clean volley worth its best is **perfect** and pays ×${perfect} on top of the streak.`,
+    `**A beam that lights a target scores by its turns:** turns plus one, squared, and ${lensPct}% more for each lens in the target's recipe. 3 turns through no lens are ${pts(3)}, through one are ${pts(3, 1)}; 7 turns through two are ${pts(7, 2)}. A mirror met twice counts twice.`,
+    `**A shot is multiplied by how many targets it lights:** ×${times(1)} for one, ×${times(2)} for two${most >= 3 ? `, ×${times(3)} for ${say(3)}` : ""}. Each target lights once a shot.`,
+    "**A beam that lights nothing scores nothing** and costs nothing. Firing is never punished; firing too early is just worth less.",
   ],
   stages: [
     {
       level: "beginner",
-      goal: "Get every beam home through its recipe, then fire.",
+      goal: "Light a target, fire, and see what the shot spends.",
       tips: [
         {
-          title: "Flip where the lines cross",
-          body: "Follow the broken line from the entry and the dots back from the exit. Where they cross **at a mirror**, flipping that mirror joins the first half of one to the second half of the other. The line turns solid, beaded with the beam's sign, only when the beam is home: at its exit and through its recipe.",
+          title: "Follow one beam",
+          body: "Pick one emitter and follow its broken line to where it leaves. Put a mirror where the line passes so it turns towards a target. When the line turns solid and the target is ringed in that beam's colour, the shot lights it.",
         },
         {
-          title: "Read the recipe first",
-          body: "Before you flip anything, look outside the exit. One glass means the route must pass a lens of that shape and no other lens. Find that lens on the grid, and think of the route as two legs: entry to lens, lens to exit. A joined line that misses the lens, or passes a lens ringed in danger, is not home.",
+          title: "Read the recipe",
+          body: "Before you aim at a target, look at the small lenses outside it. A target with one glass wants a beam through a lens of that shape and no other. Aim at plain targets first, then route through a lens on the grid on the way.",
         },
         {
-          title: "There is no count",
-          body: "A volley waits until you fire it. Nothing is lost by looking. Check every beam's line is solid, then tap a lit entry.",
+          title: "Turn before you put it down",
+          body: "A mirror can go either way. Tap the next piece in the queue to turn it: the way it is drawn in its slot is the way it goes down. Set as /, it sends a beam heading right upwards; set the other way, downwards.",
         },
       ],
-      drill: `Play rounds with no beam in the hull at all: every volley fired clean. You are there when a round passes ${p.thresholds[1]!.score} points.`,
+      drill: `Play rounds firing every time something lights. You are there when a round passes ${p.thresholds[1]!.score} points.`,
     },
     {
       level: "intermediate",
-      goal: "Bring two beams home on one grid, and keep the streak.",
+      goal: "Light two targets in one shot.",
       tips: [
         {
-          title: "Two beams, one setting",
-          body: "Bring the first beam home, then the second, then look at the first again. A mirror you flip for the second may sit on the first one's route, and the board draws both at once so you can see it break. A route that crosses the other beam's lens spoils it too: watch for a danger ring.",
+          title: "Two at once pays double",
+          body: `A shot that lights two targets is worth ×${times(2)}. Two beams of 3 turns each are ${pts(3) * 2} fired one by one, and ${pts(3) * 2 * times(2)} together. With one target lit, do not fire yet: look for the piece that lights a second.`,
           media: {
             kind: "clip",
-            name: "two-beams",
-            alt: "Two beams wait, a circle and a square, both astray. One mirror is flipped and the circle's route turns solid, home. A second mirror is flipped and the square's route turns solid too. A tap on an entry fires both, and the mirrors they used fall out of the grid.",
-            caption: "One flip brings the circle home, a second brings the square. Both are home on one setting, so the volley is clean.",
+            name: "double",
+            alt: "One beam already lights a target. A mirror is put down where another beam's broken line passes, and that line turns solid into a second target. The strip says two lit, times two. The emitters fire, both targets flash, and the board calls out two lit.",
+            caption: "One target lit. One more mirror lights a second, and the shot pays double.",
           },
         },
         {
-          title: "The streak is worth more than any one volley",
-          body: `From the ${nth(streak.length)} clean volley in a row everything pays ×${streakMax}. One beam into the hull costs ${c.hullPenalty} and sends you back to the start of the climb, which gives up about ${climb} volleys' worth of points on the way back up. Never fire with a beam astray.`,
+          title: "Keep your lit routes clear",
+          body: "Every beam fires every shot. A piece you put down for one beam may sit on another's solid route and break it. Look at every route after each piece.",
         },
         {
-          title: "Two lenses pay for the trouble",
-          body: `A recipe of two lenses is harder to meet, and pays for it: the same 3 turns are ${pts(3, 2)} through two lenses against ${pts(3, 1)} through one. The deal gives you what one setting can reach, so a two-lens route is always there to find.`,
+          title: "Use the drop",
+          body: "Not every piece fits. A lens no target wants, or a mirror that would break a route, still has to go somewhere. Put it where no beam runs now, in a corner you are not building in, before the queue fills and drops it somewhere worse.",
+          media: {
+            kind: "still",
+            name: "queue",
+            alt: "The queue under the grid holds four pieces and its next slot is ringed in danger: the next piece to come will drop the oldest on the grid.",
+            caption: "A full queue, ringed in danger. Put a piece down before the next one comes, or the oldest drops on its own.",
+          },
         },
       ],
-      drill: `Play for the streak alone: a whole round with every volley clean. You are there when the streak reaches ${streak.length} and the round passes ${p.thresholds[2]!.score} points.`,
+      drill: `Play rounds where you never fire a shot that lights only one target before the last ten seconds. You are there when a round passes ${p.thresholds[2]!.score} points.`,
     },
     {
       level: "advanced",
-      goal: "Stop firing the first route you find. See the long way round.",
+      goal: "Decide when to cash in and when to build on.",
       tips: [
         {
-          title: "Read the strip before you fire",
-          body: "Once a volley is home the strip shows two numbers: what it pays now, and the best it could pay. The first route through a recipe is often worth about two thirds of the best. A wide gap means there is a longer way to the same lenses. When the strip says Perfect, there is nothing left to find: fire.",
-          media: {
-            kind: "still",
-            name: "strip",
-            alt: "A beam is home by a short route. The strip over the grid shows a small number for firing now and a larger number for the best the volley could be.",
-            caption: "Home by a short route. The strip shows what firing now pays and, beside it, the best this volley could be.",
-          },
+          title: "No shot is the right one",
+          body: `There is no correct route here, only better and worse shots for the grid you have. A shot that lights two targets now is worth ×${times(2)}. Holding it for a third is worth ×${times(most)}, but every piece you put down meanwhile can break what you have, and the queue will not wait.`,
         },
         {
-          title: "Wind round, then through",
-          body: `Turns are squared, so a longer leg on either side of the lens pays well. Look for a loop of mirrors near the beam's line that you can send it round before or after its lens, and keep the loop clear of the other lenses. Two more turns on a route of 5 take it from ${pts(5, 1)} to ${pts(7, 1)} through one lens.`,
-          media: {
-            kind: "clip",
-            name: "long-way",
-            alt: "A beam is home by a short route. A few more mirrors are flipped and the same beam now winds round more mirrors on the way to the same lens and exit. The strip changes to Perfect, the volley is fired and the board calls out a perfect volley.",
-            caption: "A few more flips send the same beam round more mirrors on its way. The strip turns to Perfect.",
-          },
+          title: "Long routes pay squared",
+          body: `Turns are squared, so one beam winding round seven mirrors is worth more than two beams round three: ${pts(7)} against ${pts(3) * 2}. Before a shot that lights a lot, see if a mirror or two more can lengthen one of its routes without breaking the others.`,
         },
         {
-          title: "See it, do not poke for it",
-          body: "Flipping mirrors at random to see if the number goes up loses to firing at once: a longer route that still meets the recipe is rarely one lucky flip away. Trace the long route with your eye first, then flip. Unrated practice rounds pulse the next mirror towards the best setting when you pause. Use that to learn what long routes look like.",
+          title: "What you fire is what you clear",
+          body: "Firing spends every mirror a beam turned at, lit or not, and every lens a lighting beam passed. A shot that lights little still clears the grid for the next build. A cramped grid is a reason to fire.",
         },
       ],
-      drill: `Play rounds with one beam a volley (the studio's preset) for perfect volleys only. You are there when most of them are perfect and a round of two beams passes ${p.thresholds[3]!.score} points.`,
+      drill: `Play rounds firing only shots worth more than the round's average. You are there when a round passes ${p.thresholds[3]!.score} points.`,
     },
     {
       level: "expert",
-      goal: "Plan past the volley: perfect at pace, on a grid you shape yourself.",
+      goal: "Build two shots ahead.",
       tips: [
         {
-          title: "Give the long way a budget",
-          body: `With no count the only clock is the round. A perfect volley pays ×${perfect} what the same route would plain, so the search is worth about the time of one more quick volley, and no more. If you have not seen the long route by then, fire what is home and take the next volley.`,
+          title: "Spend on purpose",
+          body: "Before you fire, look at which mirrors the shot will spend and what is left. Keep the mirrors that will form the next routes off this shot's paths. A grid that is half built for the next shot when this one fires is worth more than any one shot.",
         },
         {
-          title: "Stack perfect on a full streak",
-          body: `Perfect and the streak multiply each other: at full streak a perfect volley pays ×${perfect * streakMax}. Never trade a clean volley for a long route you are not sure of.`,
-          media: {
-            kind: "clip",
-            name: "perfect-pair",
-            alt: "Two beams wait, both astray. A handful of mirrors are flipped and both routes turn solid, each through its lenses. The strip says Perfect, the volley is fired, both beams run their routes home and the spent mirrors fall out of the grid.",
-            caption: "Two beams, both by the long way, on one setting. The strip says Perfect before the tap.",
-          },
+          title: "Watch the recipes turn over",
+          body: "A lit target asks for new lenses. A target that asked for nothing may ask for two next time. The lenses you have on the grid decide which targets you can chase next; keep a lens or two that no shot spends until you need it.",
         },
         {
-          title: "The route you fire is the grid you get",
-          body: "Every mirror a beam turns at is spent, and its column drops. A long route spends many mirrors and reshapes much of the grid; a short one leaves most of it as it was. Before you fire, look at what will fall: a column emptied under a lens drops that lens with it, and fresh mirrors come in at the top, set at random. A grid with mirrors spread round the lenses deals long routes; one with a lens cut off deals short ones.",
+          title: "Pace the round",
+          body: "The round ends with whatever is on the grid unfired. Plan the last build so its shot lands in the last seconds, and fire it whatever it lights.",
         },
       ],
-      drill: `Time yourself: no volley longer than two quick ones would take, and every one clean. You are there when a round passes ${p.thresholds[5]!.score} points.`,
+      drill: `Time yourself on the last shot of the round. You are there when a round passes ${p.thresholds[5]!.score} points.`,
     },
   ],
   mistakes: [
-    "**Joining the lines and forgetting the recipe.** At its own exit through the wrong lenses, a beam is still in the hull. Check the small lenses outside the exit are all solid.",
-    "**Passing an extra lens.** A recipe is exact. A lens ringed in danger spoils the beam even if every lens it asked for is there.",
-    "**Fixing the second beam and breaking the first.** Look at both routes after every flip. A clean volley needs both solid.",
-    "**Poking mirrors to make the number go up.** It costs more time than it finds. Trace the route first.",
-    `**Chasing Perfect at the cost of the streak.** A beam in the hull costs ${c.hullPenalty} and the whole streak. Go back to a route that is home.`,
+    "**Firing every time something lights.** A shot that lights one target is worth the least it can be. Build towards two or three first.",
+    "**Waiting for a perfect shot that never comes.** Each piece you put down can break a lit route. Fire when the shot is good, not when it is the best you can imagine.",
+    "**Forgetting the recipe.** A beam out through a target with the wrong lenses lights nothing. Check the small glasses are solid.",
+    "**Letting the queue drop pieces.** A dropped piece lands where the engine chooses, often on a route you built. Put awkward pieces down yourself, out of the way.",
+    "**Ending the round with an unfired build.** Whatever is on the grid at the end scores nothing. Fire before the clock runs out.",
   ],
 };
