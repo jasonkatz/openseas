@@ -8,6 +8,7 @@ import {
   DEFLECTORS_LENS,
   DEFLECTORS_LENS_KINDS,
   DEFLECTORS_SLASH,
+  DEFLECTORS_SPLITTER,
   type DeflectorsConfig,
   type DeflectorsEvent,
   type DeflectorsMove,
@@ -66,7 +67,13 @@ export function turn(mirror: number, dir: number): number {
 export const isMirror = (cell: number): boolean => cell === DEFLECTORS_SLASH || cell === DEFLECTORS_BACKSLASH;
 
 /** The kind of lens a cell holds, or -1 when it holds none. */
-export const lensKind = (cell: number): number => (cell >= DEFLECTORS_LENS ? cell - DEFLECTORS_LENS : -1);
+export const lensKind = (cell: number): number => (cell >= DEFLECTORS_LENS && cell < DEFLECTORS_LENS + DEFLECTORS_LENS_KINDS ? cell - DEFLECTORS_LENS : -1);
+
+/** True for a cell that holds a splitter. */
+export const isSplitter = (cell: number): boolean => cell === DEFLECTORS_SPLITTER;
+
+/** The most branches one emitter's beam is followed into. A grid that would split it further stops there. */
+const MAX_BRANCHES = 16;
 
 /** Lens kinds in a recipe mask. */
 export function recipeSize(mask: number): number {
@@ -103,12 +110,15 @@ export function validateConfig(cfg: DeflectorsConfig): void {
     int(cfg.bouncePoints, 0, 1000) &&
     int(cfg.bounceCap, 1, 64) &&
     Array.isArray(cfg.litPercent) &&
-    cfg.litPercent.length === cfg.emitters &&
+    cfg.litPercent.length >= 1 &&
+    cfg.litPercent.length <= 10 &&
     cfg.litPercent.every((p) => int(p, 0, 10_000)) &&
     typeof cfg.spend === "boolean" &&
     int(cfg.pieces, 1, 1000) &&
     int(cfg.queueSize, 1, 8) &&
     int(cfg.lensChance, 0, 100) &&
+    int(cfg.splitterChance, 0, 100) &&
+    cfg.lensChance + cfg.splitterChance <= 100 &&
     // A recipe asking for lenses needs lenses to keep coming.
     (weights.length === 1 || cfg.lensChance > 0) &&
     int(cfg.fireTicks, 0, 10_000) &&
@@ -118,29 +128,66 @@ export function validateConfig(cfg: DeflectorsConfig): void {
   if (!ok) throw new Error("invalid deflectors config");
 }
 
-/** The way a beam from `entry` runs through `cells` as they stand. */
-export function trace(cfg: DeflectorsConfig, cells: readonly number[], entry: number): DeflectorsTrace {
+/**
+ * Every branch of the beam from `entry` through `cells` as they stand. A splitter ends the beam that
+ * meets it and starts two, turned each way across it, each counting the split as a turn; the first
+ * is the one turned anticlockwise. A branch that comes to a cell heading a way some branch of this
+ * beam already went stops there, so a loop of splitters ends. Branches are in the order they leave.
+ */
+export function traceBeams(cfg: DeflectorsConfig, cells: readonly number[], entry: number): DeflectorsTrace[] {
   const n = cfg.size;
-  let { col, row, dir } = portEntry(cfg, entry);
-  const turns: number[] = [];
-  const lensCells: number[] = [];
-  let lenses = 0;
-  // A path through two-sided mirrors can be run backwards, so a beam from outside always leaves; the bound is for a bad grid only.
-  for (let step = 0; step < n * n * 4 + 4; step++) {
-    if (col < 0 || col >= n || row < 0 || row >= n) break;
-    const cell = row * n + col;
-    const here = cells[cell]!;
-    if (isMirror(here)) {
-      dir = turn(here, dir);
-      turns.push(cell);
-    } else if (here >= DEFLECTORS_LENS) {
-      lenses |= 1 << (here - DEFLECTORS_LENS);
-      lensCells.push(cell);
-    }
-    col += DX[dir]!;
-    row += DY[dir]!;
+  const start = portEntry(cfg, entry);
+  const seen = new Set<number>();
+  const out: DeflectorsTrace[] = [];
+  interface Branch {
+    col: number;
+    row: number;
+    dir: number;
+    turns: number[];
+    lensCells: number[];
+    lenses: number;
   }
-  return { out: exitPort(cfg, col - DX[dir]!, row - DY[dir]!, dir), bounces: turns.length, turns, lenses, lensCells };
+  const todo: Branch[] = [{ ...start, turns: [], lensCells: [], lenses: 0 }];
+  while (todo.length > 0 && out.length < MAX_BRANCHES) {
+    const b = todo.shift()!;
+    let { col, row, dir } = b;
+    let stop = -1;
+    for (;;) {
+      if (col < 0 || col >= n || row < 0 || row >= n) break;
+      const cell = row * n + col;
+      const key = cell * 4 + dir;
+      if (seen.has(key)) {
+        stop = cell;
+        break;
+      }
+      seen.add(key);
+      const here = cells[cell]!;
+      if (isMirror(here)) {
+        dir = turn(here, dir);
+        b.turns.push(cell);
+      } else if (isSplitter(here)) {
+        const turns = [...b.turns, cell];
+        for (const d of [(dir + 3) % 4, (dir + 1) % 4]) todo.push({ col: col + DX[d]!, row: row + DY[d]!, dir: d, turns: [...turns], lensCells: [...b.lensCells], lenses: b.lenses });
+        stop = -2;
+        break;
+      } else if (lensKind(here) >= 0) {
+        b.lenses |= 1 << lensKind(here);
+        b.lensCells.push(cell);
+      }
+      col += DX[dir]!;
+      row += DY[dir]!;
+    }
+    // A split ends this beam where its two branches begin: they are followed instead.
+    if (stop === -2) continue;
+    const t = { bounces: b.turns.length, turns: b.turns, lenses: b.lenses, lensCells: b.lensCells };
+    out.push(stop >= 0 ? { out: -1, stop, ...t } : { out: exitPort(cfg, col - DX[dir]!, row - DY[dir]!, dir), stop: -1, ...t });
+  }
+  return out;
+}
+
+/** The way a beam from `entry` runs through `cells` as they stand: its first branch, the whole beam on a grid with no splitter. */
+export function trace(cfg: DeflectorsConfig, cells: readonly number[], entry: number): DeflectorsTrace {
+  return traceBeams(cfg, cells, entry)[0]!;
 }
 
 /** A beam's own points for lighting a target with a recipe of `recipe` (a mask) after `bounces` turns: (turns + 1) squared, and lensPercent more for each lens. */
@@ -161,16 +208,17 @@ export function lights(target: DeflectorsTarget, out: number, lenses: number): b
   return out === target.port && lenses === target.recipe;
 }
 
-/** What firing every emitter through `cells` does to `targets`: beams in emitter order, each target lit once. */
+/** What firing every emitter through `cells` does to `targets`: beams in emitter order, each branch in turn, each target lit once. */
 export function resolve(cfg: DeflectorsConfig, cells: readonly number[], emitters: readonly number[], targets: readonly DeflectorsTarget[]): DeflectorsOutcome {
   const lit = new Set<number>();
-  const shots: DeflectorsShot[] = emitters.map((entry) => {
-    const t = trace(cfg, cells, entry);
-    const target = targets.find((g) => !lit.has(g.id) && lights(g, t.out, t.lenses));
-    if (!target) return { entry, ...t, target: -1, points: 0 };
-    lit.add(target.id);
-    return { entry, ...t, target: target.id, points: beamPoints(cfg, t.bounces, target.recipe) };
-  });
+  const shots: DeflectorsShot[] = emitters.flatMap((entry, emitter) =>
+    traceBeams(cfg, cells, entry).map((t) => {
+      const target = targets.find((g) => !lit.has(g.id) && lights(g, t.out, t.lenses));
+      if (!target) return { entry, emitter, ...t, target: -1, points: 0 };
+      lit.add(target.id);
+      return { entry, emitter, ...t, target: target.id, points: beamPoints(cfg, t.bounces, target.recipe) };
+    }),
+  );
   const base = shots.reduce((a, s) => a + s.points, 0);
   const pct = litPercentAt(cfg, lit.size);
   return { shots, lit: lit.size, base, litPercent: pct, points: Math.floor((base * pct) / 100) };
@@ -208,14 +256,15 @@ function drawRecipe(cfg: DeflectorsConfig, rng: PrngState): { recipe: number; rn
   return { recipe: mask, rng: r.state };
 }
 
-/** A piece drawn: a lens of some kind lensChance in a hundred, else a mirror set at random. */
+/** A piece drawn: a lens of some kind lensChance in a hundred, a splitter splitterChance in a hundred, else a mirror set at random. */
 function drawPiece(cfg: DeflectorsConfig, rng: PrngState): { piece: number; rng: PrngState } {
-  const lens = nextInt(rng, 100);
-  if (lens.value < cfg.lensChance) {
-    const k = nextInt(lens.state, DEFLECTORS_LENS_KINDS);
+  const roll = nextInt(rng, 100);
+  if (roll.value < cfg.lensChance) {
+    const k = nextInt(roll.state, DEFLECTORS_LENS_KINDS);
     return { piece: DEFLECTORS_LENS + k.value, rng: k.state };
   }
-  const way = nextInt(lens.state, 2);
+  if (roll.value < cfg.lensChance + cfg.splitterChance) return { piece: DEFLECTORS_SPLITTER, rng: roll.state };
+  const way = nextInt(roll.state, 2);
   return { piece: way.value === 0 ? DEFLECTORS_SLASH : DEFLECTORS_BACKSLASH, rng: way.state };
 }
 
@@ -533,7 +582,10 @@ export function hint(state: DeflectorsState): { cell: number; turn: boolean } | 
 
 /** A cell as one character: `.` empty, `/` and `\\` mirrors, `a`, `b`, `c` lenses. */
 export function cellChar(cell: number): string {
-  return cell === DEFLECTORS_SLASH ? "/" : cell === DEFLECTORS_BACKSLASH ? "\\" : cell >= DEFLECTORS_LENS ? String.fromCharCode(97 + cell - DEFLECTORS_LENS) : ".";
+  if (cell === DEFLECTORS_SLASH) return "/";
+  if (cell === DEFLECTORS_BACKSLASH) return "\\";
+  if (cell === DEFLECTORS_SPLITTER) return "*";
+  return lensKind(cell) >= 0 ? String.fromCharCode(97 + lensKind(cell)) : ".";
 }
 
 /**

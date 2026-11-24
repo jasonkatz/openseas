@@ -41,10 +41,10 @@ export const deflectors: Guide = {
   rules: [
     `A round deals **${c.pieces} pieces**: mirrors, and now and then a lens. The **queue** under the grid shows the next ${say(c.queueSize)}. **Put the next piece on a cell**, empty or over whatever is there: with a mouse, hover a cell to see it there as a ghost, routes and all, and click to lock it in; on a touch screen, drag it from the queue and lift to drop it. Tap the next piece to turn a mirror the other way first.`,
     "Nothing comes on a timer and nothing is put down for you. A piece you do not want goes in the **bin**, left of the queue: it is used up all the same. The count beside the queue says how many pieces are left.",
-    `${say(c.emitters).replace(/^./, (x) => x.toUpperCase())} **emitters** sit on the left edge. **Tap them to fire**, and every one fires at once. Each beam runs straight, turns at every mirror it meets, passes straight through a lens, and leaves by some port.`,
+    `${say(c.emitters).replace(/^./, (x) => x.toUpperCase())} **emitters** sit on the left edge. **Tap them to fire**, and every one fires at once. Each beam runs straight, turns at every mirror it meets, passes straight through a lens, and leaves by some port. Now and then a piece is a **splitter**, a three-armed fork: a beam that meets it splits in two, one half going each way across it.`,
     "**Targets** sit on the other edges. A beam that leaves by a target **lights** it if it passed exactly the lenses drawn outside that target: every one of them, and no other kind. A target with none drawn wants a beam through no lens at all.",
     "The board always draws each beam's route as the grid stands: solid into a target it would light, thin and broken anywhere else. A lens ringed in danger is spoiling a beam on its way to a target.",
-    `Firing **spends** every mirror a beam turned at and every lens a lighting beam passed: they leave the grid. Each lit target asks for new lenses. The emitters take ${secs(c.fireTicks)} seconds to recharge.`,
+    `Firing **spends** every mirror a beam turned at, every splitter it split at, and every lens a lighting beam passed: they leave the grid. Each lit target asks for new lenses. The emitters take ${secs(c.fireTicks)} seconds to recharge.`,
   ],
   rulesMedia: {
     kind: "clip",
@@ -64,6 +64,7 @@ export const deflectors: Guide = {
   scoring: [
     `**A beam that lights a target scores by its turns:** turns plus one, squared, and ${lensPct}% more for each lens in the target's recipe. 3 turns through no lens are ${pts(3)}, through one are ${pts(3, 1)}; 7 turns through two are ${pts(7, 2)}. A mirror met twice counts twice.`,
     `**A shot is multiplied by how many targets it lights:** ×${times(1)} for one, ×${times(2)} for two${most >= 3 ? `, ×${times(3)} for ${say(3)}` : ""}. Each target lights once a shot.`,
+    "**A split beam scores each half on its own**, and the split counts as a turn for both. Each half can light a target of its own, and counts towards the multiplier.",
     "**A beam that lights nothing scores nothing** and costs nothing. Firing is never punished; firing too early is just worth less.",
   ],
   stages: [
@@ -128,6 +129,10 @@ export const deflectors: Guide = {
         {
           title: "Long routes pay squared",
           body: `Turns are squared, so one beam winding round seven mirrors is worth more than two beams round three: ${pts(7)} against ${pts(3) * 2}. Before a shot that lights a lot, see if a mirror or two more can lengthen one of its routes without breaking the others.`,
+        },
+        {
+          title: "Split for a wider shot",
+          body: "One emitter through a splitter can light two targets, and a splitter on a route that already lights keeps that half and sends a new one out. Put one where both halves have somewhere to go: a split into an empty edge is a turn spent for nothing.",
         },
         {
           title: "What you fire is what you clear",

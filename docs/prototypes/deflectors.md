@@ -5,7 +5,7 @@ the engine's clock, but nothing comes on it: every piece waits for the player. A
 
 Version 1.0 (ADR 0079). History:
 
-- **1.0:** a set supply of pieces, seen a few ahead and placed anywhere or binned; three emitters that all fire at once; targets with
+- **1.0:** a set supply of pieces, seen a few ahead and placed anywhere or binned; splitters that split a beam in two; three emitters that all fire at once; targets with
   lens recipes; a shot multiplied by the targets it lights; what a shot used is spent. An open
   building puzzle with no right move, after the owner asked for one in the spirit of the original's
   potion puzzle: strategy and decisions, not finding the one answer. An earlier draft of 1.0 (never
@@ -21,8 +21,9 @@ A six by six grid (`size`) that starts with a few mirrors (`mirrors`) and lenses
 **emitters** (`emitters`) sit on the left edge, each with a sign: a disc, a square, a triangle.
 Five **targets** (`targets`) sit at ports on the other three edges.
 
-**Pieces.** A round deals fifty pieces (`pieces`): mirrors set as `/` or `\`, and now and then a
-lens of one of three kinds (`lensChance`, 22 percent): a diamond, a hexagon, a cross. The **queue**
+**Pieces.** A round deals fifty pieces (`pieces`): mirrors set as `/` or `\`, now and then a lens
+of one of three kinds (`lensChance`, 22 percent): a diamond, a hexagon, a cross, and now and then a
+**splitter** (`splitterChance`, 8 percent). The **queue**
 under the grid shows the next three (`queueSize`). The player puts the next piece on any cell, empty
 or not; it replaces what was there. A mirror can be turned before it goes down. A piece the player
 does not want goes in the **bin**: it is used up and put nowhere. Nothing comes on a timer and
@@ -39,17 +40,22 @@ last few get played.
 those kinds: every one, and no other.
 
 **The shot.** Tapping the emitters fires all three. Each beam runs straight, turns at every mirror,
-passes straight through a lens, and leaves by some port. Each target lights at most once a shot,
-claimed by the emitters in order.
+passes straight through a lens, and leaves by some port. A beam that meets a splitter ends there,
+and two go on from it, one each way across the way it came; each counts the split as one of its
+turns and carries the lenses passed before it. A branch that comes to a cell heading a way some
+branch of the same beam already went stops there, so splitters that loop end; a beam is followed
+into at most sixteen branches. Each target lights at most once a shot, claimed by the emitters in
+order and each emitter's branches in the order they leave.
 
 - A beam that lights a target scores (turns + 1) squared (`bouncePoints`, turns capped at 16 by
   `bounceCap`), and half as much again for each lens in the recipe (`lensPercent`). Three turns
   through no lens are 16, through one are 24; seven turns through two are 128.
 - The shot's total is multiplied by the targets it lit: 100, 200 or 400 percent for one, two or
-  three (`litPercent`).
+  three or more (`litPercent`; past its last entry, the last).
 - A beam that lights nothing scores nothing and costs nothing.
 
-**Spending.** Every mirror any beam turned at, lit or not, and every lens a lighting beam passed,
+**Spending.** Every mirror any beam turned at and every splitter it split at, lit or not, and every
+lens a lighting beam passed,
 leave the grid (`spend`). Each lit target is dealt a new recipe. The emitters then recharge for one
 second (`fireTicks`).
 
@@ -95,7 +101,8 @@ The board follows the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws
 - **Pieces.** A mirror is a bar on a pivot; `/` and `\` are the same picture a quarter turn apart,
   so the way it is set is its outline. Each emitter wears its sign: a disc, a square, a triangle, in
   sand, rose and moss. A target is a bullseye in ice, a silhouette no sign or lens shares. Each lens
-  is a glass of its own outline: a diamond in lilac, a hexagon in teal, a cross in rust.
+  is a glass of its own outline: a diamond in lilac, a hexagon in teal, a cross in rust. A splitter
+  is a fork of three arms round a hub, in olive, with no setting.
 - **The board.** Bare ground; one hairline round the grid; a dot in every cell. The ring round the
   grid holds the emitters, the targets and the recipe glasses outside them.
 - **Routes.** Every beam's route is drawn as the grid stands. One that would light a target is a
@@ -119,11 +126,11 @@ The board follows the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws
 
 `packages/engine/src/deflectors/`. Moves: `{ type: "place", cell, tick }`, `{ type: "turn", tick }`, `{ type: "bin", tick }`,
 `{ type: "fire", tick }`, `{ type: "wait", tick }`, `{ type: "end", tick }`. A cell is empty (0), a
-mirror (1 for `/`, 2 for `\`) or a lens (3 + kind). Ports are numbered side by side, top, right,
+mirror (1 for `/`, 2 for `\`), a lens (3 + kind) or a splitter (6). Ports are numbered side by side, top, right,
 bottom, left, `side × size + i`; the emitters sit on rows spread evenly down the left.
 
 The reducer first carries the round to the move's tick (`simulate`); nothing happens on the clock.
-A place or a bin takes the next piece, and the supply (`left`) refills the queue behind it. `trace` runs one beam and returns its port, turns and lens mask. `resolve` is what
+A place or a bin takes the next piece, and the supply (`left`) refills the queue behind it. `traceBeams` runs one emitter's beam and returns every branch: its port (or where it stopped), turns and lens mask. `resolve` is what
 a shot does fired now, each target lit once in emitter order; the board previews with it
 (`deflectorsOutlook`) and the reducer scores with it. `fire` spends, deals new recipes to lit
 targets and starts the recharge. Events are `piece`, `bin` and `fire`, numbered with a rising `seq`.
@@ -137,16 +144,18 @@ on the content config, a person's pace modelled as 1 s a piece and 0.5 s to fire
 
 | Bot | Score | Tier |
 |---|---|---|
-| careless | 2 | Green |
-| one move | 206 | Steady |
-| rollout | 990 | Steady |
-| eager, fires at the first light (the bait) | 198 | Green |
-| builder, fires at 1 | 376 | Steady |
-| builder, fires at 150 | 1,211 | Sharp |
-| builder, fires at 800 | 1,978 | Sharp |
-| builder, fires at 1,500 | 1,309 | Sharp |
-| builder, fires at 800, 2.5 s a piece | 1,978 | Sharp |
-| builder, fires at 800, 5 s a piece | 1,452 | Sharp |
+| careless | 16 | Green |
+| one move | 210 | Steady |
+| rollout | 1,233 | Sharp |
+| eager, fires at the first light (the bait) | 158 | Green |
+| builder, fires at 1 | 395 | Steady |
+| builder, fires at 150 | 1,446 | Sharp |
+| builder, fires at 800 | 2,692 | Masterful |
+| builder, fires at 1,500 | 3,370 | Masterful |
+| builder, fires at 3,000 | 3,745 | Masterful |
+| builder, fires at 6,000 | 3,469 | Masterful |
+| builder, fires at 800, 2.5 s a piece | 2,692 | Masterful |
+| builder, fires at 800, 5 s a piece | 1,796 | Sharp |
 
 The eager bot puts each piece where the shot is worth most now and fires as soon as anything lights.
 A builder puts each piece where the grid is worth most counting one mirror more, bins a piece that
@@ -154,10 +163,15 @@ would make it worth less anywhere, and fires when a shot reaches its threshold, 
 out, or near the end. One move and rollout play the generic choice list, which fires too early.
 
 - **There is no right threshold, but there is a better one.** Holding too little and holding too
-  much both lose: 1,211 at 150, 1,978 at 800, 1,309 at 1,500. That interior optimum is what the
+  much both lose: 1,446 at 150, 3,745 at 3,000, 3,469 at 6,000. That interior optimum is what the
   owner asked for: a choice that matters, with no answer handed over.
-- **Strategy first, pace second.** The same builder scores 1,978 at 1 s a piece and at 2.5 s: up
-  to the pieces' pace, thinking costs nothing. At 5 s a piece it scores 1,452, a quarter less, as
+- **Splitters raise the ceiling, not the floor.** Without them (`splitterChance: 0`) the best
+  builder held for 800 and scored 1,978, and the eager bot 198. With them the best holds for
+  3,000 and scores 3,745, while the eager bot falls to 158: a splitter is worth most to a player
+  who builds a shot round it, and a splitter fired early is a turn spent. The optimum hold moves
+  up because one split route can light two targets and reach the ×4 sooner.
+- **Strategy first, pace second.** The same builder scores 2,692 at 1 s a piece and at 2.5 s: up
+  to the pieces' pace, thinking costs nothing. At 5 s a piece it scores 1,796, a third less, as
   the clock runs out with pieces unplaced. Choosing when to fire is worth more than half again. The
   round was 120 seconds at first (2.4 s a piece); the owner ran out of time playing it, so it is
   180, and pace only bites on a player slower than about 3.6 s a piece.
@@ -176,6 +190,8 @@ out, or near the end. One move and rollout play the generic choice list, which f
 
 - Is three targets lit ever reached by a person, or does the ×4 only tempt? If never, ×3 may read
   better.
+- With splitters four or five targets can light at once and still pay ×4. Should they pay more, or
+  would that make one split shot the whole round?
 - Is fifty the right supply for a person? The bots say a careful pace costs little; a person may
   think slower than 3.6 s a piece. `few_pieces` and `many_pieces` are presets.
 - Is three pieces ahead enough to plan with, or too much to read? `long_view` shows five.

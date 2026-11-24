@@ -47,6 +47,11 @@ export const DEFLECTORS_BACKSLASH = 2;
 export const DEFLECTORS_LENS = 3;
 /** How many kinds of lens there are. */
 export const DEFLECTORS_LENS_KINDS = 3;
+/**
+ * A splitter: a beam that meets it stops, and two beams go on from it, one each way across the way
+ * it came. It has no setting. Each of the two counts the split as one of its turns.
+ */
+export const DEFLECTORS_SPLITTER = DEFLECTORS_LENS + DEFLECTORS_LENS_KINDS;
 
 export interface DeflectorsConfig {
   /** The grid is size by size. */
@@ -66,7 +71,7 @@ export interface DeflectorsConfig {
   /** A beam lighting a target after b turns scores bouncePoints * (b + 1) * (b + 1), with b counted up to bounceCap, before its lenses. */
   readonly bouncePoints: number;
   readonly bounceCap: number;
-  /** What a shot is multiplied by, in percent, for lighting one target, two, three and so on. */
+  /** What a shot is multiplied by, in percent, for lighting one target, two, three and so on; past the last, the last. */
   readonly litPercent: readonly number[];
   /** Mirrors a fired beam turned at, and lenses a lighting beam passed, leave the grid. Off, the grid stays as built. */
   readonly spend: boolean;
@@ -76,6 +81,8 @@ export interface DeflectorsConfig {
   readonly queueSize: number;
   /** How often a piece is a lens rather than a mirror, in percent. */
   readonly lensChance: number;
+  /** How often a piece is a splitter, in percent. */
+  readonly splitterChance: number;
   /** Ticks after a shot before the emitters can fire again. */
   readonly fireTicks: number;
   /** Wall-clock ms per tick on the client; the server uses it to bound claimed ticks. */
@@ -101,6 +108,7 @@ export const DEFAULT_DEFLECTORS_CONFIG: DeflectorsConfig = {
   pieces: 50,
   queueSize: 3,
   lensChance: 22,
+  splitterChance: 8,
   fireTicks: 10,
   tickMs: 100,
   maxTick: 1800,
@@ -129,11 +137,13 @@ export type DeflectorsMove =
   | { readonly type: "wait"; readonly tick: number }
   | { readonly type: "end"; readonly tick: number };
 
-/** The way a beam runs through the grid as it stands. */
+/** The way a beam runs through the grid as it stands: from its emitter, through every split, to where this branch ends. */
 export interface DeflectorsTrace {
-  /** The port it leaves by. */
+  /** The port it leaves by, or -1 when it ran into a way a beam of its emitter had already gone, and stopped there. */
   readonly out: number;
-  /** Mirrors it turns at, counting a mirror met twice twice. */
+  /** Where it stopped when `out` is -1: the cell it would have entered again. */
+  readonly stop: number;
+  /** Mirrors it turns at and splits it came through, counting one met twice twice. */
   readonly bounces: number;
   /** The cell of every turn, in order. The beam runs straight from port to turn to turn to port. */
   readonly turns: readonly number[];
@@ -143,10 +153,12 @@ export interface DeflectorsTrace {
   readonly lensCells: readonly number[];
 }
 
-/** One beam of a shot, as it fired or would fire now. */
+/** One beam of a shot, as it fired or would fire now: one branch, when a splitter split it. */
 export interface DeflectorsShot extends DeflectorsTrace {
   /** The port it came in by. */
   readonly entry: number;
+  /** Its emitter, by place, top first. */
+  readonly emitter: number;
   /** The target it lit, by id, or -1. */
   readonly target: number;
   /** The beam's own points, before the shot is multiplied: 0 when it lit nothing. */
@@ -193,7 +205,7 @@ export interface DeflectorsMoveReport {
 export interface DeflectorsState {
   readonly config: DeflectorsConfig;
   readonly tick: number;
-  /** One entry a cell: DEFLECTORS_EMPTY, DEFLECTORS_SLASH, DEFLECTORS_BACKSLASH or a lens, DEFLECTORS_LENS + kind. */
+  /** One entry a cell: DEFLECTORS_EMPTY, DEFLECTORS_SLASH, DEFLECTORS_BACKSLASH, a lens (DEFLECTORS_LENS + kind) or DEFLECTORS_SPLITTER. */
   readonly mirrors: readonly number[];
   /** The emitters' ports, top to bottom. */
   readonly emitters: readonly number[];

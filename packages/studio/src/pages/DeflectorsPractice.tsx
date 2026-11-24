@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { advanceDeflectors, deflectorsOutlook, deflectorsRecipeLenses, summarizeDeflectors, type DeflectorsConfig, type DeflectorsMove, type DeflectorsState } from "@openseas/engine";
-import { content, DEFLECTORS_LENSES, DEFLECTORS_SIGNS, DeflectorsBoard, DeflectorsLensIcon, DeflectorsMirrorIcon, DeflectorsSignIcon, DeflectorsTargetIcon, t, useTicked } from "@openseas/boards";
+import { content, DEFLECTORS_LENSES, DEFLECTORS_SIGNS, DeflectorsBoard, DeflectorsLensIcon, DeflectorsMirrorIcon, DeflectorsSignIcon, DeflectorsSplitterIcon, DeflectorsTargetIcon, t, useTicked } from "@openseas/boards";
 import { css, type Token } from "@openseas/boards/look";
 import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
@@ -130,6 +130,12 @@ export function DeflectorsPractice() {
               <DeflectorsMirrorIcon />
               <span>{t("deflectors.legend_mirror")}</span>
             </li>
+            {shown.config.splitterChance > 0 && (
+              <li>
+                <DeflectorsSplitterIcon />
+                <span>{t("deflectors.legend_splitter")}</span>
+              </li>
+            )}
             {recipes && (
               <li>
                 <DeflectorsLensIcon kind={0} />

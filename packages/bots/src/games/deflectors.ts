@@ -182,7 +182,7 @@ export const DEFLECTORS_BOTS: BotGame<DeflectorsState, DeflectorsMove, Deflector
   // What a careful player sees: points scored, and half of what the shot would score now.
   worth: (before, after) => after.score - before.score + (deflectorsOutlook(after).points - deflectorsOutlook(before).points) / 2,
   open: true,
-  bots: [eagerBot(), builderBot(1), builderBot(150), builderBot(800), builderBot(1500), builderBot(800, CAREFUL_SECONDS), builderBot(800, SLOW_SECONDS)],
+  bots: [eagerBot(), builderBot(1), builderBot(150), builderBot(800), builderBot(1500), builderBot(3000), builderBot(6000), builderBot(800, CAREFUL_SECONDS), builderBot(800, SLOW_SECONDS)],
   baits: [{ bait: "eager", beats: "builder 150" }],
-  slow: ["builder 1", "builder 150", "builder 800", "builder 1500", `builder 800, ${CAREFUL_SECONDS} s`, `builder 800, ${SLOW_SECONDS} s`],
+  slow: ["builder 1", "builder 150", "builder 800", "builder 1500", "builder 3000", "builder 6000", `builder 800, ${CAREFUL_SECONDS} s`, `builder 800, ${SLOW_SECONDS} s`],
 };

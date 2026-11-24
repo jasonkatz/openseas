@@ -7,6 +7,7 @@ import {
   DEFLECTORS_SLASH,
   deflectorsHint,
   deflectorsIsMirror,
+  deflectorsIsSplitter,
   deflectorsOutlook,
   deflectorsRecipeLenses,
   deflectorsViewString,
@@ -21,7 +22,7 @@ import { MOTION, ink } from "../look/tokens.js";
 import { FONT_MONO, INK, drawDot, drawHairline, mix } from "../kit/art.js";
 import { Grid, KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
-import { MIRROR_COLOR, MIRROR_PAINT, TARGET_COLOR, TARGET_PAINT, lensOf, lensPaint, signOf, signPaint, type SignShape } from "./pieces.js";
+import { MIRROR_COLOR, MIRROR_PAINT, SPLITTER_COLOR, SPLITTER_PAINT, TARGET_COLOR, TARGET_PAINT, lensOf, lensPaint, signOf, signPaint, type SignShape } from "./pieces.js";
 
 export interface DeflectorsCallbacks {
   /** The player put the next piece on `cell`. */
@@ -306,7 +307,8 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     const a = this.portXY(entry);
     const pts = [a.x, a.y];
     for (const cell of t.turns) pts.push(g.x(cell), g.y(cell));
-    const b = this.portXY(t.out);
+    // A branch that ran into a way its beam had already gone ends at that cell's edge, not at a port.
+    const b = t.out >= 0 ? this.portXY(t.out) : { x: g.x(t.stop), y: g.y(t.stop) };
     pts.push(b.x, b.y);
     return pts;
   }
@@ -315,6 +317,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   private cellTexture(m: number, size = 1): Texture {
     const c = this.grid.cell;
     if (deflectorsIsMirror(m)) return this.piece(`mirror:${size}`, Math.round(c * size), MIRROR_COLOR, MIRROR_PAINT);
+    if (deflectorsIsSplitter(m)) return this.piece(`splitter:${size}`, Math.round(c * 0.8 * size), SPLITTER_COLOR, SPLITTER_PAINT);
     const lens = lensOf(m - DEFLECTORS_LENS);
     return this.piece(`lens:${lens.shape}:${size}`, Math.round(c * 0.78 * size), lens.color, lensPaint(lens.shape));
   }
@@ -442,7 +445,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     let longest = 0;
     let end = 0;
     outcome.shots.forEach((shot, i) => {
-      const color = ink(signOf(i).color);
+      const color = ink(signOf(shot.emitter).color);
       const pts = this.pathOf(shot.entry, shot);
       const lens = lengths(pts);
       const total = lens[lens.length - 1]!;
@@ -625,8 +628,8 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     const out = this.ask(state).outlook;
     const lines = this.routeLayer;
     const spoiled = new Set<number>();
-    out.shots.forEach((shot, i) => {
-      const sign = signOf(i);
+    out.shots.forEach((shot) => {
+      const sign = signOf(shot.emitter);
       const color = ink(sign.color);
       const pts = this.pathOf(shot.entry, shot);
       if (shot.target >= 0) {
@@ -679,8 +682,8 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       sp.texture = this.piece("target", Math.round(c * TARGET), TARGET_COLOR, TARGET_PAINT);
       sp.position.set(p.x, p.y);
       // Lit by a shot now: ringed in the colour of the beam that lights it.
-      const by = out.shots.findIndex((s) => s.target === t.id);
-      if (by >= 0) marks.circle(p.x, p.y, c * 0.44).stroke({ width: Math.max(2, c * 0.07), color: ink(signOf(by).color) });
+      const by = out.shots.find((s) => s.target === t.id);
+      if (by) marks.circle(p.x, p.y, c * 0.44).stroke({ width: Math.max(2, c * 0.07), color: ink(signOf(by.emitter).color) });
       if (!recipes) continue;
       // The recipe: its glasses outside the target, side by side along the edge, solid once the beam that reaches it passes one of the kind.
       const reach = out.shots.find((s) => s.out === t.port);

@@ -9,8 +9,9 @@ import { piecePaint } from "../look/pieces.js";
  * and a colour second, and its beam's route is beaded with it. Each kind of lens is a glass of its
  * own outline (a diamond, a hexagon, a cross), none a sign's, with a small window cut through; a
  * target's recipe is the same glasses drawn small outside it. A target is a bullseye, a rim round
- * an eye, none of the others' outlines. Each is drawn from its layers in
- * `data/pieces/deflectors.json` (ADR 0065): `mirror`, `sign-<shape>`, `lens-<shape>` and `target`.
+ * an eye, none of the others' outlines. A splitter is a fork of three arms round a hub, with no
+ * setting. Each is drawn from its layers in `data/pieces/deflectors.json` (ADR 0065): `mirror`,
+ * `sign-<shape>`, `lens-<shape>`, `splitter` and `target`.
  */
 
 /** A mirror set as `/`: a bar with a boss at its pivot and the pivot's hole cut through. */
@@ -18,6 +19,12 @@ export const MIRROR_PAINT: Paint = piecePaint("deflectors", "mirror");
 
 /** The colour mirrors are drawn in. */
 export const MIRROR_COLOR: Token = "sky";
+
+/** A splitter: a fork of three arms round a hub with an eye cut through. */
+export const SPLITTER_PAINT: Paint = piecePaint("deflectors", "splitter");
+
+/** The colour splitters are drawn in. */
+export const SPLITTER_COLOR: Token = "olive";
 
 /** A target on the edge: a bullseye. */
 export const TARGET_PAINT: Paint = piecePaint("deflectors", "target");

@@ -22,30 +22,52 @@ async function board(page: Page): Promise<{ grid: string; targets: Target[]; que
   return { grid, targets, queue };
 }
 
-/** The port a beam from `entry` leaves by, and the lenses it passes, as the rules have it: ports run along the top, the right, the bottom, then the left. */
-function leavesBy(grid: string, entry: number): { out: number; lenses: number } {
+/**
+ * Every port a beam from `entry` leaves by, with the lenses each branch passed, as the rules have it:
+ * ports run along the top, the right, the bottom, then the left; a splitter (`*`) sends the beam on
+ * both ways across it; a branch that comes again to a cell heading a way already gone stops.
+ */
+function leavesBy(grid: string, entry: number): Array<{ out: number; lenses: number }> {
   const i = entry % N;
-  let [col, row, dir] = [[i, 0, 2], [N - 1, i, 3], [i, N - 1, 0], [0, i, 1]][Math.floor(entry / N)] as [number, number, number];
-  let lenses = 0;
-  for (let step = 0; step < 200; step++) {
-    if (col < 0 || col >= N || row < 0 || row >= N) break;
-    const ch = grid[row * N + col]!;
-    if (ch === "/") dir ^= 1;
-    else if (ch === "\\") dir = 3 - dir;
-    else if (ch >= "a" && ch <= "c") lenses |= 1 << (ch.charCodeAt(0) - 97);
-    col += DX[dir]!;
-    row += DY[dir]!;
+  const start = [[i, 0, 2], [N - 1, i, 3], [i, N - 1, 0], [0, i, 1]][Math.floor(entry / N)] as [number, number, number];
+  const seen = new Set<number>();
+  const out: Array<{ out: number; lenses: number }> = [];
+  const todo: Array<[number, number, number, number]> = [[...start, 0]];
+  while (todo.length > 0 && out.length < 16) {
+    let [col, row, dir, lenses] = todo.shift()!;
+    let ended = false;
+    for (;;) {
+      if (col < 0 || col >= N || row < 0 || row >= N) break;
+      const key = (row * N + col) * 4 + dir;
+      if (seen.has(key)) {
+        ended = true;
+        break;
+      }
+      seen.add(key);
+      const ch = grid[row * N + col]!;
+      if (ch === "/") dir ^= 1;
+      else if (ch === "\\") dir = 3 - dir;
+      else if (ch === "*") {
+        for (const d of [(dir + 3) % 4, (dir + 1) % 4]) todo.push([col + DX[d]!, row + DY[d]!, d, lenses]);
+        ended = true;
+        break;
+      } else if (ch >= "a" && ch <= "c") lenses |= 1 << (ch.charCodeAt(0) - 97);
+      col += DX[dir]!;
+      row += DY[dir]!;
+    }
+    if (!ended) out.push({ out: [col - DX[dir]!, N + row - DY[dir]!, 2 * N + col - DX[dir]!, 3 * N + row - DY[dir]!][dir]!, lenses });
   }
-  return { out: [col - DX[dir]!, N + row - DY[dir]!, 2 * N + col - DX[dir]!, 3 * N + row - DY[dir]!][dir]!, lenses };
+  return out;
 }
 
 /** How many targets a shot through `grid` lights, each once. */
 function lit(grid: string, targets: readonly Target[]): number {
   const done = new Set<number>();
   for (const e of EMITTERS) {
-    const t = leavesBy(grid, e);
-    const hit = targets.findIndex((g, i) => !done.has(i) && g.port === t.out && g.recipe === t.lenses);
-    if (hit >= 0) done.add(hit);
+    for (const t of leavesBy(grid, e)) {
+      const hit = targets.findIndex((g, i) => !done.has(i) && g.port === t.out && g.recipe === t.lenses);
+      if (hit >= 0) done.add(hit);
+    }
   }
   return done.size;
 }

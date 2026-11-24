@@ -18,6 +18,8 @@ export {
   emitterPorts as deflectorsEmitterPorts,
   turn as deflectorsTurn,
   trace as deflectorsTrace,
+  traceBeams as deflectorsTraceBeams,
+  isSplitter as deflectorsIsSplitter,
   beamPoints as deflectorsBeamPoints,
   litPercentAt as deflectorsLitPercentAt,
   lights as deflectorsLights,

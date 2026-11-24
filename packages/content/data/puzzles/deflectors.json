@@ -15,6 +15,7 @@
     "pieces": 50,
     "queueSize": 3,
     "lensChance": 22,
+    "splitterChance": 8,
     "fireTicks": 10,
     "tickMs": 100,
     "maxTick": 1800,

@@ -20,7 +20,7 @@ export const DeflectorsContentSchema = PrototypeBaseSchema.extend({
     /** A beam lighting a target after b turns scores bouncePoints * (b + 1) * (b + 1), b counted up to bounceCap, before its lenses. */
     bouncePoints: z.int().min(0),
     bounceCap: z.int().min(1).max(64),
-    /** What a shot is multiplied by, in percent, for one target lit, two, and so on: one entry an emitter. */
+    /** What a shot is multiplied by, in percent, for one target lit, two, and so on; past the last, the last. */
     litPercent: z.array(z.int().min(0)).min(1).max(10),
     /** Mirrors a fired beam turned at, and lenses a lighting beam passed, leave the grid. */
     spend: z.boolean(),
@@ -30,6 +30,8 @@ export const DeflectorsContentSchema = PrototypeBaseSchema.extend({
     queueSize: z.int().min(1).max(8),
     /** How often a piece is a lens, in percent. */
     lensChance: z.int().min(0).max(100),
+    /** How often a piece is a splitter, in percent. */
+    splitterChance: z.int().min(0).max(100),
     /** Ticks after a shot before the emitters can fire again. */
     fireTicks: z.int().min(0),
     tickMs: z.int().min(20).max(5000),
