@@ -1,0 +1,120 @@
+{
+  "vapour": {
+    "tint": "ice",
+    "layers": [
+      {
+        "name": "bulb",
+        "kind": "disc",
+        "x": 12,
+        "y": 14.6,
+        "r": 6.8
+      },
+      {
+        "name": "tip",
+        "kind": "poly",
+        "points": [
+          12,
+          2.4,
+          18.2,
+          12.4,
+          5.8,
+          12.4
+        ],
+        "round": 1.2
+      }
+    ]
+  },
+  "oil": {
+    "tint": "sand",
+    "layers": [
+      {
+        "name": "drop",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 8.4
+      }
+    ]
+  },
+  "tar": {
+    "tint": "rust",
+    "layers": [
+      {
+        "name": "block",
+        "kind": "rect",
+        "x": 3.6,
+        "y": 3.6,
+        "w": 16.8,
+        "h": 16.8,
+        "r": 2.4
+      }
+    ]
+  },
+  "smoke": {
+    "tint": "slate",
+    "layers": [
+      {
+        "name": "left",
+        "kind": "disc",
+        "x": 7.4,
+        "y": 14,
+        "r": 4.6
+      },
+      {
+        "name": "crown",
+        "kind": "disc",
+        "x": 12.4,
+        "y": 9.6,
+        "r": 5.6
+      },
+      {
+        "name": "right",
+        "kind": "disc",
+        "x": 17,
+        "y": 13.6,
+        "r": 4.4
+      },
+      {
+        "name": "base",
+        "kind": "rect",
+        "x": 4.4,
+        "y": 13,
+        "w": 15.6,
+        "h": 5.6,
+        "r": 2.8
+      }
+    ]
+  },
+  "catalyst": {
+    "tint": "lilac",
+    "layers": [
+      {
+        "name": "hex",
+        "kind": "poly",
+        "points": [
+          12,
+          2.4,
+          20.4,
+          7.2,
+          20.4,
+          16.8,
+          12,
+          21.6,
+          3.6,
+          16.8,
+          3.6,
+          7.2
+        ],
+        "round": 1.2
+      },
+      {
+        "name": "core",
+        "kind": "disc",
+        "x": 12,
+        "y": 12,
+        "r": 3,
+        "cut": true
+      }
+    ]
+  }
+}
