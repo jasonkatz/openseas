@@ -150,7 +150,7 @@ function mergeMessages(base: Readonly<Record<string, string>>): Readonly<Record<
       out[key] = text;
     }
   }
-  // The domain engine's puzzles (ADR 0083): each puzzle's skin texts and the words its host says.
+  // The domain engine's puzzles (ADR 0084): each puzzle's skin texts and the words its host says.
   for (const [file, data] of [["messages/domain/swap", domainSwap]] as const) {
     for (const [key, text] of Object.entries(parse(file, MessagesSchema, data))) {
       if (key in out) throw new ContentError(`${file}: "${key}" is already in the message table`);

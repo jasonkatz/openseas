@@ -1,0 +1,71 @@
+{
+  "category": "prototype",
+  "config": {
+    "width": 6,
+    "height": 6,
+    "blows": 3,
+    "jumps": true,
+    "far": true,
+    "sparks": true,
+    "weights": [10, 10, 10, 8, 8, 8, 6, 8],
+    "preview": 3,
+    "strikePoints": 1,
+    "platePoints": 500,
+    "chainPoints": 10,
+    "chainCap": 3,
+    "setPoints": 50,
+    "weaveCap": 5,
+    "maxMoves": 400
+  },
+  "paceSeconds": 30,
+  "roundSeconds": 1800,
+  "thresholds": [
+    { "score": 800, "rating": 1100 },
+    { "score": 1900, "rating": 1300 },
+    { "score": 3000, "rating": 1500 },
+    { "score": 4000, "rating": 1700 },
+    { "score": 5000, "rating": 1900 },
+    { "score": 6000, "rating": 2100 }
+  ],
+  "stages": [
+    {
+      "id": "steps",
+      "roundSeconds": 1800,
+      "thresholds": [
+        { "score": 1500, "rating": 1100 },
+        { "score": 3200, "rating": 1300 },
+        { "score": 4200, "rating": 1500 },
+        { "score": 5000, "rating": 1700 },
+        { "score": 5800, "rating": 1900 },
+        { "score": 6200, "rating": 2100 }
+      ],
+      "config": { "jumps": false, "far": false, "sparks": false, "setPoints": 0 }
+    },
+    {
+      "id": "jumps",
+      "roundSeconds": 1800,
+      "thresholds": [
+        { "score": 1200, "rating": 1100 },
+        { "score": 2700, "rating": 1300 },
+        { "score": 3200, "rating": 1500 },
+        { "score": 4000, "rating": 1700 },
+        { "score": 5000, "rating": 1900 },
+        { "score": 6000, "rating": 2100 }
+      ],
+      "config": { "far": false, "sparks": false, "setPoints": 0 }
+    },
+    {
+      "id": "sets",
+      "roundSeconds": 1800,
+      "thresholds": [
+        { "score": 800, "rating": 1100 },
+        { "score": 1900, "rating": 1300 },
+        { "score": 3000, "rating": 1500 },
+        { "score": 4000, "rating": 1700 },
+        { "score": 5000, "rating": 1900 },
+        { "score": 6000, "rating": 2100 }
+      ],
+      "config": { "sparks": false }
+    }
+  ]
+}

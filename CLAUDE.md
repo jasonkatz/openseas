@@ -24,9 +24,9 @@ written in.
   change to either is made in step with the other.
 - `docs/puzzles/` holds a design file for each puzzle the game deals: its role, its rules and scoring,
   its luck and its skills. It changes in the same commit as the puzzle's rules or numbers.
-- `docs/prototypes/` holds the prototype puzzles (ADR 0036): twelve puzzles in the studio, none in
-  the game yet (eight of the game's own, and four early successors: Tractor to Treasure Haul, ADR 0078,
-  Refining to Distilling, ADR 0080, Freefall to Treasure Drop, ADR 0081, and Showdown to Poker, ADR 0082). Its README says what a prototype is made of and the rules it keeps; each puzzle has
+- `docs/prototypes/` holds the prototype puzzles (ADR 0036): thirteen puzzles in the studio, none in
+  the game yet (eight of the game's own, and five early successors: Tractor to Treasure Haul, ADR 0078,
+  Refining to Distilling, ADR 0080, Freefall to Treasure Drop, ADR 0081, Showdown to Poker, ADR 0082, and Forging to Blacksmithing, ADR 0083). Its README says what a prototype is made of and the rules it keeps; each puzzle has
   a design file there that changes in the same commit as its rules or numbers.
 - `packages/docs/README.md` says how a puzzle guide is written and how its pictures are captured
   (ADR 0038).
@@ -49,7 +49,7 @@ written in.
 
 ## Stack
 
-TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `puzzle` (the domain engine, ADR 0083: pure like `engine`, it runs any puzzle written as a puzzle document and its rules by `docs/puzzles/DOMAIN.md`; Swap, Cooling written again, is its first, drawn by the one board in `boards/src/play` from its skin in `boards/data/skins` and shown in the studio at `/play/swap`), `protocol` (Zod schemas), `content`,
+TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `puzzle` (the domain engine, ADR 0084: pure like `engine`, it runs any puzzle written as a puzzle document and its rules by `docs/puzzles/DOMAIN.md`; Swap, Cooling written again, is its first, drawn by the one board in `boards/src/play` from its skin in `boards/data/skins` and shown in the studio at `/play/swap`), `protocol` (Zod schemas), `content`,
 `boards` (the PixiJS boards, each painting its pieces in code from drawings in `boards/data/pieces`, each puzzle's own cues in `boards/data/cues/<puzzle>.json` and the game's in `boards/data/cues.json`, the round runner and server connection both front ends share, ADR 0019, ADR 0062, ADR 0065),
 `server` (ws, Drizzle, Better Auth), `client` (the game: Vite, React, the three.js world, ADR 0020), `studio` (the puzzle studio at studio.openseas.online, once the harness, built step by step, ADR 0042: a page a puzzle with its board and a tuning panel built from
 `content` and the wire schema, each puzzle alone at `/play/<id>`, every round local, and the voyage bench for ships and crews, ADR 0027), `studio-server` (the studio's own small service: tester links by id,

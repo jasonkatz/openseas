@@ -7,7 +7,7 @@ import { CueDataSchema, DrawingSchema } from "@openseas/protocol";
 import { SWAP, checkSkin, checkTheme, requiredTexts, type PuzzleDoc, type Skin } from "@openseas/puzzle";
 
 /**
- * The domain engine's puzzle as the studio shows it (ADR 0083): the game's theme and Swap's skin
+ * The domain engine's puzzle as the studio shows it (ADR 0084): the game's theme and Swap's skin
  * in it are the documents docs/puzzles/DOMAIN.md asks for, and each is ready.
  */
 describe("the game's theme", () => {

@@ -1,6 +1,6 @@
 /**
  * The game's theme, as the document the puzzle domain asks for (docs/puzzles/DOMAIN.md, "Themes",
- * ADR 0083): the palette, the type, the sound frame, the motion and the host's words, each read
+ * ADR 0084): the palette, the type, the sound frame, the motion and the host's words, each read
  * from where the game already keeps it (the tokens, the cue limits, the message table). A skin is
  * held to this by `checkSkin`, and the domain board draws from the two together.
  */
