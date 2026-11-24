@@ -39,7 +39,7 @@ export const deflectors: Guide = {
     { label: "A solid round", value: `${p.thresholds[2]!.score} points` },
   ],
   rules: [
-    `A round deals **${c.pieces} pieces**: mirrors, and now and then a lens. The **queue** under the grid shows the next ${say(c.queueSize)}. **Tap a cell to put the next piece there**, on an empty cell or over whatever is there. Tap the next piece to turn a mirror the other way first.`,
+    `A round deals **${c.pieces} pieces**: mirrors, and now and then a lens. The **queue** under the grid shows the next ${say(c.queueSize)}. **Put the next piece on a cell**, empty or over whatever is there: with a mouse, hover a cell to see it there as a ghost, routes and all, and click to lock it in; on a touch screen, drag it from the queue and lift to drop it. Tap the next piece to turn a mirror the other way first.`,
     "Nothing comes on a timer and nothing is put down for you. A piece you do not want goes in the **bin**, left of the queue: it is used up all the same. The count beside the queue says how many pieces are left.",
     `${say(c.emitters).replace(/^./, (x) => x.toUpperCase())} **emitters** sit on the left edge. **Tap them to fire**, and every one fires at once. Each beam runs straight, turns at every mirror it meets, passes straight through a lens, and leaves by some port.`,
     "**Targets** sit on the other edges. A beam that leaves by a target **lights** it if it passed exactly the lenses drawn outside that target: every one of them, and no other kind. A target with none drawn wants a beam through no lens at all.",
@@ -53,7 +53,8 @@ export const deflectors: Guide = {
     caption: "One mirror put down sends a beam round into a target. Fire, and the mirrors the beams used are spent.",
   },
   controls: [
-    { action: "Put the next piece down", touch: "Tap a cell", desktop: "Click a cell" },
+    { action: "Try the next piece on a cell", touch: "Drag it over the grid", desktop: "Hover a cell" },
+    { action: "Put the next piece down", touch: "Lift over a cell", desktop: "Click the cell" },
     { action: "Turn the next mirror", touch: "Tap it in the queue", desktop: "Click it in the queue, or press R" },
     { action: "Bin the next piece", touch: "Tap the bin", desktop: "Click the bin, or press X" },
     { action: "Fire", touch: "Tap the emitters", desktop: "Click the emitters, or press F" },
@@ -80,7 +81,7 @@ export const deflectors: Guide = {
         },
         {
           title: "Turn before you put it down",
-          body: "A mirror can go either way. Tap the next piece in the queue to turn it: the way it is drawn in its slot is the way it goes down. Set as /, it sends a beam heading right upwards; set the other way, downwards.",
+          body: "A mirror can go either way. Tap the next piece in the queue to turn it: the way it is drawn in its slot is the way it goes down. Before you commit, hold it over a cell: the routes redraw as if it were there. Set as /, it sends a beam heading right upwards; set the other way, downwards.",
         },
       ],
       drill: `Play rounds firing every time something lights. You are there when a round passes ${p.thresholds[1]!.score} points.`,

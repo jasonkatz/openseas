@@ -77,11 +77,15 @@ says only what a shot now would be worth.
 
 ## Input and feedback
 
-- Tap a cell to put the next piece there. Tap the next piece in the queue to turn it. Tap the bin, left of
-  the queue, to bin the next piece. Tap the
-  emitters to fire.
-- Keyboard: arrows or WASD move a cursor, space or enter puts the piece at the cursor, R turns it,
-  X bins it, F fires.
+- **Mouse:** hovering a cell shows the next piece there as a ghost, and every route, target ring and
+  the strip redraw as if it were down. A click locks it in. Nothing is spent by looking.
+- **Touch:** press the next piece in the queue and drag it over the grid. It rides 0.8 cells above
+  the finger so the thumb does not hide it, and the cell under it gets the same ghost preview.
+  Lifting over a cell drops it there; lifting off the grid puts it back. A tap on the grid places
+  nothing, so a stray touch never spends a piece. A tap on the next piece without a drag turns it.
+- Tap the bin, left of the queue, to bin the next piece. Tap the emitters to fire.
+- **Keyboard:** arrows or WASD move a cursor, which shows the ghost too; space or enter puts the
+  piece at the cursor, R turns it, X bins it, F fires.
 - Unrated and lab rounds pulse a cream ring after six seconds idle on a cell where the next piece
   would make the shot worth more (`deflectorsHint`, one ply). It is a suggestion, not the answer.
 
@@ -100,6 +104,8 @@ The board follows the brand book (`docs/BRAND.md`, ADR 0061, ADR 0062): it draws
   way to a target. A recipe glass is faint until the route into that target passes it.
 - **The strip** over the grid says, in mono, what a shot now is worth and how many it lights.
 - **The emitters** dim while recharging, and are ringed in amber when a shot would light something.
+- **The ghost** is the next piece at half strength on its cell, in a faint cream outline, with
+  whatever it would replace dimmed under it.
 - **The queue** sits under the grid: the bin on the left, an open tub under a lid in hairline ink,
   then the next piece large in its slot, the two after it smaller, and the count of pieces left in
   mono. A binned piece leaves a dim ring at the bin and a soft thud.

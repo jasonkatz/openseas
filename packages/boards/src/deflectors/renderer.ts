@@ -1,4 +1,4 @@
-import { Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
+import { Container, Graphics, Sprite, Text, type FederatedPointerEvent, type Texture } from "pixi.js";
 import {
   DEFLECTORS_BACKSLASH,
   DEFLECTORS_EMPTY,
@@ -89,6 +89,12 @@ const STRIP = 0.7;
 const QUEUE = 1.3;
 const NEXT = 0.92;
 const AFTER = 0.6;
+/** A dragged piece rides this far above the finger, in cells, so the thumb does not hide it. */
+const LIFT = 0.8;
+/** A touch on the queue head that moves this far, in cells, is a drag; less is a tap that turns it. */
+const DRAG_START = 0.25;
+/** A ghost piece, and the cell under it. */
+const GHOST_ALPHA = 0.55;
 
 /** Draws the deflector grid and its queue, and turns taps into places, turns and shots. Scores nothing: every number it shows is the engine's. */
 export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
@@ -131,6 +137,12 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   private cursorShown = false;
   private hints: boolean;
   private idle = 0;
+  /** The cell the mouse is over, where the next piece shows as a ghost; null off the grid. */
+  private hoverCell: number | null = null;
+  /** The next piece being dragged by touch: where the finger is, and the cell it would drop on. */
+  private drag: { x: number; y: number; sx: number; sy: number; moved: boolean; cell: number | null } | null = null;
+  /** The grid as it would stand with the ghost put down, kept for as long as the state and the ghost. */
+  private ghostView: { state: DeflectorsState; cell: number; piece: number; view: DeflectorsState } | null = null;
 
   constructor(
     host: HTMLElement,
@@ -161,6 +173,9 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     this.leftLabel = new Text({ text: "", style: { fontFamily: FONT_MONO, fontSize: 14, fontWeight: "700", fill: INK.dim }, resolution: 2 });
     this.leftLabel.anchor.set(0, 0.5);
     this.world.addChild(this.bg, this.routeLayer, this.mirrorLayer, this.portLayer, this.markLayer, this.flightLayer, this.cursorLayer, this.label, this.leftLabel);
+    this.app.canvas.addEventListener("pointerleave", (e) => {
+      if (e.pointerType === "mouse") this.hoverCell = null;
+    });
   }
 
   protected layout(width: number, height: number): void {
@@ -510,6 +525,26 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     return this.told;
   }
 
+  /** Where the next piece shows as a ghost: under a dragging finger, else under the mouse, else at the keyboard's cursor. */
+  private ghostCell(state: DeflectorsState): number | null {
+    if (!this.interactive || state.finished || state.queue.length === 0 || this.settling) return null;
+    if (this.drag) return this.drag.moved ? this.drag.cell : null;
+    if (this.hoverCell !== null) return this.hoverCell;
+    return this.cursorShown ? this.cursor : null;
+  }
+
+  /** The state as it would be with the next piece on `cell`: what the routes, the targets and the strip preview. */
+  private withGhost(state: DeflectorsState, cell: number): DeflectorsState {
+    const piece = state.queue[0]!;
+    const g = this.ghostView;
+    if (g && g.state === state && g.cell === cell && g.piece === piece) return g.view;
+    const mirrors = state.mirrors.slice();
+    mirrors[cell] = piece;
+    const view = { ...state, mirrors, queue: state.queue.slice(1) };
+    this.ghostView = { state, cell, piece, view };
+    return view;
+  }
+
   protected override update(dt: number): void {
     const state = this.state;
     this.routeLayer.clear();
@@ -518,15 +553,49 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     let used = 0;
     this.shownTargets = state?.targets ?? [];
     this.shownQueue = state?.queue ?? [];
-    if (state) {
-      if (!this.settling) this.drawRoutes(state);
-      used = this.drawPorts(state, used);
+    const ghost = state ? this.ghostCell(state) : null;
+    // With a ghost down, every route, target and the strip show the grid as it would be.
+    const view = state && ghost !== null ? this.withGhost(state, ghost) : state;
+    for (const [cell, sp] of this.cells) sp.alpha = cell === ghost ? 0.25 : 1;
+    if (state && view) {
+      if (!this.settling) this.drawRoutes(view);
+      used = this.drawPorts(view, used);
       used = this.drawQueue(state, used, dt);
+      used = this.drawGhost(state, ghost, used);
     }
     for (let i = used; i < this.ports.length; i++) this.ports[i]!.visible = false;
     this.drawFlights();
-    this.setLabel(state);
-    this.updateHint(state, dt);
+    this.setLabel(view);
+    // A ghost is the player trying a cell: no hint while they do.
+    if (ghost === null) this.updateHint(state, dt);
+    else this.idle = 0;
+  }
+
+  /** The next piece as a ghost on its cell, or riding above a dragging finger off the grid. */
+  private drawGhost(state: DeflectorsState, ghost: number | null, start: number): number {
+    const head = state.queue[0];
+    if (head === undefined) return start;
+    const rotation = head === DEFLECTORS_BACKSLASH ? BACKSLASH_ROTATION : SLASH_ROTATION;
+    const g = this.grid;
+    if (ghost !== null) {
+      const sp = this.poolSprite(start);
+      sp.texture = this.cellTexture(head);
+      sp.position.set(g.x(ghost), g.y(ghost));
+      sp.rotation = rotation;
+      sp.alpha = GHOST_ALPHA;
+      const half = g.cell / 2 - 3;
+      this.markLayer.roundRect(g.x(ghost) - half, g.y(ghost) - half, half * 2, half * 2, g.cell * 0.16).stroke({ width: 1.5, color: INK.cream, alpha: 0.5 });
+      return start + 1;
+    }
+    if (this.drag?.moved) {
+      const sp = this.poolSprite(start);
+      sp.texture = this.cellTexture(head);
+      sp.position.set(this.drag.x, this.drag.y - g.cell * LIFT);
+      sp.rotation = rotation;
+      sp.alpha = 0.85;
+      return start + 1;
+    }
+    return start;
   }
 
   /** The sprite at `index` of the pool, shown. */
@@ -649,7 +718,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       sp.texture = this.cellTexture(piece, i === 0 ? NEXT : AFTER);
       sp.position.set(p.x, p.y);
       sp.rotation = i === 0 ? this.headRotation : piece === DEFLECTORS_BACKSLASH ? BACKSLASH_ROTATION : SLASH_ROTATION;
-      sp.alpha = i === 0 ? 1 : 0.7;
+      sp.alpha = i === 0 ? (this.drag?.moved ? 0.25 : 1) : 0.7;
     });
     const left = this.opts.labels.left(state.left + state.queue.length);
     if (this.leftLabel && left !== this.leftText) {
@@ -771,18 +840,57 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     this.cb.onFire();
   }
 
-  protected override pointerDown(x: number, y: number): void {
+  /**
+   * A mouse places by click: it hovers a ghost of the next piece on the grid, and a click locks it in.
+   * Touch places by drag: press the next piece in the queue, drag it over the grid, and lift to drop
+   * it; a tap on it without a drag turns it. A touch on the grid itself places nothing, so a stray tap
+   * never spends a piece.
+   */
+  protected override pointerDown(x: number, y: number, e: FederatedPointerEvent): void {
+    const mouse = e.pointerType === "mouse";
     const at = this.grid.at(x, y);
     if (at) {
+      if (!mouse) return;
       this.cursor = at.index;
       this.cursorShown = false;
       this.drawCursor();
       this.place(at.index);
       return;
     }
-    if (this.onQueueHead(x, y)) this.turnHead();
-    else if (this.onBin(x, y)) this.bin();
+    if (this.onQueueHead(x, y)) {
+      if (mouse) this.turnHead();
+      else this.drag = { x, y, sx: x, sy: y, moved: false, cell: null };
+    } else if (this.onBin(x, y)) this.bin();
     else if (this.onEmitters(x, y)) this.fire();
+  }
+
+  protected override pointerMove(x: number, y: number, e: FederatedPointerEvent): void {
+    if (e.pointerType === "mouse") {
+      this.hoverCell = this.interactive ? (this.grid.at(x, y)?.index ?? null) : null;
+      if (this.hoverCell !== null && this.cursorShown) {
+        this.cursorShown = false;
+        this.drawCursor();
+      }
+      return;
+    }
+    const d = this.drag;
+    if (!d) return;
+    d.x = x;
+    d.y = y;
+    if (!d.moved && Math.hypot(x - d.sx, y - d.sy) > this.grid.cell * DRAG_START) d.moved = true;
+    d.cell = this.grid.at(x, y - this.grid.cell * LIFT)?.index ?? null;
+  }
+
+  protected override pointerUp(): void {
+    const d = this.drag;
+    if (!d) return;
+    this.drag = null;
+    if (!d.moved) this.turnHead();
+    else if (d.cell !== null) this.place(d.cell);
+  }
+
+  protected override pointerCancel(): void {
+    this.drag = null;
   }
 
   private drawCursor(): void {

@@ -153,3 +153,49 @@ test("a Deflectors shot built to light a target and fired from the emitters scor
     expect(Number(await page.getByTestId("hud-moves").textContent())).toBeGreaterThanOrEqual(2);
   }).toPass({ timeout: 10_000 });
 });
+
+/** A touch gesture on the canvas, as pointer events: down at the first point, through the rest, up at the last. */
+async function touchPath(page: Page, points: ReadonlyArray<readonly [number, number]>): Promise<void> {
+  await page.evaluate(
+    async (pts) => {
+      const canvas = document.querySelector('[data-testid="deflectors-canvas"]') as HTMLCanvasElement;
+      const send = (type: string, [x, y]: readonly [number, number], on: EventTarget): void => {
+        on.dispatchEvent(new PointerEvent(type, { pointerId: 7, pointerType: "touch", isPrimary: true, clientX: x, clientY: y, bubbles: true, cancelable: true, buttons: type === "pointerup" ? 0 : 1 }));
+      };
+      send("pointerdown", pts[0]!, canvas);
+      for (const p of pts.slice(1)) {
+        send("pointermove", p, canvas);
+        await new Promise((r) => requestAnimationFrame(r));
+      }
+      send("pointerup", pts[pts.length - 1]!, canvas);
+    },
+    points.map((p) => [p[0], p[1]] as const),
+  );
+}
+
+test("on touch, the next piece is dragged from the queue and dropped on a cell; a tap on the grid places nothing", async ({ page }) => {
+  await page.goto("/play/deflectors?seed=smoke-9&start=lab");
+  await expect(page.getByTestId("deflectors-canvas")).toBeVisible();
+  await expect.poll(async () => (await board(page)).queue.length, { timeout: 5_000 }).toBeGreaterThan(1);
+  const { ox, oy, cell: size } = await boardGeom(page, "deflectors");
+  // The board's geometry is in page pixels, as pointer events want. The queue head sits under the grid's ring.
+  const head = [ox + (N * size) / 2 - size * 1.2, oy + size * (N + 1.36 + 0.65)] as const;
+
+  // A tap on an empty cell places nothing.
+  const start = await board(page);
+  const empty = [...start.grid].findIndex((ch) => ch === ".");
+  const centre = (c: number): readonly [number, number] => [ox + ((c % N) + 0.5) * size, oy + (Math.floor(c / N) + 0.5) * size];
+  await touchPath(page, [centre(empty), centre(empty)]);
+  await page.waitForTimeout(300);
+  expect((await board(page)).grid).toBe(start.grid);
+
+  // A drag from the queue head, the piece riding above the finger, drops it on the cell under the piece.
+  const target = [...start.grid].findIndex((ch, i) => ch === "." && i !== empty && Math.floor(i / N) < N - 1);
+  const [tx, ty] = centre(target);
+  const lift = size * 0.8;
+  const steps: Array<readonly [number, number]> = [];
+  for (let k = 0; k <= 12; k++) steps.push([head[0] + ((tx - head[0]) * k) / 12, head[1] + ((ty + lift - head[1]) * k) / 12]);
+  await touchPath(page, steps);
+  await expect.poll(async () => (await board(page)).grid[target]).toBe(start.queue[0]);
+  await expectViewMatchesState(page, "deflectors");
+});
