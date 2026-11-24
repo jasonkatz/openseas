@@ -12,6 +12,7 @@
     "salvoPercent": [100, 250, 400],
     "pipelineSwipes": 8,
     "pipelinePercent": [100, 125, 150, 175, 200],
+    "pressureLimit": 13,
     "scramPenalty": 150,
     "maxMoves": 1500
   },
@@ -23,5 +24,55 @@
     { "score": 2000, "rating": 1700 },
     { "score": 3000, "rating": 1900 },
     { "score": 4300, "rating": 2100 }
+  ],
+  "stages": [
+    {
+      "id": "core",
+      "roundSeconds": 60,
+      "thresholds": [
+        { "score": 100, "rating": 1100 },
+        { "score": 220, "rating": 1300 },
+        { "score": 450, "rating": 1500 },
+        { "score": 650, "rating": 1700 },
+        { "score": 850, "rating": 1900 },
+        { "score": 1150, "rating": 2100 }
+      ],
+      "config": {
+        "salvoPercent": [100],
+        "pipelinePercent": [100],
+        "pressureLimit": 0
+      }
+    },
+    {
+      "id": "pipeline",
+      "roundSeconds": 90,
+      "thresholds": [
+        { "score": 150, "rating": 1100 },
+        { "score": 400, "rating": 1300 },
+        { "score": 800, "rating": 1500 },
+        { "score": 1300, "rating": 1700 },
+        { "score": 1900, "rating": 1900 },
+        { "score": 2700, "rating": 2100 }
+      ],
+      "config": {
+        "salvoPercent": [100],
+        "pressureLimit": 0
+      }
+    },
+    {
+      "id": "salvo",
+      "roundSeconds": 120,
+      "thresholds": [
+        { "score": 250, "rating": 1100 },
+        { "score": 600, "rating": 1300 },
+        { "score": 1200, "rating": 1500 },
+        { "score": 2000, "rating": 1700 },
+        { "score": 3000, "rating": 1900 },
+        { "score": 4300, "rating": 2100 }
+      ],
+      "config": {
+        "pressureLimit": 0
+      }
+    }
   ]
 }

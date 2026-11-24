@@ -26,29 +26,29 @@ export const reactor: Guide = {
   hero: {
     kind: "still",
     name: "board",
-    alt: `The Reactor board: a core ${c.size} cells wide and ${c.size} tall holding fuel rods, each a rounded casing with its grade cut out of it as a numeral, and one hot rod, a casing burst into eight points, beside a gap in the wall with a chevron pointing out through it. A second gap in the wall is empty. A strip above shows the next rod and ${c.criticalHot} heat lamps with one lit. A bar below reads pipeline.`,
-    caption: "The core. The numeral on a casing is its grade, the burst casing is a hot rod, and the gaps in the wall are the ports.",
+    alt: `The Reactor board: a core ${c.size} cells wide and ${c.size} tall holding fuel rods, each a rounded casing with its grade cut out of it as a numeral, and one hot rod, a casing burst into eight points, beside a gap in the wall with a chevron pointing out through it. A second gap in the wall is empty. A strip above shows the next rod and ${c.criticalHot} heat lamps with one lit, and under them a pressure gauge of ${c.pressureLimit} marks, one filled, ending in a taller post. A bar below reads pipeline.`,
+    caption: "The core. The numeral on a casing is its grade, the burst casing is a hot rod, and the gaps in the wall are the ports. The lamps and the gauge over the core are what can scram it.",
   },
   theme: {
     setting:
       "The ship's reactor burns fuel rods, and the core is where they are made. You are the pirate at the core with one lever: it slides the whole load to one wall. Rods of a grade fuse as they meet. A rod fused to the top grade runs hot, and has to go out through a port before too many pile up.",
     purpose:
-      "Reactor is a **prototype**: it is played on the test bench and is in no ship yet. It is trying out a sliding and fusing game where making the big piece is only half the job, because you then have to deliver it. The skill it asks for is planning a few swipes ahead, and later the nerve to hold a hot rod back.",
+      "Reactor is a **prototype**: it is played on the test bench and is in no ship yet. It is trying out a sliding and fusing game where making the big piece is only half the job, because you then have to deliver it. The skill it asks for is planning a few swipes ahead, later the nerve to hold a hot rod back, and last the sense of how long to hold it.",
   },
   facts: [
     { label: "Core", value: `${c.size} by ${c.size}` },
     { label: "Round", value: `${p.roundSeconds} seconds, swipes untimed` },
     { label: "Ports", value: `${c.ports} open at a time` },
-    { label: "Status", value: "Prototype, on the test bench" },
+    { label: "Pressure", value: `Scrams at ${c.pressureLimit} marks` },
   ],
   rules: [
     "A swipe slides every rod as far as it will go that way. A swipe that would change nothing is not taken: the rods lean and settle back.",
     "Two rods of one grade that meet **fuse** into one rod of the next grade. A rod fuses once a swipe.",
     `After every swipe a new rod enters on the edge the rods slid away from, in a lane where something moved. The strip over the core shows its grade beforehand: grade 1, or grade 2 about one time in ${twoOneIn}.`,
     `A grade ${c.hotGrade} rod is **hot**. It fuses with nothing and takes up room until it leaves.`,
-    `${c.ports} **ports** are open in the core's wall, each at the end of one row or column. Swipe toward a port's wall when a hot rod is the first rod in that lane and it is **discharged**. That port closes and another opens somewhere else on the rim.`,
-    "A rod fused hot right at a port stays for that swipe. The next swipe that way sends it out.",
-    `${c.criticalHot} hot rods in the core at once, or a core where no swipe can change anything, is a **scram**: the core is emptied, you lose ${c.scramPenalty} points, and it starts again with ${c.startRods} rods.`,
+    `${c.ports} **ports** are open in the core's wall, each at the end of one row or column. Swipe toward a port's wall when a hot rod is the first rod in that lane and it is **discharged**. That port closes and another opens somewhere else on the rim. A rod fused hot right at a port waits for the next swipe.`,
+    "Hold two or more hot rods and the **pressure** gauge under the lamps climbs: each swipe that ends with them in the core fills a mark for every hot rod past the first. A swipe that ends with one hot rod or none lets a mark off.",
+    `${c.criticalHot} hot rods in the core at once, a full gauge, or a core where no swipe can change anything, is a **scram**: the core is emptied, you lose ${c.scramPenalty} points, and it starts again with ${c.startRods} rods and an empty gauge.`,
   ],
   rulesMedia: {
     kind: "clip",
@@ -64,8 +64,16 @@ export const reactor: Guide = {
     `**Discharging a hot rod is the score:** ${c.dischargePoints} points. Fusing pays ${c.fusePoints.join(", ")} for making a grade ${c.fusePoints.map((_, i) => i + 2).join(", ")}, so fusing a whole hot rod up from grade 1 is ${fuseAll} in all.`,
     `**The pipeline.** A discharge within ${c.pipelineSwipes} swipes of the last one builds a run. The rods of a run are worth ${c.pipelinePercent.join(", ")} percent, so from the ${ordinal(atTop)} on each is ${single(atTop)}. ${c.pipelineSwipes} swipes with no discharge and the run is lost.`,
     `**The salvo.** Hot rods that leave in one swipe multiply each other: two score ${salvoTimes(2)} times what they would apart, three score ${salvoTimes(3)} times.`,
-    `A scram costs ${c.scramPenalty}, the whole core and the pipeline. The score never goes below zero.`,
+    `A scram costs ${c.scramPenalty}, the whole core and the pipeline, whether the lamps, the gauge or a jam caused it. The score never goes below zero.`,
   ],
+  stageMedia: {
+    full: {
+      kind: "still",
+      name: "pressure",
+      alt: `A core holding two hot rods, one with a chevron at its port. Under the heat lamps, two of them lit, the pressure gauge has three marks filled, one hollow mark after them, and dashes running to a taller post at its end.`,
+      caption: "Two hot rods held. The filled marks are pressure; the hollow one is what the next swipe adds if both stay. Send one out and a mark comes off instead.",
+    },
+  },
   stages: [
     {
       level: "beginner",
@@ -158,11 +166,11 @@ export const reactor: Guide = {
     },
     {
       level: "expert",
-      goal: "Send hot rods out two at a time.",
+      goal: "Send hot rods out two at a time, and never hold them longer than the gauge allows.",
       tips: [
         {
           title: "Park one, bring one",
-          body: `Leave the first hot rod standing at its port with the chevron showing. Cook a second and slide it into the same lane right behind the first, with nothing between them. The port shows two chevrons, and one swipe sends both for ${salvoTimes(2)} times their worth.`,
+          body: `Leave the first hot rod standing at its port with the chevron showing: one hot rod alone builds no pressure. Cook a second and slide it into the same lane right behind the first, with nothing between them. The port shows two chevrons, and one swipe sends both for ${salvoTimes(2)} times their worth. When both ports open on one wall, a hot rod first in each lane is a salvo too.`,
           media: {
             kind: "clip",
             name: "salvo",
@@ -175,15 +183,15 @@ export const reactor: Guide = {
           body: `Two rods sent apart at the top of the pipeline pay ${2 * single(atTop)}. A pair with no pipeline at all pays ${pair(1)}. So when holding for a pair would cost the run, hold anyway: in bot rounds that scored over a third more than never holding. The best is both. A pair counts as two rods of the run, and at the top it pays ${pair(atTop)}.`,
         },
         {
-          title: "Do not wait for a third",
-          body: `Three rods together score ${salvoTimes(3)} times, but holding ${holdMax} lights every lamp short of the diamond, and one stray fusion of two grade ${top} rods is then a scram. In bot rounds, waiting for three scored no more than taking pairs and scrammed more often. Take three only when the third falls into line by itself.`,
+          title: "The gauge charges for time",
+          body: `The lamps cap how many hot rods you hold. The gauge charges for how long: every swipe with two in the core is a mark, with three it is two, and only a swipe that ends with one or none takes a mark back. So make the second hot rod where it is one or two swipes from its port, from grade ${top} rods cooked nearby, and send the pair at once. The hollow marks show what holding one more swipe costs; when the label says vent now, that swipe scrams the core.`,
         },
         {
-          title: "Two ports on one wall",
-          body: "Rods that leave by different ports in the same swipe are a salvo too. When both ports open on one wall, you do not need to stack: put a hot rod first in each lane and one swipe sends both. Check for this every time a new port opens.",
+          title: "Do not wait for a third",
+          body: `Three rods together score ${salvoTimes(3)} times, but holding ${holdMax} lights every lamp short of the diamond and fills the gauge two marks a swipe. In bot rounds, a player who parked one rod at its port and waited for a triple scored less than one that read the gauge and took pairs. Take three only when the third falls into line by itself.`,
         },
       ],
-      drill: `Play rounds where no hot rod leaves alone unless a third lamp is about to light. You are there when a round has four or more salvos, no scram, and passes ${p.thresholds[5]!.score} points.`,
+      drill: `Play rounds where no hot rod leaves alone unless a third lamp is about to light, and the gauge never says vent now. You are there when a round has four or more salvos, no scram, and passes ${p.thresholds[5]!.score} points.`,
     },
   ],
   mistakes: [
@@ -191,7 +199,7 @@ export const reactor: Guide = {
     "**Swiping at a port that shows a bar.** Nothing leaves, and a new rod enters anyway. Clear the rod in the way first, or go to the other port.",
     `**Making a hot rod with no way out.** Before you fuse two grade ${top} rods, count the lamps. If the fusion lights the diamond, discharge first.`,
     "**Swipes that fuse nothing.** Each one fills a cell and uses up the pipeline bar. If no swipe fuses, pick the one that sets up a fusion on the next.",
-    "**Sending one rod when a second is nearly made.** Two swipes of waiting more than doubles what the pair pays.",
+    "**Holding a pair while you cook a third.** Every swipe with two hot rods in the core fills the gauge. Send the pair, and let the gauge drain while the next rods cook.",
   ],
 };
 

@@ -9,6 +9,9 @@ import {
   reactorPortCell,
   reactorPortLoad,
   reactorPortStatus,
+  reactorPressureHeld,
+  reactorPressureWarning,
+  reactorSalvoPercentAt,
   type ReactorDir,
   type ReactorMoveReport,
   type ReactorPort,
@@ -41,6 +44,12 @@ export interface ReactorLabels {
   hotRod: string;
   critical(penalty: number): string;
   jammed(penalty: number): string;
+  /** The core scrammed because the pressure gauge reached its limit. */
+  overpressure(penalty: number): string;
+  /** The gauge's label. */
+  pressure: string;
+  /** The gauge's label when holding these hot rods one more swipe would scram the core. */
+  pressureWarn: string;
 }
 
 export interface ReactorRendererOptions {
@@ -81,6 +90,11 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
   private nextText: Text | null = null;
   private hotText: Text | null = null;
   private pipeText: Text | null = null;
+  private pressText: Text | null = null;
+  /** True while the core has a pressure gauge: the strip grows a second row for it. */
+  private gauged = false;
+  /** The gauge was warning when last drawn: the alarm sounds once on the way in. */
+  private warned = false;
   private readonly rods = new Map<number, RodView>();
   /** The ports drawn, and when each first appeared: a new port's gap opens in the wall. */
   private ports: ReactorPort[] = [];
@@ -111,21 +125,44 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
     this.hotText = new Text({ text: this.opts.labels.hot, style, resolution: 2 });
     // The pipeline's line carries a number, so it is set in the mono face.
     this.pipeText = new Text({ text: this.opts.labels.pipelineIdle, style: { ...style, fontFamily: FONT_MONO, fontWeight: "700" }, resolution: 2 });
+    this.pressText = new Text({ text: this.opts.labels.pressure, style, resolution: 2 });
     this.nextText.anchor.set(0, 0.5);
     this.hotText.anchor.set(1, 0.5);
     this.pipeText.anchor.set(0, 0.5);
+    this.pressText.anchor.set(0, 0.5);
     this.nextRod.anchor.set(0.5);
     this.rodLayer.mask = this.rodMask;
     this.rodLayer.sortableChildren = true;
-    this.world.addChild(this.rodMask, this.bg, this.rodLayer, this.portLayer, this.hintLayer, this.hud, this.nextRod, this.nextText, this.hotText, this.pipeText);
+    this.world.addChild(this.rodMask, this.bg, this.rodLayer, this.portLayer, this.hintLayer, this.hud, this.nextRod, this.nextText, this.hotText, this.pipeText, this.pressText);
+  }
+
+  /** The strip's height in cells: a second row for the pressure gauge when the core has one. */
+  private stripCells(): number {
+    return this.gauged ? 1.1 : 0.72;
+  }
+
+  /** The middle of the strip's first row (the next rod, the lamps) and of its second (the gauge). */
+  private stripRows(): { top: number; gauge: number } {
+    const g = this.grid;
+    const base = g.oy - this.rim;
+    if (!this.gauged) return { top: base - this.strip * 0.5, gauge: base };
+    return { top: base - this.strip * 0.72, gauge: base - this.strip * 0.26 };
+  }
+
+  /** True when the pipeline pays nothing (a stage before it): the bar under the core is not drawn. */
+  private pipelineOff(state: ReactorState): boolean {
+    return state.config.pipelinePercent.every((p) => p === 100);
   }
 
   protected layout(width: number, height: number): void {
     const g = this.grid;
-    if (this.state) g.cols = g.rows = this.state.config.size;
-    g.fit(width, height, { top: 0.72, bottom: 0.5, margin: Math.max(18, Math.min(width, height) * 0.06), maxCell: 132 });
+    if (this.state) {
+      g.cols = g.rows = this.state.config.size;
+      this.gauged = this.state.config.pressureLimit > 0;
+    }
+    g.fit(width, height, { top: this.stripCells(), bottom: 0.5, margin: Math.max(18, Math.min(width, height) * 0.06), maxCell: 132 });
     this.rim = Math.max(7, g.cell * 0.16);
-    this.strip = g.cell * 0.72;
+    this.strip = g.cell * this.stripCells();
     this.bar = g.cell * 0.5;
     const pad = this.rim + Math.max(4, g.cell * 0.06);
     const b = this.bg;
@@ -139,10 +176,13 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
     const wall = this.rim * 0.5;
     this.rodMask.clear().rect(g.ox - wall, g.oy - wall, g.width + wall * 2, g.height + wall * 2).fill({ color: INK.cream });
     const font = Math.max(11, Math.round(g.cell * 0.19));
-    const stripY = g.oy - this.rim - this.strip * 0.5;
-    for (const t of [this.nextText, this.hotText, this.pipeText]) if (t) t.style.fontSize = font;
+    const rows = this.stripRows();
+    const stripY = rows.top;
+    for (const t of [this.nextText, this.hotText, this.pipeText, this.pressText]) if (t) t.style.fontSize = font;
     this.nextText?.position.set(g.ox, stripY);
     this.hotText?.position.set(g.ox + g.width - this.lampSpan(), stripY);
+    this.pressText?.position.set(g.ox, rows.gauge);
+    if (this.pressText) this.pressText.visible = this.gauged;
     this.pipeText?.position.set(g.ox, g.oy + g.height + this.rim + this.bar * 0.3);
     this.publishGeom(g.ox, g.oy, g.cell);
     this.drag = null;
@@ -216,8 +256,8 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
     this.idle = 0;
     this.hintLayer.clear();
     const g = this.grid;
-    if (g.cols !== state.config.size) {
-      // A different core (a lab config): lay it out afresh.
+    if (g.cols !== state.config.size || this.gauged !== state.config.pressureLimit > 0) {
+      // A different core (a lab config, a stage with or without the gauge): lay it out afresh.
       g.cols = g.rows = state.config.size;
       this.layout(this.app.screen.width, this.app.screen.height);
       return;
@@ -288,7 +328,7 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
       r.discharges.forEach((d, i) => {
         this.tweens.after(t + 40 + i * SALVO_GAP_MS, () => {
           sfx.zap();
-          sfx.clear(Math.min(6, d.pipeline), 5);
+          sfx.clear(this.pipelineOff(state) ? 1 : Math.min(6, d.pipeline), 5);
           if (n === 1) this.fx.popup(g.x(d.cell), g.y(d.cell), `+${d.points}`, INK.cream, Math.max(18, g.cell * 0.36));
         });
       });
@@ -296,12 +336,13 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
       this.tweens.after(after, () => {
         const last = r.discharges[n - 1]!;
         const top = cfg.pipelinePercent.length;
-        if (n >= 2) {
-          // The salvo is the puzzle's compound move: the beat, stronger for a third rod.
+        if (n >= 2 && reactorSalvoPercentAt(cfg, n) > 100) {
+          // The salvo is the puzzle's compound move: the beat, stronger for a third rod. A stage
+          // before it lets stacked rods leave together for no more, and says nothing.
           this.fx.say(labels.salvo(n));
           this.fx.popup(g.ox + g.width / 2, g.oy + g.height / 2, `+${r.dischargeTotal}`, INK.cream, Math.max(24, g.cell * 0.5));
           this.beat(Math.min(1, 0.6 + (n - 2) * 0.2));
-        } else if (last.pipeline >= 2) {
+        } else if (last.pipeline >= 2 && !this.pipelineOff(state)) {
           this.fx.say(labels.run(last.pipeline), INK.cream, Math.max(18, g.cell * 0.3));
           // The one other thing the beat is for: a pipeline brought to its top.
           if (top > 1 && last.pipeline === top) this.beat(0.4);
@@ -325,7 +366,7 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
       t += MOTION.move + 10;
     }
 
-    if (r.lapsed) {
+    if (r.lapsed && !this.pipelineOff(state)) {
       this.tweens.after(t - 100, () => {
         sfx.streakLost();
         this.fx.popup(g.ox + g.width * 0.5, g.oy + g.height + this.rim, labels.pipelineLost, INK.dim, Math.max(13, g.cell * 0.2));
@@ -335,10 +376,13 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
     if (r.scram) {
       const scram = r.scram;
       this.tweens.after(t + 40, () => {
-        sfx.charge();
+        // An overpressure scram is heard as the core venting; the lamps' and a jam's as a charge.
+        if (scram.cause === "pressure") sfx.vent(3);
+        else sfx.charge();
         sfx.bad();
-        // A scram is bad news, said in danger: every rod shrinks away.
-        this.fx.say(scram.cause === "critical" ? labels.critical(scram.penalty) : labels.jammed(scram.penalty), INK.danger);
+        // A scram is bad news, said in danger, its cause named: every rod shrinks away.
+        const say = scram.cause === "critical" ? labels.critical : scram.cause === "pressure" ? labels.overpressure : labels.jammed;
+        this.fx.say(say(scram.penalty), INK.danger);
         for (const [id, v] of this.rods) {
           this.rods.delete(id);
           this.tweens.remove(v.s, { done: () => v.s.destroy() });
@@ -384,7 +428,8 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
     const cfg = state.config;
     const h = this.hud;
     h.clear();
-    const stripY = g.oy - this.rim - this.strip * 0.5;
+    const rows = this.stripRows();
+    const stripY = rows.top;
 
     // Next rod: beside its label.
     this.nextRod.texture = this.textureFor(state.next);
@@ -410,7 +455,15 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
     this.hotText?.position.set(g.ox + g.width - this.lampSpan(), stripY);
     if (this.hotText) this.hotText.style.fill = hot >= cfg.criticalHot - 1 ? INK.danger : INK.dim;
 
+    if (this.gauged) this.drawGauge(state, rows.gauge);
+    // What the gauge shows, for the smoke: the pressure, the limit, and a w while it warns.
+    this.app.canvas.setAttribute("data-pressure", this.gauged ? `${state.pressure}:${cfg.pressureLimit}${reactorPressureWarning(state) ? "w" : ""}` : "");
+
     // Pipeline: a segment a swipe left before the run is lost, and what the next discharge is worth.
+    // A stage before the pipeline draws no bar.
+    const off = this.pipelineOff(state);
+    if (this.pipeText) this.pipeText.visible = !off;
+    if (off) return;
     const left = reactorPipelineLeft(state);
     const running = left > 0;
     if (this.pipeText) {
@@ -425,6 +478,55 @@ export class ReactorRenderer extends KitBoard<ReactorState> {
     for (let i = 0; i < segs; i++) {
       const lit = i < shown;
       h.roundRect(g.ox + i * (w + gap), barY - this.bar * 0.1, w, this.bar * 0.2, this.bar * 0.1).fill({ color: lit ? (shown <= 2 ? INK.danger : INK.cream) : INK.line });
+    }
+  }
+
+  /**
+   * The pressure gauge, a plain bar of marks on the strip's second row, under the lamps. A filled
+   * mark is pressure the core holds; a hollow one is what the next swipe adds if every hot rod
+   * stays; an empty one is a line. The last mark, the one that scrams the core, stands taller, so
+   * the bar reads by count and shape with the colour taken away. One swipe from the limit the
+   * label says to vent, the bar turns danger, and the alarm sounds once.
+   */
+  private drawGauge(state: ReactorState, y: number): void {
+    const g = this.grid;
+    const cfg = state.config;
+    const h = this.hud;
+    const limit = cfg.pressureLimit;
+    const warn = reactorPressureWarning(state);
+    if (warn && !this.warned) sfx.alarm();
+    this.warned = warn;
+    if (this.pressText) {
+      this.pressText.text = warn ? this.opts.labels.pressureWarn : this.opts.labels.pressure;
+      this.pressText.style.fill = warn ? INK.danger : INK.dim;
+    }
+    const x0 = g.ox + Math.max(g.cell * 1.1, (this.pressText?.width ?? 0) + g.cell * 0.16);
+    const x1 = g.ox + g.width;
+    // More marks than fit are counted in steps, as the pipeline's bar is.
+    const marks = Math.min(limit, 24);
+    const gap = Math.max(2, g.cell * 0.03);
+    const w = (x1 - x0 - gap * (marks - 1)) / marks;
+    const tall = g.cell * 0.2;
+    const low = g.cell * 0.11;
+    const filled = Math.ceil((state.pressure * marks) / limit);
+    const held = Math.min(marks, Math.ceil((reactorPressureHeld(state) * marks) / limit));
+    const ink = warn ? INK.danger : INK.cream;
+    const line = Math.max(1.5, g.cell * 0.02);
+    // The marks stand on one baseline; the last, the limit, stands taller than the rest.
+    const base = y + low / 2;
+    for (let i = 0; i < marks; i++) {
+      const last = i === marks - 1;
+      const hh = last ? tall : low;
+      const x = x0 + i * (w + gap);
+      const r = Math.min(w, hh) * 0.3;
+      // Filled, hollow and empty differ in shape, not only in ink: a block, an outline, a dash.
+      if (i < filled) h.roundRect(x, base - hh, w, hh, r).fill({ color: ink });
+      else if (i < held) h.roundRect(x + line / 2, base - hh + line / 2, w - line, hh - line, r).stroke({ width: line, color: ink });
+      else {
+        h.roundRect(x, base - line * 1.5, w, line * 1.5, line * 0.75).fill({ color: last ? INK.dim : INK.line });
+        // The empty limit is a post on its dash, so the end of the bar is plain without colour.
+        if (last) h.roundRect(x + w / 2 - line / 2, base - hh, line, hh, line / 2).fill({ color: INK.dim });
+      }
     }
   }
 

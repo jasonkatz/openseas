@@ -17,7 +17,7 @@ export const PUZZLE_CUES: Readonly<Record<PuzzleId, readonly string[]>> = {
   salvage: ["pop", "good", "rise", "slag", "crack", "bump", "thud", "whoosh", "beat"],
   overload: ["pop", "power", "zap", "good", "slag", "streak", "streakLost", "swapQuiet", "bump", "whoosh", "beat"],
   deflectors: ["swap", "pop", "power", "zap", "good", "bad", "multi", "bump", "thud", "tick", "beat"],
-  reactor: ["swap", "swapQuiet", "pop", "power", "charge", "clear", "zap", "bad", "streakLost", "bump", "tick", "beat"],
+  reactor: ["swap", "swapQuiet", "pop", "power", "charge", "clear", "zap", "vent", "alarm", "bad", "streakLost", "bump", "tick", "beat"],
   scanner: ["ping", "pop", "good", "bad", "streakLost", "swapQuiet", "bump", "whoosh", "beat"],
   tug: ["pop", "ping", "clear", "good", "bad", "streak", "swapQuiet", "bump", "thud", "whoosh", "beat"],
   racks: ["swap", "swapQuiet", "pop", "clear", "multi", "crack", "bad", "streakLost", "bump", "thud", "whoosh", "tick", "beat"],

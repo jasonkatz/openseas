@@ -7,6 +7,10 @@
  * discharged for the big score, that port closes and another opens somewhere on the rim. Hot rods
  * stacked nose to tail at a port all leave in the one swipe, a salvo, for far more than one by one.
  *
+ * Core pressure is the price of holding: a swipe that ends with two or more hot rods in the core
+ * adds one to a gauge for each past the first, and a swipe that ends with one or none lets one
+ * off. At the gauge's limit the core scrams, as it does when the lamps are full.
+ *
  * Cell index = row * size + col, row 0 at the top. A direction and a port's side share one
  * numbering: 0 up or top, 1 right, 2 down or bottom, 3 left. A port's lane is a column for the top
  * and bottom walls and a row for the left and right ones.
@@ -44,7 +48,13 @@ export interface ReactorConfig {
   readonly pipelineSwipes: number;
   /** What the pipeline multiplies a discharge by, in percent: the first in a run takes the first entry, a run past the end takes the last. */
   readonly pipelinePercent: readonly number[];
-  /** Lost when no swipe can change anything and the core is emptied. The score never goes below zero. */
+  /**
+   * Core pressure: a swipe that ends with two or more hot rods in the core adds one for each past
+   * the first, a swipe that ends with one or none lets one off, and at this much the core scrams.
+   * 0 is off: there is no gauge, and nothing is added to the state's hash.
+   */
+  readonly pressureLimit: number;
+  /** Lost on a scram, whatever its cause, when the core is emptied. The score never goes below zero. */
   readonly scramPenalty: number;
   /** Longest move log the server accepts. */
   readonly maxMoves: number;
@@ -62,6 +72,7 @@ export const DEFAULT_REACTOR_CONFIG: ReactorConfig = {
   salvoPercent: [100, 250, 400],
   pipelineSwipes: 8,
   pipelinePercent: [100, 125, 150, 175, 200],
+  pressureLimit: 13,
   scramPenalty: 150,
   maxMoves: 1500,
 };
@@ -119,8 +130,11 @@ export interface ReactorDischarge {
 
 /** The core was emptied: why, what was in it, what it cost, and the rods it restarts with. */
 export interface ReactorScram {
-  /** `jammed`: no swipe could change anything. `critical`: too many hot rods at once. */
-  readonly cause: "jammed" | "critical";
+  /**
+   * `critical`: too many hot rods at once (the lamps). `pressure`: the gauge reached its limit.
+   * `jammed`: no swipe could change anything. When more than one holds, the first named is given.
+   */
+  readonly cause: "jammed" | "critical" | "pressure";
   readonly ids: readonly number[];
   readonly penalty: number;
   readonly fresh: ReadonlyArray<{ readonly id: number; readonly cell: number; readonly grade: number }>;
@@ -143,6 +157,11 @@ export interface ReactorMoveReport {
   readonly scram: ReactorScram | null;
   /** True when the pipeline lapsed on this swipe: too many swipes since the last discharge. */
   readonly lapsed: boolean;
+  /**
+   * What the swipe did to core pressure, before any scram: one for each hot rod past the first, or
+   * minus one as it lets one off. 0 when pressure is off, or when an empty gauge had nothing to let off.
+   */
+  readonly pressureChange: number;
   /** Fusions and discharges, the discharges multiplied for a salvo, less a scram's penalty. */
   readonly points: number;
 }
@@ -170,6 +189,10 @@ export interface ReactorState {
   readonly salvos: number;
   readonly fusions: number;
   readonly scrams: number;
+  /** Core pressure on the gauge; the core scrams at `pressureLimit`. Always 0 when that is off, and 0 after any scram. */
+  readonly pressure: number;
+  /** Scrams on pressure, counted in `scrams` too. */
+  readonly pressureScrams: number;
   readonly lastMove: ReactorMoveReport | null;
   readonly finished: boolean;
 }

@@ -19,7 +19,8 @@ export const ReactorConfigSchema = z.object({
   salvoPercent: z.array(z.int().min(100).max(2000)).min(1).max(8).describe("Percent a swipe's discharges are multiplied by, by rods out in that swipe; past the end takes the last entry."),
   pipelineSwipes: z.int().min(1).max(1000).describe("A discharge within this many swipes of the last one keeps the pipeline going."),
   pipelinePercent: z.array(z.int().min(100).max(1000)).min(1).max(16).describe("Percent the pipeline multiplies a discharge by, by its place in the run; a run past the end takes the last."),
-  scramPenalty: z.int().min(0).max(100_000).describe("Points lost on a scram, when the core jams or goes critical and is emptied."),
+  pressureLimit: z.int().min(0).max(1000).describe("Pressure the core scrams at: a swipe ending with two or more hot rods adds one per rod past the first, one or none lets one off. 0: off."),
+  scramPenalty: z.int().min(0).max(100_000).describe("Points lost on a scram, when the core jams, goes critical or reaches its pressure limit and is emptied."),
   maxMoves: z.int().min(1).max(1_000_000).describe("Longest move log the server accepts: the round ends there."),
 });
 export type ReactorConfigWire = z.infer<typeof ReactorConfigSchema>;

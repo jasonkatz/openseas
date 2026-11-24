@@ -42,6 +42,7 @@ export function validateConfig(cfg: ReactorConfig): void {
     cfg.pipelinePercent.length >= 1 &&
     cfg.pipelinePercent.length <= 16 &&
     cfg.pipelinePercent.every((p) => int(p, 100, 1000)) &&
+    int(cfg.pressureLimit, 0, 1000) &&
     int(cfg.scramPenalty, 0, 100_000) &&
     int(cfg.maxMoves, 1, 1_000_000);
   if (!ok) throw new Error("invalid reactor config");
@@ -74,6 +75,25 @@ export function hotCount(cfg: ReactorConfig, cells: ReadonlyArray<ReactorRod | n
   let n = 0;
   for (const r of cells) if (r && isHot(cfg, r.grade)) n++;
   return n;
+}
+
+/**
+ * Core pressure after a swipe that ends with `hot` hot rods in the core, from `pressure`: one more
+ * for each past the first, or one let off for one or none. Always 0 when pressure is off.
+ */
+export function pressureAfter(cfg: ReactorConfig, pressure: number, hot: number): number {
+  if (cfg.pressureLimit === 0) return 0;
+  return hot >= 2 ? pressure + hot - 1 : Math.max(0, pressure - 1);
+}
+
+/** Core pressure after a swipe that sends no rod out and makes none hot: what holding these rods one more swipe costs. */
+export function pressureHeld(state: ReactorState): number {
+  return pressureAfter(state.config, state.pressure, hotCount(state.config, state.cells));
+}
+
+/** True when holding the hot rods in the core one more swipe would scram it on pressure: the board's warning. */
+export function pressureWarning(state: ReactorState): boolean {
+  return state.config.pressureLimit > 0 && pressureHeld(state) >= state.config.pressureLimit;
 }
 
 /** What the pipeline multiplies a discharge by, in percent, when it is the `run`th in its run. */
@@ -174,11 +194,24 @@ export interface ReactorOutcome {
   readonly fusions: number;
   /** Fusions that would make a hot rod. */
   readonly hotMade: number;
+  /** Core pressure the swipe would leave, before any scram (the rod that enters is never hot). 0 when pressure is off. */
+  readonly pressure: number;
+  /** True when that reaches the limit: the swipe would scram the core on pressure, unless the lamps scram it first. */
+  readonly overpressure: boolean;
 }
 
 export function swipeOutcome(state: ReactorState, dir: ReactorDir): ReactorOutcome {
+  const cfg = state.config;
   const s = slide(state, dir);
-  return { legal: s.changed.length > 0, discharges: s.out.length, fusions: s.fusions.length, hotMade: s.fusions.filter((f) => f.hot).length };
+  const pressure = pressureAfter(cfg, state.pressure, hotCount(cfg, s.cells));
+  return {
+    legal: s.changed.length > 0,
+    discharges: s.out.length,
+    fusions: s.fusions.length,
+    hotMade: s.fusions.filter((f) => f.hot).length,
+    pressure,
+    overpressure: cfg.pressureLimit > 0 && pressure >= cfg.pressureLimit,
+  };
 }
 
 /**
@@ -289,6 +322,8 @@ export function createReactorGame(seed: string, config: ReactorConfig = DEFAULT_
     salvos: 0,
     fusions: 0,
     scrams: 0,
+    pressure: 0,
+    pressureScrams: 0,
     lastMove: null,
     finished: false,
   };
@@ -375,9 +410,15 @@ function swipe(state: ReactorState, move: Extract<ReactorMove, { type: "swipe" }
   let scrams = state.scrams;
   const settled: ReactorState = { ...state, cells, ports, finished: false };
   const jammed = !DIRS.some((d) => slide(settled, d).changed.length > 0);
-  const critical = hotCount(cfg, cells) >= cfg.criticalHot;
-  if (jammed || critical) {
-    // Nothing can move, or too many hot rods are in the core: it is emptied for a penalty and started again.
+  const hotNow = hotCount(cfg, cells);
+  const critical = hotNow >= cfg.criticalHot;
+  // Core pressure, read on the core the swipe leaves: the rod that entered is never hot.
+  let pressure = pressureAfter(cfg, state.pressure, hotNow);
+  const pressureChange = pressure - state.pressure;
+  const overpressure = cfg.pressureLimit > 0 && pressure >= cfg.pressureLimit;
+  if (jammed || critical || overpressure) {
+    // Nothing can move, too many hot rods are in the core, or they were held too long: it is
+    // emptied for a penalty and started again, with the gauge empty.
     const ids = cells.flatMap((r) => (r ? [r.id] : []));
     const penalty = Math.min(score, cfg.scramPenalty);
     score -= penalty;
@@ -386,14 +427,15 @@ function swipe(state: ReactorState, move: Extract<ReactorMove, { type: "swipe" }
     rng = seeded.rng;
     nextId = seeded.nextId;
     cells = fresh;
-    scram = { cause: critical ? "critical" : "jammed", ids, penalty, fresh: seeded.fresh };
+    scram = { cause: critical ? "critical" : overpressure ? "pressure" : "jammed", ids, penalty, fresh: seeded.fresh };
     scrams += 1;
+    pressure = 0;
     combo = 0;
     since = 0;
   }
 
   const points = score - state.score;
-  const report: ReactorMoveReport = { move, dir, slides: s.slides, fusions: s.fusions, discharges, salvoPercent: salvo, dischargeTotal: dischargePoints, opened, entered, scram, lapsed, points };
+  const report: ReactorMoveReport = { move, dir, slides: s.slides, fusions: s.fusions, discharges, salvoPercent: salvo, dischargeTotal: dischargePoints, opened, entered, scram, lapsed, pressureChange, points };
   const moveCount = state.moveCount + 1;
   return {
     config: cfg,
@@ -411,6 +453,8 @@ function swipe(state: ReactorState, move: Extract<ReactorMove, { type: "swipe" }
     salvos: state.salvos + (discharges.length >= 2 ? 1 : 0),
     fusions: state.fusions + s.fusions.length,
     scrams,
+    pressure,
+    pressureScrams: state.pressureScrams + (scram?.cause === "pressure" ? 1 : 0),
     lastMove: report,
     finished: moveCount >= cfg.maxMoves,
   };
@@ -435,6 +479,8 @@ export function hashReactorState(state: ReactorState): string {
   h.int(state.rng.a).int(state.rng.b).int(state.rng.c).int(state.rng.d);
   h.int(state.nextId).int(state.score).int(state.moveCount).int(state.combo).int(state.bestCombo).int(state.sinceDischarge);
   h.int(state.discharges).int(state.salvos).int(state.fusions).int(state.scrams).int(state.finished ? 1 : 0);
+  // The gauge, only when pressure is on: a round with it off hashes as it did before there was one.
+  if (state.config.pressureLimit > 0) h.int(state.pressure).int(state.pressureScrams);
   return h.digest();
 }
 

@@ -122,5 +122,21 @@
       { "kind": "tone", "note": 7, "wave": "sine", "at": 0.03, "attack": 0.03, "release": 0.47, "level": 0.2 }
     ],
     "swell": { "param": "strength", "from": 0.75, "to": 1 }
+  },
+  "vent": {
+    "level": 1.45,
+    "cutoff": 2000,
+    "voices": [
+      { "kind": "air", "at": 0, "attack": 0.015, "release": 0.305, "level": 1, "from": 1900, "to": 600, "band": false },
+      { "kind": "tone", "note": 12, "wave": "sine", "at": 0.04, "attack": 0.01, "release": 0.15, "level": 0.3, "repeat": { "param": "rows", "min": 0, "max": 3, "note": -1, "at": 0.08 } }
+    ]
+  },
+  "alarm": {
+    "level": 1,
+    "cutoff": 900,
+    "voices": [
+      { "kind": "tone", "note": 5, "wave": "triangle", "at": 0, "attack": 0.012, "release": 0.168, "level": 1 },
+      { "kind": "tone", "note": 3, "wave": "triangle", "at": 0.17, "attack": 0.012, "release": 0.208, "level": 1 }
+    ]
   }
 }
