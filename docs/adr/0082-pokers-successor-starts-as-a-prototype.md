@@ -22,19 +22,25 @@ what the player must not see.
 2. **It is a successor, and says so.** Its design file names Poker as what it follows, keeps the
    mechanics of hold'em (two cards each, five shared turned three, one and one, the best five of
    seven, blinds and a button, a round of betting before the flop and after each turn, the pot to
-   the last seat in or the best hand shown), and gives its own words, art, sounds and numbers.
+   the last seat in or the best hand shown, stacks, all ins and side pots), and gives its own
+   words, art, sounds and numbers. Its cards keep the traditional suits, spades, hearts, diamonds
+   and clubs: they belong to no game, and a player reads them at a glance.
 3. **The opponents are rivals inside the engine.** Each rival is dealt a style and plays by one
    rule with its style's numbers, reckoning its share of the pot from deals of the cards it cannot
    see, on a seeded stream of its own. A rival sees only its own cards, the cards turned and the
    betting. A rival's turn is a move in the log (`next`), which the board sends at its own pace, so
    a round replays from its log and the server verifies it like any other, and no move sets off
    more than about a second of play (ADR 0073).
-4. **It plays at a fixed limit, with no stacks.** Three choices, each with its cost on its button,
-   and no seat can run out of chips, so there is no all in and no side pot.
-5. **A sitting is rated on what the player stands up with.** The player sits down with a bank;
-   the score is the bank and their net, never below zero. A sitting left early keeps none of its
-   winnings and only its share of the bank. A score of the net alone, floored at zero, would pay a
-   gambler's swings above steady play.
+4. **It plays at a fixed limit, as a knockout.** Three choices, each with its cost on its button.
+   Every seat sits down with the same small stack; a seat that cannot cover a bet goes all in, and
+   side pots are paid as hold'em pays them. A seat with no chips is out. The player loses when out
+   and wins when every rival is.
+5. **A round is rated on the rivals the player outlasts.** Points for each rival out, and for a win
+   points for each hand under a cap it did not need. After the cap with seats still in, a rival
+   holding fewer chips than the player counts as beaten; a round left early keeps only the rivals
+   already out. The score never falls as a round goes on, so leaving is never worth it, and a
+   player can never go below nothing. (A first pass rated a sitting of twelve hands on a bank of
+   chips the player could lose without end; the owner found going negative wrong for the game.)
 6. **The hidden cards stay on the client for now.** The deck and the rivals' cards are in the state
    the client holds, as Scanner's contacts are. A Showdown round that counted for anything would need
    the server to deal and answer; that is decided with the promotion.
@@ -45,7 +51,7 @@ what the player must not see.
 
 - The prototype count grows by one. Documents that count the prototypes (CLAUDE.md, DESIGN.md 3.12,
   the prototypes README, the glossary) count Showdown apart as a successor beside Tractor.
-- Its departures (a fixed limit, rivals in the engine, no stacks, a sitting scored on its bank) are
-  rows in DESIGN.md section 6.
-- Its thresholds are set from bots until people have played it. A sitting is short against the
-  luck of the cards, and the design file says so; it has no ladder yet.
+- Its departures (a fixed limit, rivals in the engine, a knockout scored on the rivals outlasted)
+  are rows in DESIGN.md section 6.
+- Its thresholds are set from bots until people have played it. Short stacks are lucky, and the
+  design file says how much; it has no ladder yet.

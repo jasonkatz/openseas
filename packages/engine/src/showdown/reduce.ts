@@ -17,8 +17,10 @@ export function validateConfig(cfg: ShowdownConfig): void {
   const int = (n: unknown, lo: number, hi: number): boolean => typeof n === "number" && Number.isInteger(n) && n >= lo && n <= hi;
   const ok =
     int(cfg.rivals, 1, 5) &&
-    int(cfg.hands, 1, 200) &&
-    int(cfg.bank, 0, 100_000) &&
+    int(cfg.hands, 1, 500) &&
+    int(cfg.stack, 1, 10_000) &&
+    int(cfg.knockout, 0, 10_000) &&
+    int(cfg.speed, 0, 1000) &&
     int(cfg.smallBlind, 0, 1000) &&
     int(cfg.bigBlind, 1, 1000) &&
     cfg.smallBlind <= cfg.bigBlind &&
@@ -42,7 +44,12 @@ export function validateConfig(cfg: ShowdownConfig): void {
 
 const seatCount = (cfg: ShowdownConfig): number => cfg.rivals + 1;
 
-/** Everything in the pot. */
+/** In this hand: dealt in and not folded. */
+const live = (s: ShowdownSeat): boolean => !s.out && !s.folded;
+/** Can still bet this hand: in it, with chips behind. */
+const actor = (s: ShowdownSeat): boolean => live(s) && s.stack > 0;
+
+/** Everything in the pot, side pots counted. */
 export function pot(state: ShowdownState): number {
   return state.seats.reduce((n, s) => n + s.inPot, 0);
 }
@@ -50,13 +57,13 @@ export function pot(state: ShowdownState): number {
 /** The cards of the middle showing: none before the flop, then three, four, five. */
 export function boardShowing(state: ShowdownState): number[] {
   const n = state.street === 0 ? 0 : state.street + 2;
-  return state.phase === "over" && state.seats.filter((s) => !s.folded).length > 1 ? state.board.slice(0, 5) : state.board.slice(0, n);
+  return state.phase === "over" && state.seats.filter(live).length > 1 ? state.board.slice(0, 5) : state.board.slice(0, n);
 }
 
-/** What `seat` must put in to call. */
+/** What `seat` puts in to call: what is owed, or all it has when that is less. */
 export function owed(state: ShowdownState, seat = 0): number {
   const s = state.seats[seat];
-  return s ? state.bet - s.street : 0;
+  return s ? Math.max(0, Math.min(state.bet - s.street, s.stack)) : 0;
 }
 
 /** The bet this street: the small bet before the turn, the big one after. */
@@ -64,19 +71,21 @@ export function betSize(state: ShowdownState): number {
   return state.street < 2 ? state.config.smallBet : state.config.bigBet;
 }
 
-/** The street still takes a raise. */
-export function canRaise(state: ShowdownState): boolean {
-  return state.bets < state.config.raiseCap;
+/** `seat` may raise: the street takes one, and it has more than the call behind. */
+export function canRaise(state: ShowdownState, seat = 0): boolean {
+  const s = state.seats[seat];
+  return state.bets < state.config.raiseCap && !!s && s.stack > state.bet - s.street;
 }
 
-/** What a raise (or a bet) by `seat` puts in. */
+/** What a raise (or a bet) by `seat` puts in: a call and one bet, or all it has. */
 export function raiseCost(state: ShowdownState, seat = 0): number {
-  return owed(state, seat) + betSize(state);
+  const s = state.seats[seat];
+  return s ? Math.min(state.bet - s.street + betSize(state), s.stack) : 0;
 }
 
 /** Why the player cannot make this move now, or null. */
 export function moveIllegalReason(state: ShowdownState, move: ShowdownMove): string | null {
-  if (state.finished) return "the sitting is over";
+  if (state.finished) return "the round is over";
   switch (move.type) {
     case "end":
       return null;
@@ -89,21 +98,21 @@ export function moveIllegalReason(state: ShowdownState, move: ShowdownMove): str
     case "raise":
       if (state.phase !== "act") return state.phase === "table" ? "a rival is to act" : "the hand is over";
       if (move.type === "fold" && owed(state) === 0) return "nothing to call: check";
-      if (move.type === "raise" && !canRaise(state)) return "the street is capped";
+      if (move.type === "raise" && !canRaise(state)) return state.bets >= state.config.raiseCap ? "the street is capped" : "not enough chips to raise";
       return null;
     default:
       return "unknown move";
   }
 }
 
-/** The next seat clockwise from `from` still in the hand. */
-function nextLive(seats: readonly ShowdownSeat[], from: number): number {
+/** The next seat clockwise from `from` that passes `test`, or -1. */
+function nextSeat(seats: readonly ShowdownSeat[], from: number, test: (s: ShowdownSeat) => boolean): number {
   const n = seats.length;
   for (let k = 1; k <= n; k++) {
-    const i = (from + k) % n;
-    if (!seats[i]!.folded) return i;
+    const i = (((from + k) % n) + n) % n;
+    if (test(seats[i]!)) return i;
   }
-  return from;
+  return -1;
 }
 
 export function createShowdownGame(seed: string, config: ShowdownConfig): ShowdownState {
@@ -119,7 +128,7 @@ export function createShowdownGame(seed: string, config: ShowdownConfig): Showdo
   }
   const b = nextInt(rng, seatCount(config));
   rng = b.state;
-  const seats: ShowdownSeat[] = [null, ...styles].map((style) => ({ style, cards: [], folded: false, street: 0, inPot: 0, acted: false, net: 0, shown: false }));
+  const seats: ShowdownSeat[] = [null, ...styles].map((style) => ({ style, cards: [], folded: false, out: false, stack: config.stack, street: 0, inPot: 0, acted: false, shown: false }));
   const empty: ShowdownState = {
     config,
     seats,
@@ -136,7 +145,8 @@ export function createShowdownGame(seed: string, config: ShowdownConfig): Showdo
     phase: "over",
     checked: false,
     trapSet: false,
-    score: config.bank,
+    score: 0,
+    won: false,
     moveCount: 0,
     tableActs: 0,
     logLength: 0,
@@ -150,125 +160,202 @@ export function createShowdownGame(seed: string, config: ShowdownConfig): Showdo
   return { ...dealt.state, lastMove: null };
 }
 
-/** Deal the next hand: move the button, shuffle, deal two cards a seat, post the blinds. */
-function startHand(state: ShowdownState): { state: ShowdownState; events: ShowdownEvent[] } {
+type Step = { state: ShowdownState; events: ShowdownEvent[] };
+
+/** Deal the next hand to the seats still in: move the button, shuffle, deal two cards a seat, post the blinds. */
+function startHand(state: ShowdownState): Step {
   const cfg = state.config;
   const n = seatCount(cfg);
   const { deck, rng } = shuffled(state.rng);
-  const button = (state.button + 1) % n;
-  const small = n === 2 ? button : (button + 1) % n;
-  const big = (small + 1) % n;
+  const inRound = (s: ShowdownSeat): boolean => !s.out;
+  const button = nextSeat(state.seats, state.button, inRound);
+  const heads = state.seats.filter(inRound).length === 2;
+  const small = heads ? button : nextSeat(state.seats, button, inRound);
+  const big = nextSeat(state.seats, small, inRound);
+  let k = 0;
   const seats: ShowdownSeat[] = state.seats.map((s, i) => {
-    const blind = i === small ? cfg.smallBlind : i === big ? cfg.bigBlind : 0;
-    return { ...s, cards: [deck[i * 2]!, deck[i * 2 + 1]!], folded: false, street: blind, inPot: blind, acted: false, shown: false };
+    if (s.out) return { ...s, cards: [], folded: true, street: 0, inPot: 0, acted: false, shown: false };
+    const blind = Math.min(s.stack, i === small ? cfg.smallBlind : i === big ? cfg.bigBlind : 0);
+    const cards = [deck[k * 2]!, deck[k * 2 + 1]!];
+    k++;
+    return { ...s, cards, folded: false, stack: s.stack - blind, street: blind, inPot: blind, acted: false, shown: false };
   });
-  const toAct = (big + 1) % n;
   const next: ShowdownState = {
     ...state,
     seats,
     rng,
     hand: state.hand + 1,
     button,
-    board: deck.slice(n * 2, n * 2 + 5),
+    board: deck.slice(k * 2, k * 2 + 5),
     street: 0,
     bet: cfg.bigBlind,
     bets: 1,
-    toAct,
-    phase: toAct === 0 ? "act" : "table",
+    toAct: -1,
+    phase: "table",
     checked: false,
     trapSet: false,
   };
-  return { state: next, events: [{ kind: "deal", hand: next.hand, button, small, big, cards: seats[0]!.cards }] };
+  return settle(next, [{ kind: "deal", hand: next.hand, button, small, big, cards: seats[0]!.cards }], big);
+}
+
+/**
+ * After a seat acts (or the blinds go in), what comes next: the hand's end when one seat is left,
+ * the street's end when betting is done, otherwise the next seat that can bet.
+ */
+function settle(state: ShowdownState, events: ShowdownEvent[], from: number): Step {
+  const seats = state.seats;
+  if (seats.filter(live).length === 1) return award(state, events);
+  const actors = seats.filter(actor);
+  const owing = actors.some((s) => s.street < state.bet);
+  const done = actors.every((s) => s.acted && s.street >= state.bet) || (actors.length <= 1 && !owing);
+  if (done) return endStreet(state, events);
+  const toAct = nextSeat(seats, from, (s) => actor(s) && (!s.acted || s.street < state.bet));
+  return { state: { ...state, toAct, phase: toAct === 0 ? "act" : "table" }, events };
 }
 
 type Act = "fold" | "call" | "raise";
 
 /** One seat's action, and whatever it closes: the street, the hand. */
-function act(state: ShowdownState, seat: number, kind: Act): { state: ShowdownState; events: ShowdownEvent[] } {
+function act(state: ShowdownState, seat: number, kind: Act): Step {
   const me = state.seats[seat]!;
-  const due = state.bet - me.street;
+  const due = Math.max(0, state.bet - me.street);
   let bet = state.bet;
   let bets = state.bets;
   let paid = 0;
   let action: "fold" | "check" | "call" | "bet" | "raise";
+  let reopen = false;
   if (kind === "fold") action = "fold";
   else if (kind === "call") {
-    paid = due;
+    paid = Math.min(due, me.stack);
     action = due === 0 ? "check" : "call";
   } else {
-    bet = state.bet + betSize(state);
-    paid = bet - me.street;
-    action = bets === 0 ? "bet" : "raise";
-    bets++;
+    paid = Math.min(due + betSize(state), me.stack);
+    const to = me.street + paid;
+    action = state.bet === 0 ? "bet" : "raise";
+    // A short raise all in moves the price but does not count toward the cap.
+    if (to - state.bet >= betSize(state)) bets++;
+    reopen = to > state.bet;
+    bet = Math.max(bet, to);
   }
   const seats = state.seats.map((s, i) => {
-    if (i === seat) return { ...s, folded: kind === "fold", street: s.street + paid, inPot: s.inPot + paid, acted: true };
-    // A raise asks everyone still in to act again.
-    if (kind === "raise" && !s.folded) return { ...s, acted: false };
+    if (i === seat) return { ...s, folded: kind === "fold", stack: s.stack - paid, street: s.street + paid, inPot: s.inPot + paid, acted: true };
+    // A raise asks everyone still betting to act again.
+    if (reopen && actor(s)) return { ...s, acted: false };
     return s;
   });
   let checked = state.checked;
   let trapSet = state.trapSet;
   if (seat === 0 && action === "check") checked = true;
   if (seat === 0 && kind === "raise" && checked) trapSet = true;
-  let s: ShowdownState = { ...state, seats, bet, bets, checked, trapSet };
-  const events: ShowdownEvent[] = [{ kind: "act", seat, action, paid, pot: pot(s) }];
-
-  const live = seats.filter((x) => !x.folded);
-  if (live.length === 1) return award(s, events);
-  if (live.every((x) => x.acted && x.street === bet)) return endStreet(s, events);
-  const toAct = nextLive(seats, seat);
-  return { state: { ...s, toAct, phase: toAct === 0 ? "act" : "table" }, events };
+  const s: ShowdownState = { ...state, seats, bet, bets, checked, trapSet };
+  const allIn = kind !== "fold" && seats[seat]!.stack === 0;
+  return settle(s, [{ kind: "act", seat, action, paid, pot: pot(s), allIn }], seat);
 }
 
-function endStreet(state: ShowdownState, events: ShowdownEvent[]): { state: ShowdownState; events: ShowdownEvent[] } {
+/** The street is done: turn the next cards. With no more than one seat left to bet, they turn one street a `next` with no betting. */
+function endStreet(state: ShowdownState, events: ShowdownEvent[]): Step {
   if (state.street === 3) return award(state, events);
   const street = state.street + 1;
   const seats = state.seats.map((s) => ({ ...s, street: 0, acted: false }));
   const cards = street === 1 ? state.board.slice(0, 3) : [state.board[street + 1]!];
-  const toAct = nextLive(seats, state.button);
-  const next: ShowdownState = { ...state, seats, street, bet: 0, bets: 0, checked: false, toAct, phase: toAct === 0 ? "act" : "table" };
-  return { state: next, events: [...events, { kind: "street", street, cards }] };
+  const out = [...events, { kind: "street" as const, street, cards }];
+  const next: ShowdownState = { ...state, seats, street, bet: 0, bets: 0, checked: false };
+  if (seats.filter(actor).length <= 1) return { state: { ...next, toAct: -1, phase: "table" }, events: out };
+  const toAct = nextSeat(seats, state.button, actor);
+  return { state: { ...next, toAct, phase: toAct === 0 ? "act" : "table" }, events: out };
 }
 
-/** The hand is over: the pot goes to the last seat in, or to the best hand shown. */
-function award(state: ShowdownState, events: ShowdownEvent[]): { state: ShowdownState; events: ShowdownEvent[] } {
+/**
+ * The hand is over: the pot goes to the last seat in, or each pot to the best hand in it. A pot is
+ * a layer of what was put in: the main pot to the smallest stake still in, each side pot above it
+ * among the seats that put in that much.
+ */
+function award(state: ShowdownState, events: ShowdownEvent[]): Step {
   const n = state.seats.length;
   const total = pot(state);
-  const live = state.seats.map((s, i) => i).filter((i) => !state.seats[i]!.folded);
-  let winners: number[];
+  const liveSeats = state.seats.map((_, i) => i).filter((i) => live(state.seats[i]!));
+  const won = new Array<number>(n).fill(0);
   const shown: Array<{ seat: number; cards: readonly number[]; hand: ReturnType<typeof handName>; best: readonly number[] }> = [];
-  if (live.length === 1) winners = live;
+  // Seats in order from the button's left, so an odd chip goes to the first of the winners.
+  const order = (a: number, b: number): number => ((a - state.button + n - 1) % n) - ((b - state.button + n - 1) % n);
+  if (liveSeats.length === 1) won[liveSeats[0]!] = total;
   else {
-    const values = live.map((i) => handValue([...state.seats[i]!.cards, ...state.board]));
-    const top = Math.max(...values);
-    winners = live.filter((_, k) => values[k] === top);
-    live.forEach((i, k) => {
+    const values = new Map(liveSeats.map((i) => [i, handValue([...state.seats[i]!.cards, ...state.board])]));
+    for (const i of liveSeats) {
       const cards = [...state.seats[i]!.cards, ...state.board];
-      shown.push({ seat: i, cards: state.seats[i]!.cards, hand: handName(values[k]!), best: bestFive(cards) });
+      shown.push({ seat: i, cards: state.seats[i]!.cards, hand: handName(values.get(i)!), best: bestFive(cards) });
+    }
+    const stakes = state.seats.map((s) => s.inPot);
+    const levels = [...new Set(liveSeats.map((i) => stakes[i]!))].sort((a, b) => a - b);
+    let below = 0;
+    levels.forEach((level, k) => {
+      // The top layer takes whatever folded seats put in above it too.
+      const top = k === levels.length - 1 ? Math.max(...stakes) : level;
+      const layer = stakes.reduce((sum, c) => sum + Math.max(0, Math.min(c, top) - below), 0);
+      below = top;
+      if (layer === 0) return;
+      const inIt = liveSeats.filter((i) => stakes[i]! >= level);
+      const best = Math.max(...inIt.map((i) => values.get(i)!));
+      const winners = inIt.filter((i) => values.get(i) === best).sort(order);
+      const share = Math.floor(layer / winners.length);
+      winners.forEach((w, j) => (won[w] = won[w]! + share + (j < layer - share * winners.length ? 1 : 0)));
     });
   }
-  // Winners in order from the button's left, so the odd chip goes to the first of them.
-  winners.sort((a, b) => ((a - state.button + n - 1) % n) - ((b - state.button + n - 1) % n));
-  const share = Math.floor(total / winners.length);
-  const amounts = winners.map((_, k) => share + (k < total - share * winners.length ? 1 : 0));
-  const won = new Map(winners.map((w, k) => [w, amounts[k]!]));
-  const seats = state.seats.map((s, i) => ({ ...s, net: s.net + (won.get(i) ?? 0) - s.inPot, shown: shown.some((x) => x.seat === i) }));
-  const mine = won.get(0) ?? 0;
+  const winners = won.map((_, i) => i).filter((i) => won[i]! > 0).sort(order);
+  const amounts = winners.map((w) => won[w]!);
+  const seats = state.seats.map((s, i) => {
+    const stack = s.stack + won[i]!;
+    return { ...s, stack, inPot: 0, street: 0, out: s.out || stack === 0, shown: shown.some((x) => x.seat === i) };
+  });
+  const out = seats.map((s, i) => i).filter((i) => seats[i]!.out && !state.seats[i]!.out);
+  const mine = won[0]!;
   const trap = mine > 0 && state.trapSet;
-  const finished = state.hand >= state.config.hands;
-  const next: ShowdownState = {
+  let next: ShowdownState = {
     ...state,
     seats,
     toAct: -1,
     phase: "over",
-    score: Math.max(0, state.config.bank + seats[0]!.net),
     handsWon: state.handsWon + (mine > 0 ? 1 : 0),
     bestPot: Math.max(state.bestPot, mine),
     traps: state.traps + (trap ? 1 : 0),
-    finished,
   };
-  return { state: next, events: [...events, { kind: "win", pot: total, winners, amounts, shown, trap }] };
+  const rivalsLeft = seats.slice(1).filter((s) => !s.out).length;
+  if (seats[0]!.out || rivalsLeft === 0 || state.hand >= state.config.hands) next = finish(next, true);
+  else next = { ...next, score: knockouts(next) };
+  // Events keep the pot as it stood: `inPot` is cleared above, so `total` is reported.
+  return { state: next, events: [...events, { kind: "win", pot: total, winners, amounts, shown, trap, out }] };
+}
+
+/** Knockout points: a rival out is worth `knockout`. */
+function knockouts(state: ShowdownState): number {
+  return state.seats.slice(1).filter((s) => s.out).length * state.config.knockout;
+}
+
+/**
+ * Where the player stands now, read as a score: every rival out, and every rival still in with fewer
+ * chips than the player, is beaten. What the round would score if it ended after this hand.
+ */
+export function standing(state: ShowdownState): number {
+  if (state.finished) return state.score;
+  const me = state.seats[0]!;
+  const mine = me.stack + me.inPot;
+  const beaten = state.seats.slice(1).filter((s) => s.out || s.stack + s.inPot < mine).length;
+  return beaten * state.config.knockout;
+}
+
+/**
+ * The round is over. `played` when it ran to its end (a knockout, a win, or the last hand): rivals
+ * still in with fewer chips than the player then count as beaten. Left early, only rivals out count.
+ */
+function finish(state: ShowdownState, played: boolean): ShowdownState {
+  const cfg = state.config;
+  const me = state.seats[0]!;
+  const rivals = state.seats.slice(1);
+  const won = !me.out && rivals.every((s) => s.out);
+  let score = knockouts(state);
+  if (played && !me.out && !won) score = rivals.filter((s) => s.out || s.stack < me.stack).length * cfg.knockout;
+  if (won) score += Math.max(0, cfg.hands - state.hand) * cfg.speed;
+  return { ...state, score, won, finished: true };
 }
 
 /**
@@ -277,12 +364,12 @@ function award(state: ShowdownState, events: ShowdownEvent[]): { state: Showdown
  * price of a call. Shares are in thousandths of a fair share (a share times the seats still in).
  */
 export function styleChoice(state: ShowdownState, seat: number, play: ShowdownStyleNumbers, rng: PrngState): { kind: Act; share: number; rng: PrngState } {
-  const k = state.seats.filter((s) => !s.folded).length;
+  const k = state.seats.filter(live).length;
   const eq = equity(state.seats[seat]!.cards, boardShowing(state), k - 1, state.config.samples, rng);
   let r = eq.rng;
   const fair = eq.share * k;
   const due = owed(state, seat);
-  const raise = canRaise(state);
+  const raise = canRaise(state, seat);
   if (raise && fair >= play.raiseAt) return { kind: "raise", share: eq.share, rng: r };
   if (due === 0) {
     if (raise && fair < 1000 && play.bluff > 0) {
@@ -296,11 +383,13 @@ export function styleChoice(state: ShowdownState, seat: number, play: ShowdownSt
   return { kind: fair + play.slack >= price ? "call" : "fold", share: eq.share, rng: r };
 }
 
-function rivalAct(state: ShowdownState): { state: ShowdownState; events: ShowdownEvent[] } {
+function rivalAct(state: ShowdownState): Step {
   const seat = state.toAct;
   const style = state.seats[seat]!.style!;
   const pick = styleChoice(state, seat, state.config.play[style], state.think);
-  const r = act({ ...state, think: pick.rng }, seat, pick.kind);
+  // A rival never folds what it can check.
+  const kind = pick.kind === "fold" && owed(state, seat) === 0 ? "call" : pick.kind;
+  const r = act({ ...state, think: pick.rng }, seat, kind);
   return { state: { ...r.state, tableActs: r.state.tableActs + 1 }, events: r.events };
 }
 
@@ -317,7 +406,7 @@ export function hint(state: ShowdownState): Act | null {
 }
 
 export function reduceShowdown(state: ShowdownState, move: ShowdownMove): ShowdownState {
-  if (state.finished) throw new InvalidMoveError("the sitting is over", move);
+  if (state.finished) throw new InvalidMoveError("the round is over", move);
   const reason = moveIllegalReason(state, move);
   if (reason !== null) throw new InvalidMoveError(reason, move);
   const logLength = state.logLength + 1;
@@ -325,7 +414,7 @@ export function reduceShowdown(state: ShowdownState, move: ShowdownMove): Showdo
   let events: ShowdownEvent[];
   switch (move.type) {
     case "end":
-      next = leave(state);
+      next = finish(state, false);
       events = [];
       break;
     case "deal": {
@@ -335,15 +424,10 @@ export function reduceShowdown(state: ShowdownState, move: ShowdownMove): Showdo
       break;
     }
     case "next": {
-      const r = rivalAct(state);
+      // A rival acts, or with nobody left to bet, the next cards turn.
+      const r = state.toAct === -1 ? endStreet(state, []) : rivalAct(state);
       next = r.state;
       events = r.events;
-      // Once the player is out of the hand, the rest of it plays at once.
-      while (next.seats[0]!.folded && next.phase === "table") {
-        const more = rivalAct(next);
-        next = more.state;
-        events = [...events, ...more.events];
-      }
       break;
     }
     default: {
@@ -354,21 +438,10 @@ export function reduceShowdown(state: ShowdownState, move: ShowdownMove): Showdo
     }
   }
   if (!next.finished && logLength >= state.config.maxMoves) {
-    // The log is full: the sitting ends as an `end` would end it.
-    next = leave(next);
+    // The log is full: the round ends as an `end` would end it.
+    next = finish(next, false);
   }
   return { ...next, logLength, lastMove: { move, events } };
-}
-
-/** The player stands up: a hand in play costs what they put in it, and a sitting left early keeps no winnings. */
-function leave(state: ShowdownState): ShowdownState {
-  const cfg = state.config;
-  const inPlay = state.phase !== "over";
-  const seats = inPlay ? state.seats.map((s, i) => (i === 0 ? { ...s, net: s.net - s.inPot, inPot: 0 } : s)) : state.seats;
-  const done = state.hand - (inPlay ? 1 : 0);
-  const stands = cfg.bank + seats[0]!.net;
-  const score = done >= cfg.hands ? stands : Math.min(stands, Math.floor((cfg.bank * done) / cfg.hands));
-  return { ...state, seats, score: Math.max(0, score), finished: true };
 }
 
 export function replayShowdown(seed: string, config: ShowdownConfig, moves: readonly ShowdownMove[]): ShowdownState {
@@ -384,14 +457,14 @@ export function hashShowdownState(state: ShowdownState): string {
     h.int(s.style === null ? -1 : SHOWDOWN_STYLES.indexOf(s.style));
     h.int(s.cards.length);
     for (const c of s.cards) h.int(c);
-    h.int(s.folded ? 1 : 0).int(s.street).int(s.inPot).int(s.acted ? 1 : 0).int(s.net).int(s.shown ? 1 : 0);
+    h.int(s.folded ? 1 : 0).int(s.out ? 1 : 0).int(s.stack).int(s.street).int(s.inPot).int(s.acted ? 1 : 0).int(s.shown ? 1 : 0);
   }
   for (const r of [state.rng, state.think]) h.int(r.a).int(r.b).int(r.c).int(r.d);
   h.int(state.board.length);
   for (const c of state.board) h.int(c);
   h.int(state.hand).int(state.button).int(state.street).int(state.bet).int(state.bets).int(state.toAct);
   h.int(["act", "table", "over"].indexOf(state.phase)).int(state.checked ? 1 : 0).int(state.trapSet ? 1 : 0);
-  h.int(state.score).int(state.moveCount).int(state.tableActs).int(state.logLength).int(state.handsWon).int(state.bestPot).int(state.traps);
+  h.int(state.score).int(state.won ? 1 : 0).int(state.moveCount).int(state.tableActs).int(state.logLength).int(state.handsWon).int(state.bestPot).int(state.traps);
   h.int(state.finished ? 1 : 0);
   return h.digest();
 }
@@ -407,35 +480,28 @@ export function summarizeShowdown(state: ShowdownState): ShowdownSummary {
   return { score: state.score, moves: state.moveCount, bestCombo: state.bestPot };
 }
 
-/**
- * A stretch of play read as a whole sitting, for the live tier indicator: the bank, and the net won
- * in `seconds` of play kept up for the round's `roundSeconds`. Never below zero.
- */
-export function paceScore(config: ShowdownConfig, made: number, seconds: number, roundSeconds: number): number {
-  if (seconds <= 0) return config.bank;
-  return Math.max(0, Math.round(config.bank + (made * roundSeconds) / seconds));
-}
-
 const RANKS = "23456789TJQKA";
-/** Suits by their pictograms: star, moon, ring, comet. */
-const SUITS = "smrc";
+/** Suits: spades, hearts, diamonds, clubs. */
+const SUITS = "shdc";
 
-/** A card as two letters, its rank and its suit: `As` the ace of stars, `Tm` the ten of moons. */
+/** A card as two letters, its rank and its suit: `As` the ace of spades, `Th` the ten of hearts. */
 export function cardName(card: number): string {
   return `${RANKS[rankOf(card)]}${SUITS[suitOf(card)]}`;
 }
 
 /**
- * The table as text, what the board draws: `hand:street:pot`, the player's cards, the cards showing,
- * then each rival as `i` (in) or `f` (folded) with its cards once it has shown them. `|` between.
+ * The table as text, what the board draws: `hand:street:pot`, the player's cards and chips, the cards
+ * showing, then each rival as `i` (in), `f` (folded) or `x` (out), its chips, and its cards once it
+ * has shown them. `|` between.
  */
 export function viewString(state: ShowdownState): string {
   const parts = [`${state.hand}:${state.street}:${pot(state)}`];
-  parts.push(state.seats[0]!.cards.map(cardName).join(""));
+  const me = state.seats[0]!;
+  parts.push(`${me.cards.map(cardName).join("")}/${me.stack}`);
   parts.push(boardShowing(state).map(cardName).join(""));
   for (let i = 1; i < state.seats.length; i++) {
     const s = state.seats[i]!;
-    parts.push(`${s.folded ? "f" : "i"}${s.shown ? s.cards.map(cardName).join("") : ""}`);
+    parts.push(`${s.out ? "x" : s.folded ? "f" : "i"}${s.stack}${s.shown ? s.cards.map(cardName).join("") : ""}`);
   }
   return parts.join("|");
 }

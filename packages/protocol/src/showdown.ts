@@ -23,8 +23,10 @@ export type ShowdownMoveWire = z.infer<typeof ShowdownMoveSchema>;
 export const ShowdownConfigSchema = z
   .object({
     rivals: z.int().min(1).max(5).describe("Rivals at the table beside you."),
-    hands: z.int().min(1).max(200).describe("Hands in a sitting. The round ends after the last."),
-    bank: z.int().min(0).max(100_000).describe("Chips you sit down with. Your score is what you stand up with."),
+    hands: z.int().min(1).max(500).describe("Hands before the round ends with seats still in. Rivals then holding fewer chips than you count as beaten."),
+    stack: z.int().min(1).max(10_000).describe("Chips every seat sits down with. A seat with none left is out."),
+    knockout: z.int().min(0).max(10_000).describe("Points for each rival out."),
+    speed: z.int().min(0).max(1000).describe("Points, on a win, for each hand of the hands not needed."),
     smallBlind: z.int().min(0).max(1000).describe("The small blind, posted by the seat left of the button."),
     bigBlind: z.int().min(1).max(1000).describe("The big blind, posted by the seat after the small blind. It counts as the first bet before the flop."),
     smallBet: z.int().min(1).max(1000).describe("The bet and raise before the flop and on the flop."),

@@ -1,12 +1,12 @@
 import { Container, Graphics, Sprite, Text } from "pixi.js";
 import {
-  showdownBetSize,
   showdownBoardShowing,
   showdownCanRaise,
   showdownHint,
   showdownMoveIllegalReason,
   showdownOwed,
   showdownPot,
+  showdownRaiseCost,
   showdownRankOf,
   showdownSuitOf,
   showdownViewString,
@@ -39,11 +39,15 @@ export interface ShowdownLabels {
   bet(amount: number): string;
   raise(amount: number): string;
   capped: string;
+  short: string;
   deal: string;
   you: string;
   style(style: ShowdownStyle): string;
   waiting(name: string): string;
   act(action: ShowdownAction, amount: number): string;
+  allIn(amount: number): string;
+  out: string;
+  chips(amount: number): string;
   blind(amount: number): string;
   pot(amount: number): string;
   hand(name: ShowdownHandName): string;
@@ -51,6 +55,8 @@ export interface ShowdownLabels {
   theyWin(name: string, amount: number): string;
   split: string;
   trap: string;
+  youOut: string;
+  theyOut(name: string): string;
 }
 
 export interface ShowdownRendererOptions {
@@ -66,7 +72,7 @@ interface Shown {
   pot: number;
   toAct: number;
   phase: ShowdownState["phase"];
-  seats: Array<{ style: ShowdownStyle | null; cards: number[]; folded: boolean; street: number; net: number; shown: boolean; said: string }>;
+  seats: Array<{ style: ShowdownStyle | null; cards: number[]; folded: boolean; out: boolean; street: number; stack: number; shown: boolean; said: string }>;
   /** Cards to lift, the ones that made the winning hand. */
   best: number[];
 }
@@ -84,7 +90,7 @@ interface SeatView {
   cards: [CardView, CardView];
   emblem: Sprite;
   name: Text;
-  net: Text;
+  stack: Text;
   said: Text;
   chip: Sprite;
   bet: Text;
@@ -108,11 +114,13 @@ interface ButtonView {
 }
 
 const RANKS = "23456789TJQKA";
-/** The board's own pace for a rival's turn: long enough to read what the last seat did. */
-const TABLE_PACE = 750;
+/** The board's own pace for a rival's turn, or cards turned with no betting: long enough to read what the last seat did. */
+const TABLE_PACE = 1400;
+/** The same once the player has folded: the rest of the hand is only to be seen. */
+const FOLDED_PACE = 700;
 const HINT_AFTER_MS = 6000;
 /** One step of a move played out: a seat acting, cards turning. */
-const STEP = 220;
+const STEP = 320;
 
 /** Draws the table and turns a tap or a key into a fold, a call, a raise or a deal. Scores nothing: every number it shows is the engine's. */
 export class ShowdownRenderer extends KitBoard<ShowdownState> {
@@ -238,8 +246,8 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
         emblem.visible = false;
         const name = this.text(u * 0.34, INK.amber);
         name.position.set(cx - 2.9 * u, oy + 9.25 * u);
-        const net = this.text(u * 0.4, INK.cream, true);
-        net.position.set(cx - 2.9 * u, oy + 9.8 * u);
+        const stack = this.text(u * 0.4, INK.cream, true);
+        stack.position.set(cx - 2.9 * u, oy + 9.8 * u);
         const said = this.text(u * 0.32, INK.dim);
         said.position.set(cx + 2.95 * u, oy + 9.55 * u);
         const chip = new Sprite();
@@ -249,8 +257,8 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
         const by = oy + 8.05 * u;
         chip.position.set(bx - 0.45 * u, by);
         bet.position.set(bx + 0.2 * u, by);
-        this.table.addChild(emblem, name, net, said, chip, bet);
-        this.seats.push({ cards: [a, b], emblem, name, net, said, chip, bet, x: cx, y: oy + 9.55 * u, bx, by, dx: cx + 1.1 * u, dy: by });
+        this.table.addChild(emblem, name, stack, said, chip, bet);
+        this.seats.push({ cards: [a, b], emblem, name, stack, said, chip, bet, x: cx, y: oy + 9.55 * u, bx, by, dx: cx + 1.1 * u, dy: by });
         continue;
       }
       const theta = ((270 - (360 * i) / n) * Math.PI) / 180;
@@ -268,8 +276,8 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
       const name = this.text(u * 0.3, INK.cream);
       name.anchor.set(0, 0.5);
       name.position.set(x - 0.3 * u, y + 0.5 * u);
-      const net = this.text(u * 0.32, INK.dim, true);
-      net.position.set(x, y + 0.92 * u);
+      const stack = this.text(u * 0.32, INK.dim, true);
+      stack.position.set(x, y + 0.92 * u);
       const said = this.text(u * 0.28, INK.dim);
       said.position.set(x, y + 1.3 * u);
       // Bets lie between the seat and a point over the middle cards, never on them.
@@ -281,9 +289,9 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
       chip.position.set(bx - 0.32 * u, by);
       const bet = this.text(u * 0.32, INK.cream, true);
       bet.position.set(bx + 0.18 * u, by);
-      this.table.addChild(emblem, name, net, said, chip, bet);
+      this.table.addChild(emblem, name, stack, said, chip, bet);
       // The button lies beside the seat's cards, never over them.
-      this.seats.push({ cards: [a, b], emblem, name, net, said, chip, bet, x, y, bx, by, dx: x + 1.05 * u, dy: y - 0.35 * u });
+      this.seats.push({ cards: [a, b], emblem, name, stack, said, chip, bet, x, y, bx, by, dx: x + 1.05 * u, dy: y - 0.35 * u });
     }
     // The middle: five cards, and the pot under them.
     for (let k = 0; k < 5; k++) {
@@ -328,21 +336,24 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
     const win = state.phase === "over" ? state.lastMove?.events.find((e) => e.kind === "win") : undefined;
     if (win && win.kind === "win") for (const s of win.shown) if (win.winners.includes(s.seat)) best.push(...s.best);
     const said = (seat: number): string => {
+      if (state.seats[seat]!.out) return this.opts.labels.out;
       const x = win && win.kind === "win" ? win.shown.find((s) => s.seat === seat) : undefined;
       return x ? this.opts.labels.hand(x.hand) : "";
     };
     return {
       button: state.button,
       board: showdownBoardShowing(state),
-      pot: showdownPot(state),
+      // Between hands the pot has been paid out: the hand's end still shows what it was.
+      pot: win && win.kind === "win" ? win.pot : showdownPot(state),
       toAct: state.toAct,
       phase: state.phase,
       seats: state.seats.map((s, i) => ({
         style: s.style,
         cards: i === 0 || s.shown ? [...s.cards] : [],
         folded: s.folded,
+        out: s.out,
         street: s.street,
-        net: s.net,
+        stack: s.stack,
         shown: s.shown,
         said: said(i),
       })),
@@ -371,7 +382,7 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
     this.marks.clear();
     v.seats.forEach((s, i) => {
       const view = this.seats[i]!;
-      const out = s.folded;
+      const out = s.folded || s.out;
       view.cards.forEach((c, k) => {
         const card = s.cards[k];
         // A rival's cards show face down until it shows them; a folded seat has thrown them away.
@@ -381,15 +392,15 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
       });
       if (i === 0) {
         view.name.text = L.you;
-        view.net.text = signed(s.net);
+        view.stack.text = L.chips(s.stack);
       } else {
         const style = s.style!;
         const em = SHOWDOWN_EMBLEMS[style];
         view.emblem.texture = this.piece(em.id, u * 0.5, em.color, em.paint);
-        view.emblem.alpha = out ? 0.4 : 1;
+        view.emblem.alpha = s.out ? 0.25 : out ? 0.4 : 1;
         view.name.text = L.style(style);
         view.name.style.fill = out ? INK.dim : INK.cream;
-        view.net.text = signed(s.net);
+        view.stack.text = s.out ? "" : L.chips(s.stack);
       }
       view.said.text = s.said;
       view.chip.visible = s.street > 0;
@@ -427,7 +438,6 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
     const over = state.phase === "over";
     const due = showdownOwed(state);
     const raise = showdownCanRaise(state);
-    const size = showdownBetSize(state);
     for (const b of this.buttons) {
       const shownHere = over ? b.move === "deal" : b.move !== "deal";
       b.label.visible = shownHere && !state.finished;
@@ -445,7 +455,7 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
         b.label.text = due > 0 ? L.call(due) : L.check;
         b.enabled = live && state.phase === "act";
       } else {
-        b.label.text = !raise ? L.capped : state.bets === 0 ? L.bet(size) : L.raise(due + size);
+        b.label.text = !raise ? (state.bets >= state.config.raiseCap ? L.capped : L.short) : state.bet === 0 ? L.bet(showdownRaiseCost(state)) : L.raise(showdownRaiseCost(state));
         b.enabled = live && state.phase === "act" && raise;
       }
       b.label.style.fill = b.enabled ? INK.cream : INK.dim;
@@ -453,7 +463,7 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
       if (b.enabled) g.roundRect(b.x, b.y, b.w, b.h, this.u * 0.22).stroke({ width: 1, color: INK.line });
     }
     if (this.status) {
-      if (state.phase === "table" && !state.seats[0]!.folded) {
+      if (state.phase === "table" && !state.seats[0]!.folded && state.toAct > 0) {
         const style = state.seats[state.toAct]?.style;
         this.status.text = style ? L.waiting(L.style(style)) : "";
       } else this.status.text = "";
@@ -479,7 +489,7 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
       return;
     }
     // The rest of a hand the player has folded out of plays quicker: it is only to be seen.
-    const quick = prev.seats[0]!.folded;
+    const quick = prev.seats[0]!.folded || prev.seats[0]!.out;
     const step = quick ? STEP / 2 : STEP;
     let t = 0;
     for (const e of r.events) {
@@ -503,17 +513,23 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
         v.best = [];
         v.phase = "table";
         v.toAct = -1;
+        v.pot = 0;
         v.seats.forEach((s, i) => {
-          s.folded = false;
+          s.out = state.seats[i]!.out;
+          s.folded = s.out;
           s.shown = false;
           s.cards = i === 0 ? [...e.cards] : [];
-          s.street = i === e.small ? state.config.smallBlind : i === e.big ? state.config.bigBlind : 0;
-          s.said = i === e.small ? L.blind(state.config.smallBlind) : i === e.big ? L.blind(state.config.bigBlind) : "";
+          // A blind is what the seat had, when that is less.
+          const blind = Math.min(s.stack, i === e.small ? state.config.smallBlind : i === e.big ? state.config.bigBlind : 0);
+          s.street = blind;
+          s.stack -= blind;
+          v.pot += blind;
+          s.said = s.out ? L.out : blind > 0 ? L.blind(blind) : "";
         });
-        v.pot = state.config.smallBlind + state.config.bigBlind;
         this.draw();
         // The cards go out from the middle, one seat at a time.
         this.seats.forEach((seat, i) => {
+          if (v.seats[i]!.out) return;
           seat.cards.forEach((c, k) => {
             const x = c.box.x;
             const y = c.box.y;
@@ -527,8 +543,9 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
       case "act": {
         const s = v.seats[e.seat]!;
         s.street += e.paid;
+        s.stack -= e.paid;
         s.folded = e.action === "fold";
-        s.said = L.act(e.action, e.paid);
+        s.said = e.allIn ? L.allIn(e.paid) : L.act(e.action, e.paid);
         v.pot = e.pot;
         v.toAct = -1;
         this.draw();
@@ -551,7 +568,8 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
         v.board = [...v.board, ...e.cards];
         v.seats.forEach((s) => {
           s.street = 0;
-          s.said = s.folded ? s.said : "";
+          // An all in stays said: that seat bets no more this hand.
+          s.said = s.folded || s.stack === 0 ? s.said : "";
         });
         this.draw();
         e.cards.forEach((card, k) => {
@@ -575,6 +593,15 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
         if (e.shown.length > 0) v.board = state.board.slice(0, 5);
         v.phase = "over";
         v.toAct = -1;
+        v.seats.forEach((s, i) => {
+          const k = e.winners.indexOf(i);
+          s.stack += k >= 0 ? e.amounts[k]! : 0;
+          s.street = 0;
+        });
+        for (const seat of e.out) {
+          v.seats[seat]!.out = true;
+          v.seats[seat]!.said = L.out;
+        }
         this.draw();
         e.winners.forEach((w, k) => {
           const seat = this.seats[w]!;
@@ -585,11 +612,14 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
           const style = v.seats[seat]?.style;
           return style ? L.style(style) : L.you;
         };
+        // One callout a hand: the check-raise, then a knockout, then who took the pot.
         if (e.trap) {
           // The named compound move: a check-raise that took the pot.
           this.fx.say(L.trap);
-          this.beat(Math.min(1, 0.35 + e.pot / 120));
-        } else if (e.winners.length > 1) this.fx.say(L.split, INK.dim);
+          this.beat(Math.min(1, 0.35 + e.pot / (state.config.stack * 2)));
+        } else if (e.out.includes(0)) this.fx.say(L.youOut, INK.dim);
+        else if (e.out.length > 0) this.fx.say(L.theyOut(e.out.map(name).join(", ")));
+        else if (e.winners.length > 1) this.fx.say(L.split, INK.dim);
         else if (mine) this.fx.say(L.youWin(e.pot));
         else this.fx.say(L.theyWin(name(e.winners[0]!), e.pot), INK.dim);
         if (!e.trap) {
@@ -612,7 +642,7 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
     // A rival's turn: once the table has settled, give it a breath, then let it act.
     if (this.interactive && state.phase === "table" && !state.finished && !this.busy && this.nextFor !== state) {
       this.wait += dt;
-      if (this.wait >= (state.seats[0]!.folded ? TABLE_PACE / 3 : TABLE_PACE)) {
+      if (this.wait >= (state.seats[0]!.folded ? FOLDED_PACE : TABLE_PACE)) {
         this.nextFor = state;
         this.wait = 0;
         this.cb.onNext();
@@ -676,8 +706,3 @@ export class ShowdownRenderer extends KitBoard<ShowdownState> {
 }
 
 type ShowdownButtonMove = "fold" | "call" | "raise" | "deal";
-
-/** A net with its sign, in mono: +12, -4, 0. */
-function signed(n: number): string {
-  return n > 0 ? `+${n}` : String(n);
-}

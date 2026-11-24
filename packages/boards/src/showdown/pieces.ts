@@ -5,8 +5,8 @@ import { piecePaint } from "../look/pieces.js";
 
 /**
  * Showdown's pieces, as pictograms (docs/BRAND.md section 3, ADR 0062). The kinds a player must
- * tell apart are the four suits, each an outline of its own: a four-pointed star, a crescent moon,
- * a planet crossed by its ring, a comet's head and tail. The rivals' styles have emblems of their
+ * tell apart are the four suits, the cards' own: a spade, a heart, a diamond and a club, each its
+ * traditional outline, spades and clubs cream, hearts and diamonds rose. The rivals' styles have emblems of their
  * own too: a brick with its mortar line, a sponge with its hole, a flame, a fin. A card is a raised
  * tile the board draws, its rank in mono and its suit's pictogram under it; face down it shows the
  * back's seal. Colour is a second cue and never the only one. Each is drawn from its layers in
@@ -20,8 +20,8 @@ export interface ShowdownPiece {
 
 const piece = (id: string, color: Token): ShowdownPiece => ({ id, color, paint: piecePaint("showdown", id) });
 
-/** The suits by the engine's number: 0 stars, 1 moons, 2 rings, 3 comets. */
-export const SHOWDOWN_SUITS: readonly ShowdownPiece[] = [piece("star", "sand"), piece("moon", "sky"), piece("ring", "lilac"), piece("comet", "rose")];
+/** The suits by the engine's number: 0 spades, 1 hearts, 2 diamonds, 3 clubs. */
+export const SHOWDOWN_SUITS: readonly ShowdownPiece[] = [piece("spade", "cream"), piece("heart", "rose"), piece("diamond", "rose"), piece("club", "cream")];
 /** A card face down: the back's seal, slate. */
 export const SHOWDOWN_BACK = piece("back", "slate");
 /** Chips in front of a seat and in the pot. */

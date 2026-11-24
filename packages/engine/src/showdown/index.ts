@@ -21,7 +21,7 @@ export {
   hint as showdownHint,
   cardName as showdownCardName,
   viewString as showdownViewString,
-  paceScore as showdownPaceScore,
+  standing as showdownStanding,
   type ShowdownSummary,
 } from "./reduce.js";
 export {

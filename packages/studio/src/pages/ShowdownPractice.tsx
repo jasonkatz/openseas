@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { SHOWDOWN_STYLES, showdownOwed, showdownPaceScore, showdownPot, summarizeShowdown, type ShowdownConfig, type ShowdownMove, type ShowdownState } from "@openseas/engine";
+import { SHOWDOWN_STYLES, showdownOwed, showdownPot, showdownStanding, summarizeShowdown, type ShowdownConfig, type ShowdownMove, type ShowdownState } from "@openseas/engine";
 import { content, ShowdownBoard, ShowdownIcon, t } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
@@ -24,8 +24,9 @@ export function ShowdownPractice() {
 
   const onMove = useCallback((move: ShowdownMove) => void api.apply(move), [api]);
   const onNext = useCallback(() => void api.apply({ type: "next" }), [api]);
-  const roundSeconds = api.roundSeconds;
-  const paceProject = useCallback((made: number, seconds: number) => showdownPaceScore(cfg, made, seconds, roundSeconds), [cfg, roundSeconds]);
+  // The indicator reads where the player stands: the rivals out, and those still in with fewer chips.
+  const standing = showdownStanding(shown);
+  const paceProject = useCallback(() => standing, [standing]);
   const styles = SHOWDOWN_STYLES.filter((s) => shown.seats.some((x) => x.style === s));
 
   return (
@@ -38,12 +39,11 @@ export function ShowdownPractice() {
       timeLeft={api.timeLeft}
       score={shown.score}
       scoreLabel={t("showdown.chips")}
-      // The indicator reads the net as it moves, and the engine reads a stretch of it as a sitting.
-      pacePoints={shown.seats[0]!.net}
+      pacePoints={standing}
       paceProject={paceProject}
       moves={shown.moveCount}
       movesLabel={t("showdown.moves")}
-      // The move bound only keeps the log sane; the hands end a sitting. A lab's tighter cap is shown.
+      // The move bound only keeps the log sane; a knockout ends the round. A lab's tighter cap is shown.
       maxMoves={cfg.maxMoves < SHOWDOWN.config.maxMoves ? cfg.maxMoves : undefined}
       combo={shown.bestPot}
       onStart={studio.start}
@@ -51,7 +51,7 @@ export function ShowdownPractice() {
       splash={t("showdown.go")}
       howTo={
         <>
-          <p className="how how-kbd">{t("showdown.bank_note", { bank: cfg.bank, hands: cfg.hands })}</p>
+          <p className="how how-kbd">{t("showdown.stack_note", { stack: cfg.stack })}</p>
           <p className="how how-kbd">{t("showdown.styles_note")}</p>
           <p className="how how-kbd">{t("showdown.hint_note")}</p>
         </>
@@ -61,7 +61,7 @@ export function ShowdownPractice() {
           <div className="stat stat-wide">
             <span className="stat-label">{t("showdown.hand")}</span>
             <span className="stat-value" data-testid="hud-hand">
-              {t("showdown.hand_value", { hand: shown.hand, hands: cfg.hands })}
+              {t("showdown.hand_value", { hand: shown.hand })}
             </span>
           </div>
           <div className="stat stat-wide">
@@ -81,8 +81,20 @@ export function ShowdownPractice() {
       resultRows={
         <>
           <div>
-            <dt>{t("showdown.result_won")}</dt>
-            <dd>{state.seats[0]!.net}</dd>
+            <dt>{t("showdown.result_place")}</dt>
+            <dd data-testid="result-place">
+              {state.won
+                ? t("showdown.place_won")
+                : state.seats[0]!.out
+                  ? t("showdown.place_out", { hand: state.hand })
+                  : state.hand >= cfg.hands && state.phase === "over"
+                    ? t("showdown.place_last", { hand: state.hand })
+                    : t("showdown.place_left")}
+            </dd>
+          </div>
+          <div>
+            <dt>{t("showdown.rivals_out")}</dt>
+            <dd>{state.seats.slice(1).filter((x) => x.out).length}</dd>
           </div>
           <div>
             <dt>{t("showdown.result_hands")}</dt>
@@ -101,7 +113,7 @@ export function ShowdownPractice() {
       legend={
         <>
           <ul className="kinds">
-            {(["star", "moon", "ring", "comet"] as const).map((suit) => (
+            {(["spade", "heart", "diamond", "club"] as const).map((suit) => (
               <li key={suit}>
                 <ShowdownIcon piece={suit} />
                 <span>{t(`showdown.legend_${suit}`)}</span>

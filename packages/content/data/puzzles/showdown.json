@@ -2,12 +2,14 @@
   "category": "prototype",
   "config": {
     "rivals": 3,
-    "hands": 12,
-    "bank": 100,
+    "hands": 40,
+    "stack": 10,
+    "knockout": 100,
+    "speed": 2,
     "smallBlind": 1,
-    "bigBlind": 2,
-    "smallBet": 2,
-    "bigBet": 4,
+    "bigBlind": 1,
+    "smallBet": 1,
+    "bigBet": 2,
     "raiseCap": 4,
     "styles": ["brick", "sponge", "hothead", "shark"],
     "play": {
@@ -20,13 +22,13 @@
     "maxMoves": 1500
   },
   "paceSeconds": 60,
-  "roundSeconds": 600,
+  "roundSeconds": 1200,
   "thresholds": [
-    { "score": 70, "rating": 1100 },
-    { "score": 92, "rating": 1300 },
-    { "score": 112, "rating": 1600 },
-    { "score": 140, "rating": 1900 },
-    { "score": 175, "rating": 2200 },
-    { "score": 220, "rating": 2500 }
+    { "score": 0, "rating": 1000 },
+    { "score": 100, "rating": 1300 },
+    { "score": 200, "rating": 1600 },
+    { "score": 300, "rating": 1900 },
+    { "score": 340, "rating": 2200 },
+    { "score": 400, "rating": 2500 }
   ]
 }

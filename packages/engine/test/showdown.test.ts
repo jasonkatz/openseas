@@ -49,7 +49,7 @@ function play(seed: string, picks: readonly number[], config: ShowdownConfig = c
   return { moves, state };
 }
 
-/** Play a whole sitting by `pick`, the same choice each time. */
+/** Play a whole round by `pick`, the same choice each time. */
 function sitting(seed: string, pick: number, config: ShowdownConfig = cfg): ShowdownState {
   let state = createShowdownGame(seed, config);
   let guard = 0;
@@ -57,8 +57,8 @@ function sitting(seed: string, pick: number, config: ShowdownConfig = cfg): Show
   return state;
 }
 
-/** Cards by name: rank then suit (`s` star, `m` moon, `r` ring, `c` comet). */
-const card = (name: string): number => "23456789TJQKA".indexOf(name[0]!) + 13 * "smrc".indexOf(name[1]!);
+/** Cards by name: rank then suit (`s` spades, `h` hearts, `d` diamonds, `c` clubs). */
+const card = (name: string): number => "23456789TJQKA".indexOf(name[0]!) + 13 * "shdc".indexOf(name[1]!);
 const cards = (names: string): number[] => names.split(" ").map(card);
 
 describe("showdown determinism (ADR 0003)", () => {
@@ -91,7 +91,7 @@ describe("showdown determinism (ADR 0003)", () => {
     expect(seen.size).toBe(20);
   });
 
-  it("takes end as its first move, and an untouched sitting scores nothing", () => {
+  it("takes end as its first move, and an untouched round scores nothing", () => {
     const s = reduceShowdown(createShowdownGame("x", cfg), { type: "end" });
     expect(s.finished).toBe(true);
     expect(summarizeShowdown(s)).toEqual({ score: 0, moves: 0, bestCombo: 0 });
@@ -109,15 +109,15 @@ describe("showdown determinism (ADR 0003)", () => {
 describe("showdown hands", () => {
   it("ranks every category in order", () => {
     const order = [
-      "As Km 9r 7c 4s 3m 2r",
-      "As Am 9r 7c 4s 3m 2r",
-      "As Am 9r 9c 4s 3m 2r",
-      "As Am Ar 9c 4s 3m 2r",
-      "5s 4m 3r 2c As Km 9r",
-      "As Ks 9s 7s 2s 3m 4r",
-      "As Am Ar 9c 9s 3m 2r",
-      "As Am Ar Ac 9s 3m 2r",
-      "5s 4s 3s 2s As Km 9r",
+      "As Kh 9d 7c 4s 3h 2d",
+      "As Ah 9d 7c 4s 3h 2d",
+      "As Ah 9d 9c 4s 3h 2d",
+      "As Ah Ad 9c 4s 3h 2d",
+      "5s 4h 3d 2c As Kh 9d",
+      "As Ks 9s 7s 2s 3h 4d",
+      "As Ah Ad 9c 9s 3h 2d",
+      "As Ah Ad Ac 9s 3h 2d",
+      "5s 4s 3s 2s As Kh 9d",
     ];
     const names = order.map((h) => showdownHandName(showdownHandValue(cards(h))));
     expect(names).toEqual(["high", "pair", "twoPair", "trips", "straight", "flush", "fullHouse", "quads", "straightFlush"]);
@@ -126,20 +126,20 @@ describe("showdown hands", () => {
   });
 
   it("breaks ties by the cards that play, and the wheel is the lowest straight", () => {
-    expect(showdownHandValue(cards("As Am Kr 9c 4s 3m 2r"))).toBeGreaterThan(showdownHandValue(cards("As Am Qr 9c 4s 3m 2r")));
-    expect(showdownHandValue(cards("6s 5m 4r 3c 2s Km 9r"))).toBeGreaterThan(showdownHandValue(cards("5s 4m 3r 2c As Km 9r")));
+    expect(showdownHandValue(cards("As Ah Kd 9c 4s 3h 2d"))).toBeGreaterThan(showdownHandValue(cards("As Ah Qd 9c 4s 3h 2d")));
+    expect(showdownHandValue(cards("6s 5h 4d 3c 2s Kh 9d"))).toBeGreaterThan(showdownHandValue(cards("5s 4h 3d 2c As Kh 9d")));
     // A sixth and seventh card that do not play do not count.
-    expect(showdownHandValue(cards("As Am Kr Qc Js 3m 2r"))).toBe(showdownHandValue(cards("As Am Kr Qc Js 4m 2r")));
-    expect(showdownBestFive(cards("As Am Ar 9c 9s 3m 2r")).sort()).toEqual(cards("As Am Ar 9c 9s").sort());
+    expect(showdownHandValue(cards("As Ah Kd Qc Js 3h 2d"))).toBe(showdownHandValue(cards("As Ah Kd Qc Js 4h 2d")));
+    expect(showdownBestFive(cards("As Ah Ad 9c 9s 3h 2d")).sort()).toEqual(cards("As Ah Ad 9c 9s").sort());
   });
 
   it("reckons a share of the pot by dealing out the unseen cards", () => {
-    const aces = showdownEquity(cards("As Am"), [], 1, 400, seedFromString("e")).share;
-    const junk = showdownEquity(cards("7s 2m"), [], 1, 400, seedFromString("e")).share;
+    const aces = showdownEquity(cards("As Ah"), [], 1, 400, seedFromString("e")).share;
+    const junk = showdownEquity(cards("7s 2h"), [], 1, 400, seedFromString("e")).share;
     expect(aces).toBeGreaterThan(780);
     expect(junk).toBeLessThan(420);
     // Made on the river against one hand: the nuts win every deal.
-    expect(showdownEquity(cards("As Ks"), cards("Qs Js Ts 2m 3r"), 2, 50, seedFromString("e")).share).toBe(1000);
+    expect(showdownEquity(cards("As Ks"), cards("Qs Js Ts 2h 3d"), 2, 50, seedFromString("e")).share).toBe(1000);
   });
 });
 
@@ -191,29 +191,62 @@ describe("showdown betting", () => {
     }
   });
 
-  it("every chip won is a chip lost: the nets sum to nothing after every hand", () => {
+  it("every chip won is a chip lost: the chips at the table never change", () => {
     fc.assert(
       fc.property(fc.string(), choicesArb, (seed, picks) => {
         let s = createShowdownGame(seed, cfg);
+        const total = cfg.stack * (cfg.rivals + 1);
         for (const p of picks) {
           if (s.finished) break;
           s = reduceShowdown(s, moveFor(s, p));
-          if (s.phase === "over") expect(s.seats.reduce((n, x) => n + x.net, 0)).toBe(0);
+          expect(s.seats.reduce((n, x) => n + x.stack + x.inPot, 0)).toBe(total);
+          for (const x of s.seats) expect(x.stack).toBeGreaterThanOrEqual(0);
         }
       }),
       { numRuns: 30 },
     );
   });
 
-  it("once the player folds, one next plays out the rest of the hand", () => {
+  it("a seat all in wins from each seat no more than it put in itself", () => {
+    let checked = 0;
+    for (let i = 0; i < 60; i++) {
+      let s = createShowdownGame(`side${i}`, cfg);
+      let guard = 0;
+      while (!s.finished && guard++ < 3000) {
+        const stakes = s.seats.map((x) => x.inPot);
+        const next = reduceShowdown(s, moveFor(s, 5));
+        for (const e of next.lastMove!.events) if (e.kind === "act") stakes[e.seat] = stakes[e.seat]! + e.paid;
+        const win = next.lastMove!.events.find((e) => e.kind === "win");
+        if (win && win.kind === "win") {
+          expect(win.amounts.reduce((a, b) => a + b, 0)).toBe(win.pot);
+          win.winners.forEach((w, k) => {
+            const cap = stakes.reduce((n, c) => n + Math.min(c, stakes[w]!), 0);
+            expect(win.amounts[k]!).toBeLessThanOrEqual(cap);
+          });
+          if (new Set(stakes.filter((c) => c > 0)).size > 1 && win.shown.length > 2) checked++;
+        }
+        s = next;
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
+  it("once the player folds, the hand plays out one step a next, and costs what they put in", () => {
     for (let i = 0; i < 20; i++) {
       let s = createShowdownGame(`f${i}`, cfg);
       while (s.phase === "table") s = reduceShowdown(s, { type: "next" });
       if (s.phase !== "act" || showdownOwed(s) === 0) continue;
+      const before = s.seats[0]!.stack;
       s = reduceShowdown(s, { type: "fold" });
-      if (s.phase === "table") s = reduceShowdown(s, { type: "next" });
+      let guard = 0;
+      while (s.phase === "table" && guard++ < 100) {
+        s = reduceShowdown(s, { type: "next" });
+        // One rival acts, or one street turns: never a whole hand in one move.
+        const ev = s.lastMove!.events;
+        expect(ev.filter((e) => e.kind === "act").length + (ev[0]?.kind === "street" ? ev.filter((e) => e.kind === "street").length : 0)).toBeLessThanOrEqual(1);
+      }
       expect(s.phase).toBe("over");
-      expect(s.seats[0]!.net + s.seats[0]!.inPot).toBe(0);
+      expect(s.seats[0]!.stack).toBe(before);
     }
   });
 
@@ -254,39 +287,73 @@ describe("showdown betting", () => {
   });
 });
 
-describe("showdown sittings", () => {
-  it("ends after its last hand, and scores the bank and the net", () => {
-    const s = sitting("full", 1);
-    expect(s.finished).toBe(true);
-    expect(s.hand).toBe(cfg.hands);
-    expect(s.score).toBe(Math.max(0, cfg.bank + s.seats[0]!.net));
+describe("showdown knockouts", () => {
+  it("ends when the player is out or every rival is, and scores the rivals out", () => {
+    let lost = 0;
+    let won = 0;
+    for (let i = 0; i < 30; i++) {
+      const s = sitting(`k${i}`, i % 2 ? 1 : 5);
+      expect(s.finished).toBe(true);
+      const out = s.seats.slice(1).filter((x) => x.out).length;
+      if (s.seats[0]!.out) {
+        lost++;
+        expect(s.won).toBe(false);
+        expect(s.score).toBe(out * cfg.knockout);
+      } else if (out === cfg.rivals) {
+        won++;
+        expect(s.won).toBe(true);
+        expect(s.seats[0]!.stack).toBe(cfg.stack * (cfg.rivals + 1));
+        expect(s.score).toBe(cfg.rivals * cfg.knockout + Math.max(0, cfg.hands - s.hand) * cfg.speed);
+      } else expect(s.hand).toBe(cfg.hands);
+    }
+    expect(lost).toBeGreaterThan(0);
+    expect(won).toBeGreaterThan(0);
   });
 
-  it("a sitting left early keeps no winnings, only its share of the bank", () => {
-    for (let i = 0; i < 10; i++) {
-      let s = createShowdownGame(`e${i}`, cfg);
+  it("deals no cards to a seat that is out, and never asks it to act", () => {
+    for (let i = 0; i < 20; i++) {
+      let s = createShowdownGame(`o${i}`, cfg);
       let guard = 0;
-      while (s.hand < 4 && guard++ < 2000) s = reduceShowdown(s, moveFor(s, 3));
-      while (s.phase !== "over") s = reduceShowdown(s, moveFor(s, 1));
-      const done = s.hand;
-      const stands = cfg.bank + s.seats[0]!.net;
-      const left = reduceShowdown(s, { type: "end" });
-      expect(left.score).toBe(Math.max(0, Math.min(stands, Math.floor((cfg.bank * done) / cfg.hands))));
+      while (!s.finished && guard++ < 3000) {
+        s.seats.forEach((x, k) => {
+          if (x.out) {
+            expect(x.stack).toBe(0);
+            expect(s.toAct).not.toBe(k);
+            if (s.phase !== "over") expect(x.cards).toEqual([]);
+          }
+        });
+        s = reduceShowdown(s, moveFor(s, 3));
+      }
     }
   });
 
-  it("a hand cut short costs the player what they put in it", () => {
-    const s = createShowdownGame("cut", cfg);
-    const left = reduceShowdown(s, { type: "end" });
-    expect(left.seats[0]!.net + s.seats[0]!.inPot).toBe(0);
+  it("after the last hand, a rival with fewer chips counts as beaten", () => {
+    for (let i = 0; i < 10; i++) {
+      const s = sitting(`cap${i}`, 1, { ...cfg, hands: 3 });
+      expect(s.finished).toBe(true);
+      if (s.seats[0]!.out || s.won) continue;
+      const beaten = s.seats.slice(1).filter((x) => x.out || x.stack < s.seats[0]!.stack).length;
+      expect(s.score).toBe(beaten * cfg.knockout);
+    }
+  });
+
+  it("left early, a round keeps only the rivals already out", () => {
+    for (let i = 0; i < 10; i++) {
+      let s = createShowdownGame(`e${i}`, cfg);
+      let guard = 0;
+      while (!s.finished && s.hand < 4 && guard++ < 2000) s = reduceShowdown(s, moveFor(s, 3));
+      if (s.finished) continue;
+      const left = reduceShowdown(s, { type: "end" });
+      expect(left.score).toBe(s.seats.slice(1).filter((x) => x.out).length * cfg.knockout);
+      expect(left.won).toBe(false);
+    }
   });
 
   it("the view says what the table shows, and no rival's cards before they are shown", () => {
     const s = createShowdownGame("view", cfg);
-    const v = showdownViewString(s);
-    const parts = v.split("|");
+    const parts = showdownViewString(s).split("|");
     expect(parts).toHaveLength(3 + cfg.rivals);
-    expect(parts[1]).toMatch(/^([2-9TJQKA][smrc]){2}$/);
-    expect(parts.slice(3).every((p) => p === "i")).toBe(true);
+    expect(parts[1]).toMatch(/^([2-9TJQKA][shdc]){2}\/\d+$/);
+    expect(parts.slice(3).every((p) => /^i\d+$/.test(p))).toBe(true);
   });
 });

@@ -7,9 +7,14 @@ export const ShowdownContentSchema = PrototypeBaseSchema.extend({
   config: z
     .object({
       rivals: z.int().min(1).max(5),
-      hands: z.int().min(1).max(200),
-      /** Chips the player sits down with; the score is what they stand up with. */
-      bank: z.int().min(0).max(100_000),
+      /** Hands before the round ends with seats still in. */
+      hands: z.int().min(1).max(500),
+      /** Chips every seat sits down with. */
+      stack: z.int().min(1).max(10_000),
+      /** Points for each rival out. */
+      knockout: z.int().min(0).max(10_000),
+      /** Points, on a win, for each hand not needed. */
+      speed: z.int().min(0).max(1000),
       smallBlind: z.int().min(0).max(1000),
       bigBlind: z.int().min(1).max(1000),
       smallBet: z.int().min(1).max(1000),

@@ -6,6 +6,7 @@ export const SHOWDOWN_PRESETS: readonly Preset[] = [
   { id: "showdown_full_table", overrides: { rivals: 5, styles: ["brick", "sponge", "hothead", "shark", "sponge"] } },
   { id: "showdown_soft_table", overrides: { styles: ["sponge", "hothead", "sponge", "hothead"] } },
   { id: "showdown_tough_table", overrides: { styles: ["shark", "shark", "shark"] } },
-  { id: "showdown_short", overrides: { hands: 4 } },
+  { id: "showdown_short", overrides: { stack: 4 } },
+  { id: "showdown_deep", overrides: { stack: 30 } },
   { id: "showdown_no_cap", overrides: { raiseCap: 8 } },
 ];

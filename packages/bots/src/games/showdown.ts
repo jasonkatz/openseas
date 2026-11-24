@@ -17,12 +17,12 @@ import {
 } from "@openseas/engine";
 import type { Bot, BotGame, Choice } from "../core.js";
 
-/** A person's pace, from the tuning notes: 3 s a decision, the board's 0.75 s a rival's turn, 2 s to look at a hand's end. */
+/** A person's pace, from the tuning notes: 3 s a decision, the board's 1.4 s a rival's turn or a card turned, 2.5 s to look at a hand's end. */
 const SECONDS_PER_DECISION = 3;
-const SECONDS_PER_RIVAL = 0.75;
-const SECONDS_PER_HAND = 2;
+const SECONDS_PER_RIVAL = 1.4;
+const SECONDS_PER_HAND = 2.5;
 
-/** The moves that play the table on from `state` until the player is to decide, or the sitting is over. */
+/** The moves that play the table on from `state` until the player is to decide, or the round is over. */
 function playOn(state: ShowdownState): ShowdownMove[] {
   const out: ShowdownMove[] = [];
   let s = state;
@@ -63,7 +63,7 @@ function styledBot(name: string, about: string, tune: (state: ShowdownState) => 
 }
 
 /** The live rivals' styles. */
-const live = (s: ShowdownState) => s.seats.filter((x, i) => i > 0 && !x.folded).map((x) => x.style);
+const live = (s: ShowdownState) => s.seats.filter((x, i) => i > 0 && !x.folded && !x.out).map((x) => x.style);
 
 /** Plain good play: the shark's own numbers, the same at every seat. */
 const sharkBot = () => styledBot("shark", "Plays its cards against the price, by the shark's numbers.", (s) => s.config.play.shark);
@@ -107,7 +107,7 @@ function raiserBot(): Bot<ShowdownState, ShowdownMove> {
 export const SHOWDOWN_BOTS: BotGame<ShowdownState, ShowdownMove, ShowdownConfig> = {
   id: "showdown",
   def: SHOWDOWN_DEF,
-  pace: "3 s a decision, 0.75 s a rival's turn, 2 s a hand's end",
+  pace: "3 s a decision, 1.4 s a rival's turn, 2.5 s a hand's end",
   elapsed: (s) => s.moveCount * SECONDS_PER_DECISION + s.tableActs * SECONDS_PER_RIVAL + s.hand * SECONDS_PER_HAND,
   choices: decisions,
   end: () => ({ type: "end" }),
