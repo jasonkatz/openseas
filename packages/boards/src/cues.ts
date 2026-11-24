@@ -20,6 +20,7 @@ import tractorCues from "../data/cues/tractor.json" with { type: "json" };
 import refiningCues from "../data/cues/refining.json" with { type: "json" };
 import freefallCues from "../data/cues/freefall.json" with { type: "json" };
 import showdownCues from "../data/cues/showdown.json" with { type: "json" };
+import forgingCues from "../data/cues/forging.json" with { type: "json" };
 import pactCues from "../data/cues/pact.json" with { type: "json" };
 
 /**
@@ -193,7 +194,7 @@ export type CueArgs<K extends CueName> = ArgsOf<(typeof CUE_PARAMS)[K]>;
 export const SHIPPED_CUES: Readonly<Record<CueName, CueData>> = CuesFileSchema.parse(shippedCues) as Record<CueName, CueData>;
 
 const PUZZLE_FILES: Readonly<Record<PuzzleId, unknown>> = {
-  cooling: coolingCues, engines: enginesCues, plating: platingCues, gunnery: gunneryCues, navigation: navigationCues, battle: battleCues, swordfight: swordfightCues, salvage: salvageCues, overload: overloadCues, deflectors: deflectorsCues, reactor: reactorCues, scanner: scannerCues, tug: tugCues, racks: racksCues, cutting: cuttingCues, tractor: tractorCues, refining: refiningCues, freefall: freefallCues, showdown: showdownCues, pact: pactCues,
+  cooling: coolingCues, engines: enginesCues, plating: platingCues, gunnery: gunneryCues, navigation: navigationCues, battle: battleCues, swordfight: swordfightCues, salvage: salvageCues, overload: overloadCues, deflectors: deflectorsCues, reactor: reactorCues, scanner: scannerCues, tug: tugCues, racks: racksCues, cutting: cuttingCues, tractor: tractorCues, refining: refiningCues, freefall: freefallCues, showdown: showdownCues, forging: forgingCues, pact: pactCues,
 };
 /**
  * Each puzzle's own cues as the build ships them: `data/cues/<puzzle>.json`, checked as they load,

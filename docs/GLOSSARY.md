@@ -434,7 +434,8 @@ Tractor is a ninth, in the studio only too, with a former word: it succeeds Trea
 Refining is a tenth, in the studio only, with a former word: it succeeds Distilling (ADR 0080).
 Freefall is an eleventh, the same kind: it succeeds Treasure Drop (ADR 0081).
 Showdown is a twelfth, the same kind: it succeeds Poker (ADR 0082).
-Pact is a thirteenth, the same kind: it succeeds Spades (ADR 0087).
+Forging is a thirteenth of the same kind: it succeeds Blacksmithing (ADR 0083).
+Pact is a fourteenth, the same kind: it succeeds Spades (ADR 0087).
 Their words follow the naming rules above. Each puzzle's own words (its pieces, its callouts) are in
 its design file under `docs/prototypes/` and its message file under
 `content/data/messages/prototypes/`; promoting a puzzle may rename them.
@@ -453,6 +454,7 @@ its design file under `docs/prototypes/` and its message file under
 | Refining (formerly Distilling) | `refining` | Sorts vapour, oil and tar in a refinery's tower so the columns drawn off at the outlet rise clear to the tank; tar sinks to the sump |
 | Freefall (formerly Treasure Drop) | `freefall` | Drops cargo pods down a shaft of rockers into berths, racing a rival to each leg's quota; a pod at rest in a cradle is tipped out when its rocker flips (the original's coins, switches, pads and levers are pods, rockers, cradles and arms; its slots are berths, its rounds legs and its targets quotas) |
 | Showdown (formerly Poker) | `showdown` | Folds, calls or raises at a fixed-limit hold'em table against rivals who each play one style (brick, sponge, hothead, shark), from a stack of chips until one player holds them all. Card words (hand, pot, blind, button, fold, call, raise, all in, side pot, stack) are not of the sea and stay; the suits are its own: stars, moons, rings and comets |
+| Forging (formerly Blacksmithing) | `forging` | Strikes a hot plate spot by spot with the press; each spot's mark says where the next strike lands, and a stall is a strike with nowhere to go |
 | Pact (formerly Spades) | `pact` | Bids the tricks it will take with a partner across the table, then plays a card to each trick against two rivals; a side's bids together are its **pact**. Card words (trick, trump, suit, lead, follow, bid, nil, bag, set) are not of the sea and stay, and so do the four traditional suits |
 
 Words shared by all of them: a **prototype** is one of these puzzles; the **kit** is the shared
