@@ -20,7 +20,8 @@ export const ForgingConfigSchema = z.object({
     .length(8)
     .describe("How often each mark is dealt: one, two, three, four, rail, slant, star, hook. A mark whose layer is off is never dealt."),
   preview: z.int().min(0).max(6).describe("Upcoming marks shown beside the plate: the next ones the deal will give."),
-  strikePoints: z.int().min(0).max(1000).describe("Points every strike scores."),
+  strikePoints: z.int().min(0).max(1000).describe("The n-th strike of the round scores this times n, so going further into the plate pays more."),
+  platePoints: z.int().min(0).max(100_000).describe("Bonus for setting the whole plate, the round with no strikes left."),
   chainPoints: z.int().min(0).max(1000).describe("Points the n-th strike of a chain of one mark adds, times n - 1."),
   chainCap: z.int().min(1).max(20).describe("The most times a chain's step is paid."),
   setPoints: z.int().min(0).max(10_000).describe("Points for a count (each step once) or a span (each jump once). 0 switches sets off."),

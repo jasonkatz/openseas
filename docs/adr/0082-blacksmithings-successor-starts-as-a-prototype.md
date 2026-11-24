@@ -32,7 +32,10 @@ ADR 0078 built Treasure Haul's successor, Tractor, early as a prototype. The sam
    round): a first build charged a stall points and played on, and the owner chose the original's
    rule. With the board deciding when a round ends, there is no clock to play against either. The
    page shows no time and no pace; the round's `roundSeconds` is only the server's cap on a round
-   left open, at the most content allows (1800).
+   left open, at the most content allows (1800). The score says how far the player got: the n-th
+   strike scores n, and a whole plate adds a bonus, so a plate five strikes short scores near a
+   whole one and a whole plate is the best round there is. Chains, sets and weaves are bonuses on
+   top.
 4. **The deal is shown.** New marks come from one stream in an order play cannot change, and the
    next three are shown (rule 7). The original shows none.
 5. **Its ladder is the original's difficulty levels.** Steps, then jumps, then the far marks with

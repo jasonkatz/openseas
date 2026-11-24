@@ -19,7 +19,9 @@
  * highest heat, when struck and still live, shows a spark instead of a drawn mark: one spark after
  * the whole plate has been struck once, another after it has all been struck twice.
  *
- * Every strike scores `strikePoints`. Striking the same mark as the strike before makes a chain: the
+ * The score is mostly how far into the plate the round got: the n-th strike scores strikePoints * n,
+ * so each strike is worth more than the one before, and setting the whole plate adds platePoints.
+ * Striking the same mark as the strike before makes a chain: the
  * n-th strike of a chain adds chainPoints * (n - 1), the step capped at chainCap. Four strikes in a
  * row that hold each step once (one, two, three, four) are a count; four that hold rail, slant, star
  * and hook once each are a span. Either is a set and scores setPoints. A set begun the strike after
@@ -57,7 +59,10 @@ export interface ForgingConfig {
   readonly weights: readonly number[];
   /** Upcoming marks shown: the next ones the stream will deal. */
   readonly preview: number;
+  /** The n-th strike of the round scores strikePoints * n: the further into the plate, the more a strike is worth. */
   readonly strikePoints: number;
+  /** Added once when the whole plate is set: the round with no strikes left. */
+  readonly platePoints: number;
   /** The n-th strike of a chain of one mark adds chainPoints * min(n - 1, chainCap). */
   readonly chainPoints: number;
   readonly chainCap: number;
@@ -78,7 +83,8 @@ export const DEFAULT_FORGING_CONFIG: ForgingConfig = {
   sparks: true,
   weights: [10, 10, 10, 8, 8, 8, 6, 8],
   preview: 3,
-  strikePoints: 2,
+  strikePoints: 1,
+  platePoints: 500,
   chainPoints: 10,
   chainCap: 3,
   setPoints: 50,

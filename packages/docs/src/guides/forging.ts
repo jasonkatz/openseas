@@ -52,10 +52,10 @@ export const forging: Guide = {
     { action: "Strike the cursor's spot", touch: "", desktop: "Space or Enter" },
   ],
   scoring: [
-    `**Every strike scores ${c.strikePoints}.** The same mark struck twice in a row makes a **chain**: its second strike adds ${chain(2)}, its third ${chain(3)}, and from the ${word(c.chainCap + 1)}th on ${chain(c.chainCap + 1)} each. A spark stands in for any mark.`,
+    `**The further into the plate, the more a strike is worth.** The first strike scores ${c.strikePoints}, the second ${2 * c.strikePoints}, the hundredth ${100 * c.strikePoints}. Setting the whole plate adds ${c.platePoints}, so a whole plate is the best round there is: ${(blows * (blows + 1) * c.strikePoints) / 2 + c.platePoints}, before chains and sets.`,
+    `**The same mark struck twice in a row makes a chain.** Its second strike adds ${chain(2)}, its third ${chain(3)}, and from the ${word(c.chainCap + 1)}th on ${chain(c.chainCap + 1)} each. A spark stands in for any mark.`,
     `**Four strikes in a row holding each step once (one, two, three, four) are a count.** Four holding rail, slant, star and hook once each are a **span**. Either scores ${set(1)}.`,
-    `**A set begun right after a set of the other kind links into a weave.** The second set of a weave scores ${set(2)}, the third ${set(3)}, up to ${set(c.weaveCap)}. Weaving counts and spans is the move the puzzle pays most for.`,
-    `**A stall ends the round, and every strike left on the plate is score you never make.** Each strike you keep the press moving is ${c.strikePoints} more, and the chance of another set.`,
+    `**A set begun right after a set of the other kind links into a weave.** The second set of a weave scores ${set(2)}, the third ${set(3)}, up to ${set(c.weaveCap)}. Weaving counts and spans is the bonus the puzzle pays most for.`,
   ],
   stages: [
     {

@@ -2,7 +2,7 @@
   "home.practice_forging": "Forging",
   "home.practice_forging_blurb": "Strike a hot plate spot by spot. Each spot's mark says where the press lands next: keep it moving until the whole plate is set.",
   "forging.title": "Forging",
-  "forging.how_to": "Tap a lit spot to strike it. Every spot takes three strikes before it is set, and shows a mark that says where the next strike may land: a step of one to four in any straight line, a rail to the edge along its row or column, a slant to the edge along a diagonal, a star to either, a hook two along and one across. Every strike scores, the same mark twice in a row builds a chain, and the round ends when the press has nowhere left to land, so keep a way out.",
+  "forging.how_to": "Tap a lit spot to strike it. Every spot takes three strikes before it is set, and shows a mark that says where the next strike may land: a step of one to four in any straight line, a rail to the edge along its row or column, a slant to the edge along a diagonal, a star to either, a hook two along and one across. Each strike scores more than the last, so the score is mostly how far into the plate you get, and setting the whole plate pays a bonus. The same mark twice in a row builds a chain. The round ends when the press has nowhere left to land, so keep a way out.",
   "forging.how_to_keyboard": "Arrows or WASD move the cursor. Space or enter strikes the spot under it.",
   "forging.go": "Strike.",
   "forging.sets_note": "Four strikes in a row holding each step once (one, two, three, four) are a count. Four holding rail, slant, star and hook once each are a span. A set begun right after a set of the other kind links into a weave, and each link pays more.",

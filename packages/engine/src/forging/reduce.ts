@@ -71,6 +71,7 @@ export function validateConfig(cfg: ForgingConfig): void {
     cfg.weights[0]! + cfg.weights[1]! + cfg.weights[2]! > 0 &&
     int(cfg.preview, 0, 6) &&
     int(cfg.strikePoints, 0, 1000) &&
+    int(cfg.platePoints, 0, 100_000) &&
     int(cfg.chainPoints, 0, 1000) &&
     int(cfg.chainCap, 1, 20) &&
     int(cfg.setPoints, 0, 10_000) &&
@@ -346,7 +347,8 @@ function strike(state: ForgingState, move: Extract<ForgingMove, { type: "strike"
 
   const done = cells.every((s) => s.heat === 0);
   const moveCount = state.moveCount + 1;
-  const gained = cfg.strikePoints + chainPts + (set?.points ?? 0);
+  // How far into the plate: the n-th strike scores n times strikePoints, and a set plate its bonus.
+  const gained = cfg.strikePoints * moveCount + chainPts + (set?.points ?? 0) + (done ? cfg.platePoints : 0);
   const score = state.score + gained;
   // Nowhere left for the press to land: the round ends here, with the blows left on the plate lost.
   const stalled = !done && targetsFrom(cfg, cells, cell, mark).length === 0;

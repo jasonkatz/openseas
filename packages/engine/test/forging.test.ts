@@ -196,6 +196,17 @@ describe("forging scoring", () => {
   const at = (col: number, row: number): number => row * 6 + col;
   const quiet = { sparks: false };
 
+  it("the n-th strike scores n times strikePoints: the further into the plate, the more", () => {
+    let s = plate(["11....", "11....", "......", "......", "......", "......"], { ...quiet, blows: 3, chainPoints: 0 });
+    const gains: number[] = [];
+    for (const c of [at(0, 0), at(1, 0), at(0, 0)]) {
+      const before = s.score;
+      s = strike(s, c);
+      gains.push(s.score - before);
+    }
+    expect(gains).toEqual([1, 2, 3].map((n) => n * cfg.strikePoints));
+  });
+
   it("every strike scores, and a spot is set after its blows", () => {
     let s = plate(["11....", "11....", "......", "......", "......", "......"], { ...quiet, blows: 1 });
     s = strike(s, at(0, 0));
@@ -211,7 +222,7 @@ describe("forging scoring", () => {
     for (const c of path) {
       const before = s.score;
       s = strike(s, c);
-      adds.push(s.score - before - cfg.strikePoints);
+      adds.push(s.score - before - cfg.strikePoints * s.moveCount);
     }
     expect(adds).toEqual([0, 10, 20, 30, 30, 30]);
     expect(s.bestChain).toBe(6);
@@ -233,7 +244,7 @@ describe("forging scoring", () => {
     s = strike(s, at(5, 0));
     expect(s.lastMove!.set).toEqual({ family: "span", weave: 2, points: cfg.setPoints * 2 });
     expect(s.bestWeave).toBe(2);
-    expect(s.score).toBe(8 * cfg.strikePoints + 3 * cfg.setPoints);
+    expect(s.score).toBe(36 * cfg.strikePoints + 3 * cfg.setPoints);
   });
 
   it("a spark stands in for a missing mark", () => {
@@ -271,6 +282,7 @@ describe("forging scoring", () => {
     s = strike(s, at(0, 0));
     expect(s.lastMove!.done).toBe(true);
     expect(s.lastMove!.stalled).toBe(false);
+    expect(s.score).toBe(cfg.strikePoints + cfg.platePoints);
     expect(s.stalled).toBe(false);
     expect(s.finished).toBe(true);
   });

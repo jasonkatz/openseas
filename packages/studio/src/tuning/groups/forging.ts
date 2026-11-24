@@ -4,6 +4,6 @@ import type { TuningGroups } from "../groups.js";
 export const groups: TuningGroups = {
   board: ["width", "height", "blows"],
   deal: ["jumps", "far", "sparks", "weights", "preview"],
-  scoring: ["strikePoints", "chainPoints", "chainCap", "setPoints", "weaveCap"],
+  scoring: ["strikePoints", "platePoints", "chainPoints", "chainCap", "setPoints", "weaveCap"],
   limits: ["maxMoves"],
 };

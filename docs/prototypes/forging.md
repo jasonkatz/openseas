@@ -40,7 +40,10 @@ six spots.
 
 ## Scoring
 
-- **Every strike scores 2** (`strikePoints`).
+- **How far into the plate.** The n-th strike of the round scores `strikePoints` × n (1 × n), so
+  each strike is worth more than the one before, and a set plate adds `platePoints` (500). A whole
+  plate is 5,886 + 500; five strikes short of it is 5,356. This is most of any score: the owner's
+  call, so that how far the player got is what the round says.
 - **Chains.** The same mark struck as the strike before builds a chain; a spark stands in for any
   mark. The n-th strike of a chain adds `chainPoints` × (n − 1), the step capped at `chainCap`: 10,
   20, then 30 a strike.
@@ -50,7 +53,7 @@ six spots.
   in the making and starts the next from that strike.
 - **Weaves, the compound move.** A set begun on the very strike after a set of the other kind links
   to it. The k-th set of a weave scores 50 × k, k capped at `weaveCap` (5). Weaving counts and spans
-  is what the puzzle pays most for: it takes planning four strikes at a time, ending one set where
+  is the bonus the puzzle pays most for: it takes planning four strikes at a time, ending one set where
   the press can begin the other, and a new player would not find it by accident.
 
 ## Luck and skill
@@ -134,31 +137,36 @@ with no clock it only times the ladder.
   owner chose the original's rule instead. Bots now strike 40 to 80 of the plate's 108 before the
   press is stuck (the planner about 80, random striking about 44), and none sets a whole plate in
   16 seeds, so setting the plate is the expert's mark.
-- **Strikes at 2.** At 5 a strike, the 108 strikes every finished plate scores were more than half
-  of a good score (rule 14). At 2 they are a smaller part of a good player's gains.
+- **Strikes rise, 1 × n.** A flat 2 a strike left a round five strikes short of a whole plate
+  scoring like a middling one: chains and sets were most of it. The owner asked for the score to
+  say how far the player got, so the n-th strike scores n: the last strikes of a plate are worth
+  the most, five short of a whole plate is 91 percent of one, and a whole plate adds 500 on top.
+  Chains and sets stay as bonuses, a few hundred a round. This leans against rule 14 (no part of
+  the score paid just for playing): here reaching further is the skill, since a stall ends the
+  round.
 - **Sets at 50, weaves to five.** A set takes four strikes and gives up the chain, so it pays more
   than three chain steps. The planner bot makes about seven sets a plate and links two at best;
   a weave of three or more is the expert's.
 - **Thresholds** sit so that random striking is Green, the one-move bot Steady on the whole puzzle,
-  and the bots that plan Sharp. Masterful and Legendary are left for weaves of three and more and
-  a plate struck nearly to the end, which no bot here plays; those tiers want setting by hand once
-  people have.
+  and the bots that plan Sharp (about 80 strikes). Masterful is a plate struck to within about ten
+  strikes, Legendary a whole plate; no bot here gets that far, so those tiers want checking by hand
+  once people have.
 
 The bots of this pass, 32 seeds a cell (`pnpm --filter @openseas/bots ladder forging`). The round's
 1800 seconds is the cap, not a clock: every round here ends on the board.
 
 | Bot | Steps | Jumps | Sets | Full |
 |---|---|---|---|---|
-| careless | 422 Green | 255 Steady | 165 Green | 165 Green |
-| one move | 1,211 Sharp | 535 Sharp | 357 Steady | 357 Steady |
-| rollout | 1,425 Sharp | 681 Sharp | 704 Sharp | 704 Sharp |
-| keeper | 1,109 Sharp | 577 Sharp | 420 Steady | 420 Steady |
-| chain chaser | 1,259 Sharp | 602 Sharp | 466 Steady | 466 Steady |
-| planner | 1,429 Sharp | 663 Sharp | 815 Sharp | 818 Sharp |
-| *Steady from* | *500* | *150* | *250* | *250* |
-| *Sharp from* | *999* | *400* | *650* | *650* |
-| *Masterful from* | *1,599* | *800* | *1,100* | *1,100* |
-| *Legendary from* | *2,199* | *1,250* | *1,699* | *1,699* |
+| careless | 2,654 Green | 2,612 Green | 1,231 Green | 1,231 Green |
+| one move | 4,261 Steady | 2,730 Steady | 1,707 Steady | 1,707 Steady |
+| rollout | 5,512 Sharp | 4,130 Sharp | 3,811 Sharp | 3,817 Sharp |
+| keeper | 4,217 Steady | 3,539 Steady | 2,657 Steady | 2,657 Steady |
+| chain chaser | 4,860 Sharp | 3,540 Steady | 3,142 Steady | 3,142 Steady |
+| planner | 5,282 Sharp | 3,940 Sharp | 4,126 Sharp | 4,133 Sharp |
+| *Steady from* | *3,196* | *2,697* | *1,499* | *1,499* |
+| *Sharp from* | *4,598* | *3,598* | *3,498* | *3,498* |
+| *Masterful from* | *5,798* | *4,998* | *4,998* | *4,998* |
+| *Legendary from* | *6,399* | *6,498* | *6,498* | *6,498* |
 
 - **careless**: any spot the press can reach, at random.
 - **one move**: the strike worth most now.
@@ -170,7 +178,8 @@ The bots of this pass, 32 seeds a cell (`pnpm --filter @openseas/bots ladder for
   plus 4 a landing place at the end.
 
 Checks: careless lands a tier below one move on every stage, and the bait loses to the planner on
-the whole puzzle by 43 percent.
+the whole puzzle by 24 percent. On the whole puzzle Masterful starts about 97 strikes in and
+Legendary asks for a whole plate with a few sets.
 
 Open questions for play:
 

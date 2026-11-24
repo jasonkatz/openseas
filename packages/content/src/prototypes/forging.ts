@@ -13,7 +13,10 @@ export const ForgingContentSchema = PrototypeBaseSchema.extend({
     /** One weight a mark: one, two, three, four, rail, slant, star, hook. */
     weights: z.array(z.int().min(0)).length(8),
     preview: z.int().min(0).max(6),
+    /** The n-th strike scores strikePoints * n. */
     strikePoints: z.int().min(0),
+    /** Bonus for a whole plate set. */
+    platePoints: z.int().min(0),
     chainPoints: z.int().min(0),
     chainCap: z.int().min(1),
     /** A count or a span. 0: no sets. */
