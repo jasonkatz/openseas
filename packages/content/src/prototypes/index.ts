@@ -36,6 +36,9 @@ import { RefiningContentSchema, type RefiningContent } from "./refining.js";
 import freefallData from "../../data/puzzles/freefall.json" with { type: "json" };
 import freefallMessages from "../../data/messages/prototypes/freefall.json" with { type: "json" };
 import { FreefallContentSchema, type FreefallContent } from "./freefall.js";
+import showdownData from "../../data/puzzles/showdown.json" with { type: "json" };
+import showdownMessages from "../../data/messages/prototypes/showdown.json" with { type: "json" };
+import { ShowdownContentSchema, type ShowdownContent } from "./showdown.js";
 import pouringData from "../../data/puzzles/pouring.json" with { type: "json" };
 import pouringMessages from "../../data/messages/prototypes/pouring.json" with { type: "json" };
 import { PouringContentSchema, type PouringContent } from "./pouring.js";
@@ -52,6 +55,7 @@ export * from "./cutting.js";
 export * from "./tractor.js";
 export * from "./refining.js";
 export * from "./freefall.js";
+export * from "./showdown.js";
 export * from "./pouring.js";
 
 /** Content for every prototype puzzle, keyed by puzzle id. */
@@ -67,6 +71,7 @@ export interface PrototypePuzzleContent {
   readonly tractor: TractorContent;
   readonly refining: RefiningContent;
   readonly freefall: FreefallContent;
+  readonly showdown: ShowdownContent;
   readonly pouring: PouringContent;
 }
 export type PrototypePuzzleContentId = keyof PrototypePuzzleContent;
@@ -84,6 +89,7 @@ export const PROTOTYPE_CONTENT: { readonly [K in PrototypePuzzleContentId]: { re
   tractor: { schema: TractorContentSchema, data: tractorData, messages: tractorMessages },
   refining: { schema: RefiningContentSchema, data: refiningData, messages: refiningMessages },
   freefall: { schema: FreefallContentSchema, data: freefallData, messages: freefallMessages },
+  showdown: { schema: ShowdownContentSchema, data: showdownData, messages: showdownMessages },
   pouring: { schema: PouringContentSchema, data: pouringData, messages: pouringMessages },
 };
 export const PROTOTYPE_PUZZLE_CONTENT_IDS = Object.keys(PROTOTYPE_CONTENT) as PrototypePuzzleContentId[];

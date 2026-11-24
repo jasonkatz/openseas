@@ -22,6 +22,7 @@ import { CuttingPractice } from "./pages/CuttingPractice.jsx";
 import { TractorPractice } from "./pages/TractorPractice.jsx";
 import { RefiningPractice } from "./pages/RefiningPractice.jsx";
 import { FreefallPractice } from "./pages/FreefallPractice.jsx";
+import { ShowdownPractice } from "./pages/ShowdownPractice.jsx";
 import { PouringPractice } from "./pages/PouringPractice.jsx";
 import { RoundFrame, type FrameMode } from "./frame/RoundFrame.jsx";
 import { useMediaQuery } from "./practice/PracticeShell.jsx";
@@ -51,6 +52,7 @@ const PAGES: Readonly<Record<PuzzleId, ComponentType>> = {
   tractor: TractorPractice,
   refining: RefiningPractice,
   freefall: FreefallPractice,
+  showdown: ShowdownPractice,
   pouring: PouringPractice,
 };
 

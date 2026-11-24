@@ -1,6 +1,6 @@
 # Pouring
 
-Status: built. Prototype (ADR 0036, ADR 0082), in the studio at `/pouring`. Untimed moves; a round
+Status: built. Prototype (ADR 0036, ADR 0083), in the studio at `/pouring`. Untimed moves; a round
 is 20 turns each, with a 300 second clock behind it that a round at a person's pace never reaches.
 
 Pouring is a successor, not one of the game's own new designs: it follows the original's Drinking,
@@ -11,7 +11,7 @@ its own form. Where it departs from the original is listed in DESIGN.md section 
 ## The puzzle
 
 A dockside bar at the edge of the reach: one bar top, six squares a side, and a few pirates round it
-taking turns. The player is one of them; the rivals are the engine's (ADR 0082).
+taking turns. The player is one of them; the rivals are the engine's (ADR 0083).
 
 - **Drinks.** Every drink is a glass and a brew: four glasses (tumbler, flute, mug, coupe) and four
   brews (fizz, halo, ribbon, spark), every pairing once in a shuffled bag, with two ice and two rags.

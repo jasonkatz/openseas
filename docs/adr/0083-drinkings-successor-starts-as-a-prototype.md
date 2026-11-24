@@ -1,4 +1,4 @@
-# 0082. Drinking's successor starts as a prototype: Pouring, with its rivals in the engine
+# 0083. Drinking's successor starts as a prototype: Pouring, with its rivals in the engine
 
 Status: Accepted. Builds on [0001](./0001-spiritual-successor.md), [0003](./0003-pure-engine-replay-verification.md),
 [0036](./0036-prototype-puzzles.md), [0066](./0066-a-puzzle-is-learned-on-a-ladder-of-stages.md) and
