@@ -1,0 +1,125 @@
+{
+  "category": "prototype",
+  "config": {
+    "size": 6,
+    "glasses": 4,
+    "brews": 4,
+    "offer": 2,
+    "rivals": 2,
+    "rivalSkill": 70,
+    "pourPoints": 5,
+    "agePoints": 5,
+    "ageMax": 4,
+    "ringPoints": 20,
+    "linePoints": 100,
+    "cleanPercent": 200,
+    "tolerance": 3,
+    "soberAfter": 3,
+    "icePerBag": 2,
+    "ragsPerBag": 2,
+    "lastCall": 20,
+    "maxMoves": 100
+  },
+  "paceSeconds": 30,
+  "roundSeconds": 300,
+  "thresholds": [
+    {
+      "score": 250,
+      "rating": 1100
+    },
+    {
+      "score": 450,
+      "rating": 1300
+    },
+    {
+      "score": 650,
+      "rating": 1500
+    },
+    {
+      "score": 850,
+      "rating": 1700
+    },
+    {
+      "score": 1050,
+      "rating": 1900
+    },
+    {
+      "score": 1300,
+      "rating": 2100
+    }
+  ],
+  "stages": [
+    {
+      "id": "lines",
+      "roundSeconds": 300,
+      "thresholds": [
+        {
+          "score": 125,
+          "rating": 1100
+        },
+        {
+          "score": 225,
+          "rating": 1300
+        },
+        {
+          "score": 325,
+          "rating": 1500
+        },
+        {
+          "score": 425,
+          "rating": 1700
+        },
+        {
+          "score": 525,
+          "rating": 1900
+        },
+        {
+          "score": 650,
+          "rating": 2100
+        }
+      ],
+      "config": {
+        "ringPoints": 0,
+        "cleanPercent": 100,
+        "agePoints": 0,
+        "icePerBag": 0,
+        "ragsPerBag": 0
+      }
+    },
+    {
+      "id": "clean",
+      "roundSeconds": 300,
+      "thresholds": [
+        {
+          "score": 250,
+          "rating": 1100
+        },
+        {
+          "score": 450,
+          "rating": 1300
+        },
+        {
+          "score": 650,
+          "rating": 1500
+        },
+        {
+          "score": 850,
+          "rating": 1700
+        },
+        {
+          "score": 1050,
+          "rating": 1900
+        },
+        {
+          "score": 1300,
+          "rating": 2100
+        }
+      ],
+      "config": {
+        "agePoints": 0,
+        "icePerBag": 0,
+        "ragsPerBag": 0
+      }
+    }
+  ]
+}

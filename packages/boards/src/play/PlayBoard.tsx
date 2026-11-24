@@ -19,7 +19,7 @@ export interface PlayBoardProps {
 }
 
 /**
- * Hosts the domain board (ADR 0085). `data-board` is the round's own board as one line; the
+ * Hosts the domain board (ADR 0088). `data-board` is the round's own board as one line; the
  * canvas's `data-view` is the board the events drew, and the two are the same once it settles.
  */
 export function PlayBoard(props: PlayBoardProps) {

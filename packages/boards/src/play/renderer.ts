@@ -1,5 +1,5 @@
 /**
- * The domain board (ADR 0085): one renderer for any puzzle of the domain engine that plays on a
+ * The domain board (ADR 0088): one renderer for any puzzle of the domain engine that plays on a
  * grid. It knows no puzzle. It draws a round from its start and its events alone
  * (docs/puzzles/DOMAIN.md, "Board changes"): every piece that arrives, leaves, travels or changes
  * does so because an event said it did, and the board it ends on is held against the round's own

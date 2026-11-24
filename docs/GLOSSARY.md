@@ -437,6 +437,7 @@ Showdown is a twelfth, the same kind: it succeeds Poker (ADR 0082).
 Forging is a thirteenth of the same kind: it succeeds Blacksmithing (ADR 0083).
 Assembly is a fourteenth, the same kind: it succeeds Shipwrightry (ADR 0084).
 Pact is a fifteenth, the same kind: it succeeds Spades (ADR 0087).
+Pouring is a sixteenth, the same kind: it succeeds Drinking (ADR 0085).
 Their words follow the naming rules above. Each puzzle's own words (its pieces, its callouts) are in
 its design file under `docs/prototypes/` and its message file under
 `content/data/messages/prototypes/`; promoting a puzzle may rename them.
@@ -458,6 +459,7 @@ its design file under `docs/prototypes/` and its message file under
 | Forging (formerly Blacksmithing) | `forging` | Strikes a hot plate spot by spot with the press; each spot's mark says where the next strike lands, and a stall is a strike with nowhere to go |
 | Assembly (formerly Shipwrightry) | `assembly` | Swaps parts in a shipyard's bay, each kind its own way (girders sideways, struts up and down, cables corner to corner, panels only when pushed), and fits them to blueprints; fits made with no swap between are a chain |
 | Pact (formerly Spades) | `pact` | Bids the tricks it will take with a partner across the table, then plays a card to each trick against two rivals; a side's bids together are its **pact**. Card words (trick, trump, suit, lead, follow, bid, nil, bag, set) are not of the sea and stay, and so do the four traditional suits |
+| Pouring (formerly Drinking) | `pouring` | Takes turns with rivals setting drinks down on one bar, each where it suits its neighbours by glass or brew; a full row or column is served |
 
 Words shared by all of them: a **prototype** is one of these puzzles; the **kit** is the shared
 board code they are drawn with (`boards/src/kit`). A **kind** is one member of a family of pieces, as

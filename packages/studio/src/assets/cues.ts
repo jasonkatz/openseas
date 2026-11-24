@@ -29,6 +29,7 @@ export const PUZZLE_CUES: Readonly<Record<PuzzleId, readonly string[]>> = {
   forging: ["pop", "good", "streak", "streakLost", "bad", "zap", "bump", "beat"],
   assembly: ["swap", "pop", "clear", "good", "rise", "bump", "beat"],
   pact: ["swapQuiet", "pop", "tick", "whoosh", "bump", "good", "bad", "beat"],
+  pouring: ["pop", "clear", "good", "bad", "rise", "thud", "bump", "whoosh", "beat"],
 };
 
 /** What every round sounds, whatever the puzzle: the page plays these around the board (practice/usePractice). */

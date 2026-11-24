@@ -87,7 +87,10 @@ export { AssemblyBoard, assemblyBoardString, type AssemblyBoardProps } from "./a
 export { AssemblyPartIcon } from "./assembly/AssemblyIcon.jsx";
 export { ASSEMBLY_KINDS, ASSEMBLY_CORE_KIND } from "./assembly/pieces.js";
 export { PactIcon, type PactIconPiece } from "./pact/PactIcon.jsx";
-// The domain board (ADR 0085): one board for any puzzle of the domain engine, dressed by a skin and the game's theme.
+export { PouringBoard, type PouringBoardProps } from "./pouring/PouringBoard.jsx";
+export { PouringGlassIcon, PouringPieceIcon, PouringRingIcon } from "./pouring/PouringIcon.jsx";
+export { POURING_BREWS, POURING_GLASSES, pouringSeatRing } from "./pouring/pieces.js";
+// The domain board (ADR 0088): one board for any puzzle of the domain engine, dressed by a skin and the game's theme.
 export { PlayBoard, PlayPieceIcon, type PlayBoardProps } from "./play/PlayBoard.jsx";
 export { type PlayFrame } from "./play/renderer.js";
 export { fill, skinOf, spaceTheme } from "./play/theme.js";

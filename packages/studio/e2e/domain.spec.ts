@@ -3,7 +3,7 @@ import { boardString, swapEngine, type Move, type Round, type SwapState } from "
 import { boardGeom, expectViewMatchesState } from "./helpers.js";
 
 /**
- * The domain engine's first puzzle, played in the studio (ADR 0085). The test runs the same round
+ * The domain engine's first puzzle, played in the studio (ADR 0088). The test runs the same round
  * beside the page, with the same engine, seed and stage, so it knows which swap scores and what
  * board each swap must leave: the page's board, drawn from the round's events alone, has to be
  * that board, piece for piece.

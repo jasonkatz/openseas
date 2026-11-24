@@ -51,6 +51,7 @@ import { SHOWDOWN } from "./prototypes/showdown.js";
 import { FORGING } from "./prototypes/forging.js";
 import { ASSEMBLY } from "./prototypes/assembly.js";
 import { PACT } from "./prototypes/pact.js";
+import { POURING } from "./prototypes/pouring.js";
 
 /** What the studio needs to know about a puzzle beyond its engine definition. */
 export interface StudioPuzzle<S, M, C> {
@@ -172,4 +173,5 @@ export const STUDIO_PUZZLES: Readonly<Record<PuzzleId, StudioPuzzle<unknown, unk
   forging: FORGING as unknown as StudioPuzzle<unknown, unknown, unknown>,
   assembly: ASSEMBLY as unknown as StudioPuzzle<unknown, unknown, unknown>,
   pact: PACT as unknown as StudioPuzzle<unknown, unknown, unknown>,
+  pouring: POURING as unknown as StudioPuzzle<unknown, unknown, unknown>,
 };

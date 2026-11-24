@@ -20,6 +20,7 @@ import { ShowdownConfigSchema } from "./showdown.js";
 import { ForgingConfigSchema } from "./forging.js";
 import { AssemblyConfigSchema } from "./assembly.js";
 import { PactConfigSchema } from "./pact.js";
+import { PouringConfigSchema } from "./pouring.js";
 import { EnginesConfigSchema } from "./engines.js";
 import { GunneryConfigSchema } from "./gunnery.js";
 import { MeleeBoardSchema, SwordfightConfigSchema } from "./swordfight.js";
@@ -186,6 +187,7 @@ export const PuzzleStartedSchema = z.discriminatedUnion("puzzle", [
   PuzzleStartedBase.extend({ puzzle: z.literal("forging"), config: ForgingConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("assembly"), config: AssemblyConfigSchema }),
   PuzzleStartedBase.extend({ puzzle: z.literal("pact"), config: PactConfigSchema }),
+  PuzzleStartedBase.extend({ puzzle: z.literal("pouring"), config: PouringConfigSchema }),
 ]);
 
 export const PuzzleResultSchema = z.object({

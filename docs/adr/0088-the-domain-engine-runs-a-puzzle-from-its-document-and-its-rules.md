@@ -1,4 +1,4 @@
-# 0085. The domain engine runs a puzzle from its document and its rules, and Swap is its first
+# 0088. The domain engine runs a puzzle from its document and its rules, and Swap is its first
 
 Status: Accepted. Builds on [0003](./0003-pure-engine-replay-verification.md), whose purity and replay it
 keeps, [0072](./0072-a-round-keeps-one-difficulty-and-the-stage-sets-it.md) to

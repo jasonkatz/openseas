@@ -5,7 +5,7 @@ import { ResultScore } from "../practice/PracticeShell.jsx";
 import "./domain.css";
 
 /**
- * The puzzles of the domain engine (ADR 0085), by id: each a puzzle document and its rules, run
+ * The puzzles of the domain engine (ADR 0088), by id: each a puzzle document and its rules, run
  * by one engine on the game's scale. They are apart from the game's own puzzles, whose engines
  * and pages are each their own.
  */
@@ -39,7 +39,7 @@ function piecesAt(doc: PuzzleDoc, stage: string, kinds: (setting: string) => num
 }
 
 /**
- * A domain puzzle, alone (ADR 0085): its board, a bar of what the engine reads of the round, a
+ * A domain puzzle, alone (ADR 0088): its board, a bar of what the engine reads of the round, a
  * card to start from with the ladder's stages, and a card for the round judged. Every round is
  * local, and when one ends its log is played again from its seed, as a host would, and the two
  * scores are held against each other. The address may fix the deal: `?seed=` and `?stage=`.

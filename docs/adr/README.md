@@ -90,5 +90,6 @@ that supersedes it.
 | [0082](./0082-pokers-successor-starts-as-a-prototype.md) | Poker's successor starts as a prototype: Showdown, dealt only in the studio, against rivals in the engine at a fixed limit |
 | [0083](./0083-blacksmithings-successor-starts-as-a-prototype.md) | Blacksmithing's successor starts as a prototype: Forging, dealt only in the studio |
 | [0084](./0084-shipwrightrys-successor-starts-as-a-prototype.md) | Shipwrightry's successor starts as a prototype: Assembly, dealt only in the studio |
-| [0085](./0085-the-domain-engine-runs-a-puzzle-from-its-document-and-its-rules.md) | The domain engine runs a puzzle from its document and its rules: a pure package of its own, one board that draws from events, and Swap, Cooling written again, as its first puzzle |
+| [0085](./0085-drinkings-successor-starts-as-a-prototype.md) | Drinking's successor starts as a prototype: Pouring, with its rivals in the engine |
 | [0087](./0087-spades-successor-starts-as-a-prototype.md) | Spades' successor starts as a prototype: Pact, dealt only in the studio, with a partner and two rivals the engine plays, a hand never scoring below zero |
+| [0088](./0088-the-domain-engine-runs-a-puzzle-from-its-document-and-its-rules.md) | The domain engine runs a puzzle from its document and its rules: a pure package of its own, one board that draws from events, and Swap, Cooling written again, as its first puzzle |

@@ -22,6 +22,7 @@ import { groups as showdown } from "./showdown.js";
 import { groups as forging } from "./forging.js";
 import { groups as assembly } from "./assembly.js";
 import { groups as pact } from "./pact.js";
+import { groups as pouring } from "./pouring.js";
 
 /** Every puzzle's sections, by id. A new puzzle adds its file and its line here. */
-export const TUNING_GROUPS: Readonly<Record<PuzzleId, TuningGroups>> = { cooling, engines, plating, gunnery, navigation, battle, swordfight, salvage, overload, deflectors, reactor, scanner, tug, racks, cutting, tractor, refining, freefall, showdown, forging, assembly, pact };
+export const TUNING_GROUPS: Readonly<Record<PuzzleId, TuningGroups>> = { cooling, engines, plating, gunnery, navigation, battle, swordfight, salvage, overload, deflectors, reactor, scanner, tug, racks, cutting, tractor, refining, freefall, showdown, forging, assembly, pact, pouring };

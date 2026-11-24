@@ -27,6 +27,7 @@ import { ShowdownPractice } from "./pages/ShowdownPractice.jsx";
 import { ForgingPractice } from "./pages/ForgingPractice.jsx";
 import { AssemblyPractice } from "./pages/AssemblyPractice.jsx";
 import { PactPractice } from "./pages/PactPractice.jsx";
+import { PouringPractice } from "./pages/PouringPractice.jsx";
 import { RoundFrame, type FrameMode } from "./frame/RoundFrame.jsx";
 import { useMediaQuery } from "./practice/PracticeShell.jsx";
 import { STUDIO_PUZZLES } from "./puzzles.js";
@@ -59,6 +60,7 @@ const PAGES: Readonly<Record<PuzzleId, ComponentType>> = {
   forging: ForgingPractice,
   assembly: AssemblyPractice,
   pact: PactPractice,
+  pouring: PouringPractice,
 };
 
 const isPuzzle = (id: string): id is PuzzleId => Object.hasOwn(PAGES, id);
@@ -84,7 +86,7 @@ function Lanes() {
   const desktop = useMediaQuery("(min-width: 900px)");
   if (path.startsWith(PLAY)) {
     const id = path.slice(PLAY.length).replace(/\/$/, "");
-    // A puzzle of the domain engine has one page, the puzzle alone (ADR 0085).
+    // A puzzle of the domain engine has one page, the puzzle alone (ADR 0088).
     if (isDomainPuzzle(id)) return <DomainPlay key={id} id={id} />;
     if (isPuzzle(id)) return <Puzzle id={id} mode={new URLSearchParams(window.location.search).has(THUMB_PARAM) ? "thumb" : "play"} />;
     if (looksLikeLinkId(id)) return <LinkPlay key={id} id={id} />;

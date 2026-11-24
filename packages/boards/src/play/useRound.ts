@@ -57,7 +57,7 @@ const clockOf = (doc: PuzzleDoc, values: Readonly<Record<string, unknown>>): num
 };
 
 /**
- * A local round of a domain puzzle (ADR 0085): the page's clock stamps each move, the engine plays
+ * A local round of a domain puzzle (ADR 0088): the page's clock stamps each move, the engine plays
  * it, and when the round ends its log is played again from the seed and judged, as a host does.
  * Nothing here scores: every number shown is the engine's read of the round.
  */

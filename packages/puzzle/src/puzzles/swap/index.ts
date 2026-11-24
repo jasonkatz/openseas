@@ -1,5 +1,5 @@
 /**
- * Swap, the first puzzle written for the domain engine (ADR 0085): the game's Cooling, as a puzzle
+ * Swap, the first puzzle written for the domain engine (ADR 0088): the game's Cooling, as a puzzle
  * document and its rules, holding nothing from the game's world.
  */
 import type { PuzzleDoc } from "../../document.js";

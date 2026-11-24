@@ -14,7 +14,7 @@ faithful core in a paragraph and points here.
 | Space Battle | The captain's board against a raider | [battle.md](./battle.md) |
 | Swordfighting | The boarding fight | [swordfight.md](./swordfight.md) |
 
-On the domain engine (ADR 0085), shown in the studio and not dealt by the game:
+On the domain engine (ADR 0088), shown in the studio and not dealt by the game:
 
 | Puzzle | Role | Design |
 |---|---|---|
