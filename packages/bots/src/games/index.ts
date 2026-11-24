@@ -9,6 +9,7 @@ import { TUG_BOTS } from "./tug.js";
 import { RACKS_BOTS } from "./racks.js";
 import { CUTTING_BOTS } from "./cutting.js";
 import { TRACTOR_BOTS } from "./tractor.js";
+import { FORGING_BOTS } from "./forging.js";
 
 export const BOT_GAMES: Readonly<Record<string, AnyBotGame>> = {
   salvage: SALVAGE_BOTS as unknown as AnyBotGame,
@@ -20,4 +21,5 @@ export const BOT_GAMES: Readonly<Record<string, AnyBotGame>> = {
   racks: RACKS_BOTS as unknown as AnyBotGame,
   cutting: CUTTING_BOTS as unknown as AnyBotGame,
   tractor: TRACTOR_BOTS as unknown as AnyBotGame,
+  forging: FORGING_BOTS as unknown as AnyBotGame,
 };

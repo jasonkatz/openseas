@@ -85,3 +85,4 @@ that supersedes it.
 | [0077](./0077-a-theme-is-a-document-its-skins-read.md) | A theme is a document its skins read: a palette and type they name, and the cues and motion they copy |
 | [0078](./0078-treasure-hauls-successor-starts-as-a-prototype.md) | Treasure Haul's successor starts as a prototype: Tractor, dealt only in the studio |
 | [0079](./0079-a-puzzle-has-a-version-and-a-judged-round-is-final.md) | A puzzle has a version, `major.minor`, and a judged round is final: the major marks a change to how a round replays |
+| [0081](./0081-blacksmithings-successor-starts-as-a-prototype.md) | Blacksmithing's successor starts as a prototype: Forging, dealt only in the studio |

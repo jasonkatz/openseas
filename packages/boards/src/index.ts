@@ -73,3 +73,5 @@ export { CUTTING_ORES } from "./cutting/pieces.js";
 export { TractorBoard, type TractorBoardProps } from "./tractor/TractorBoard.jsx";
 export { TractorBeaconIcon, TractorCacheIcon, TractorLootIcon } from "./tractor/TractorIcon.jsx";
 export { TRACTOR_KINDS } from "./tractor/pieces.js";
+export { ForgingBoard, type ForgingBoardProps } from "./forging/ForgingBoard.jsx";
+export { ForgingMarkIcon } from "./forging/ForgingIcon.jsx";
