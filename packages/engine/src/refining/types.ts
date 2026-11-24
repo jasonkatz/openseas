@@ -4,13 +4,16 @@
  *
  * The board is a refinery's tower: columns of fractions, `width` wide and `height` tall, always
  * full, packed as a honeycomb. Every other column sits half a piece lower (`lowered`), so a piece
- * touches six neighbours: one above, one below, and two in each column beside it. A column keeps
- * its height as it moves towards the outlet, so which columns sit low turns over with every draw. Three fractions make up the feed: vapour (light), oil (middling) and tar (heavy). They stand
- * in a cycle, vapour, oil, tar, and back to vapour. Two neighbouring pieces swap when the one below
- * (or, between columns, the one to the right) is the next in that cycle after the one above (or to
- * the left): vapour over oil, oil over tar, tar over vapour; and the same read left to right. A swap is never directly undone,
- * since the pair it leaves is the cycle the wrong way round. A catalyst is fixed where it lies and
- * swaps with nothing. Smoke counts as vapour for weight and for swapping.
+ * touches two pieces in each column beside it, one up and one down. A column keeps its height as it
+ * moves towards the outlet, so which columns sit low turns over with every draw.
+ *
+ * Three fractions make up the feed: vapour (light), oil (middling) and tar (heavy). Swaps are
+ * diagonal only, between a piece and one of those four, and each fraction has one partner it rises
+ * past and one it sinks past, the same everywhere: vapour rises past oil and sinks past tar, oil
+ * rises past tar and sinks past vapour, tar rises past vapour and sinks past oil. Put as a pair, the
+ * upper piece is vapour over tar, tar over oil or oil over vapour (`linked`). A swap is never
+ * directly undone, since the pair it leaves is the wrong way round. A catalyst is fixed where it lies
+ * and swaps with nothing. Smoke counts as vapour for weight and for swapping.
  *
  * The tower is drawn on a clock: every `pulseTicks` the rightmost column (the outlet) leaves, every
  * other column moves one place right, and a fresh column of feed enters at the left. The player may
@@ -100,13 +103,13 @@ export interface RefiningPiece {
   readonly kind: RefiningKind;
 }
 
-/** Which way a swap goes from its first cell: with the piece below it, or one of the two in the column to its right. */
-export type RefiningDir = "down" | "upRight" | "downRight";
+/** Which way a swap goes from its first cell: with one of the two pieces touching it in the column to its right, the one up or the one down. Swaps are diagonal only. */
+export type RefiningDir = "upRight" | "downRight";
 
-export const REFINING_DIRS: readonly RefiningDir[] = ["down", "upRight", "downRight"];
+export const REFINING_DIRS: readonly RefiningDir[] = ["upRight", "downRight"];
 
 export type RefiningMove =
-  /** Swap the piece at `cell` with the one below it, or above or below it to its right. */
+  /** Swap the piece at `cell` with the one above or below it to its right. */
   | { readonly type: "swap"; readonly cell: number; readonly dir: RefiningDir; readonly tick: number }
   /** Draw the outlet now, before the clock does. The clock starts again from here. */
   | { readonly type: "draw"; readonly tick: number }

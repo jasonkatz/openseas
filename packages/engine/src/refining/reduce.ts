@@ -68,7 +68,6 @@ export function partner(state: Pick<RefiningState, "config" | "draws">, cell: nu
   const cfg = state.config;
   const col = colOf(cfg, cell);
   const row = rowOf(cfg, cell);
-  if (dir === "down") return row < cfg.height - 1 ? cell + cfg.width : null;
   if (col >= cfg.width - 1) return null;
   // From a low column the right-hand neighbours are rows `row` (up) and `row + 1` (down); from a high one, `row - 1` and `row`.
   const low = lowered(state, col);
@@ -76,7 +75,7 @@ export function partner(state: Pick<RefiningState, "config" | "draws">, cell: nu
   return r >= 0 && r < cfg.height ? idx(cfg, col + 1, r) : null;
 }
 
-/** Every neighbour of `cell`, as the pair a swap would make: the first cell (above, or to the left) and its direction. */
+/** Every neighbour of `cell`, as the pair a swap would make: the first cell (the one to the left) and its direction. */
 export function neighbours(state: Pick<RefiningState, "config" | "draws">, cell: number): Array<{ other: number; first: number; dir: RefiningDir }> {
   const out: Array<{ other: number; first: number; dir: RefiningDir }> = [];
   const n = state.config.width * state.config.height;
@@ -101,11 +100,24 @@ export function pairOf(state: Pick<RefiningState, "config" | "draws">, a: number
   return null;
 }
 
-/** True when the pair (first above or left, second below or right) may swap: the second is next in the cycle after the first. */
-export function linked(first: RefiningKind, second: RefiningKind): boolean {
-  const a = cyclePos(first);
-  const b = cyclePos(second);
-  return a !== null && b !== null && b === (a + 1) % 3;
+/**
+ * True when a diagonal pair may swap, given its upper and its lower piece: vapour over tar, tar over
+ * oil, oil over vapour. Each fraction so rises past one partner and sinks past another, the same
+ * everywhere: the lower is the one before the upper in the cycle vapour, oil, tar.
+ */
+export function linked(upper: RefiningKind, lower: RefiningKind): boolean {
+  const a = cyclePos(upper);
+  const b = cyclePos(lower);
+  return a !== null && b !== null && b === (a + 2) % 3;
+}
+
+/** True when the pair `cell` makes going `dir` may swap: from `cell`, up-right puts its partner above it, down-right below. */
+export function pairLinked(state: Pick<RefiningState, "config" | "draws" | "cells">, cell: number, dir: RefiningDir): boolean {
+  const other = partner(state, cell, dir);
+  if (other === null) return false;
+  const a = state.cells[cell]!.kind;
+  const b = state.cells[other]!.kind;
+  return dir === "upRight" ? linked(b, a) : linked(a, b);
 }
 
 export function swapIllegalReason(state: RefiningState, cell: number, dir: RefiningDir): string | null {
@@ -114,7 +126,7 @@ export function swapIllegalReason(state: RefiningState, cell: number, dir: Refin
   if (!REFINING_DIRS.includes(dir)) return "no such direction";
   const other = partner(state, cell, dir);
   if (other === null) return "off the tower";
-  if (!linked(state.cells[cell]!.kind, state.cells[other]!.kind)) return "not linked";
+  if (!pairLinked(state, cell, dir)) return "not linked";
   return null;
 }
 
@@ -123,8 +135,7 @@ export function links(state: RefiningState): Array<{ cell: number; dir: Refining
   const out: Array<{ cell: number; dir: RefiningDir }> = [];
   for (let c = 0; c < state.cells.length; c++) {
     for (const dir of REFINING_DIRS) {
-      const o = partner(state, c, dir);
-      if (o !== null && linked(state.cells[c]!.kind, state.cells[o]!.kind)) out.push({ cell: c, dir });
+      if (pairLinked(state, c, dir)) out.push({ cell: c, dir });
     }
   }
   return out;

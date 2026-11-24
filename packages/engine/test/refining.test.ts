@@ -17,6 +17,7 @@ import {
   refiningGradeColumn,
   refiningHint,
   refiningLinked,
+  refiningPairLinked,
   refiningLowered,
   refiningNeighbours,
   refiningPairOf,
@@ -194,26 +195,38 @@ describe("refining rules", () => {
     );
   });
 
-  it("links follow the cycle vapour, oil, tar: the second is next after the first, and a catalyst links nothing", () => {
-    expect(refiningLinked(REFINING_VAPOUR, REFINING_OIL)).toBe(true);
-    expect(refiningLinked(REFINING_OIL, REFINING_TAR)).toBe(true);
-    expect(refiningLinked(REFINING_TAR, REFINING_VAPOUR)).toBe(true);
-    expect(refiningLinked(REFINING_TAR, REFINING_SMOKE)).toBe(true);
-    expect(refiningLinked(REFINING_OIL, REFINING_VAPOUR)).toBe(false);
+  it("links are one rule a fraction: vapour over tar, tar over oil, oil over vapour, and a catalyst links nothing", () => {
+    // linked(upper, lower)
+    expect(refiningLinked(REFINING_VAPOUR, REFINING_TAR)).toBe(true);
+    expect(refiningLinked(REFINING_TAR, REFINING_OIL)).toBe(true);
+    expect(refiningLinked(REFINING_OIL, REFINING_VAPOUR)).toBe(true);
+    expect(refiningLinked(REFINING_OIL, REFINING_SMOKE)).toBe(true);
+    expect(refiningLinked(REFINING_VAPOUR, REFINING_OIL)).toBe(false);
+    expect(refiningLinked(REFINING_TAR, REFINING_VAPOUR)).toBe(false);
     expect(refiningLinked(REFINING_VAPOUR, REFINING_VAPOUR)).toBe(false);
     expect(refiningLinked(REFINING_CATALYST, REFINING_OIL)).toBe(false);
     expect(refiningLinked(REFINING_TAR, REFINING_CATALYST)).toBe(false);
   });
 
+  it("a tar block rises past vapour and sinks past oil, whichever side of it they lie", () => {
+    // Column 1 sits low: the tar at cell 4 has cells 3 and 5 up-left and up-right of it, 6 and 8 down-left and down-right.
+    const s = tower(["vov", "vto", "ooo"]);
+    expect(refiningPairLinked(s, 3, "downRight")).toBe(true); // vapour up-left: tar rises past it
+    expect(refiningPairLinked(s, 4, "upRight")).toBe(false); // oil up-right: tar does not rise past oil
+    expect(refiningPairLinked(s, 6, "upRight")).toBe(true); // oil down-left: tar sinks past it
+    expect(refiningPairLinked(s, 4, "downRight")).toBe(true); // oil down-right: the same
+  });
+
   it("a swap trades the two pieces, and cannot be undone straight away", () => {
-    const s = tower(["vo*", "tt*", "***"]);
+    const s = tower(["vt*", "oo*", "***"]);
+    // Vapour over tar, from cell 0 down-right to cell 1.
     const after = reduceRefining(s, { type: "swap", cell: 0, dir: "downRight", tick: 1 });
-    expect(refiningViewString(after.cells)).toBe("ov*tt****");
+    expect(refiningViewString(after.cells)).toBe("tv*oo****");
+    // Tar over vapour is the pair the wrong way round.
     expect(refiningSwapIllegalReason(after, 0, "downRight")).toBe("not linked");
-    // Vapour over tar: not linked; tar over vapour would be.
-    expect(refiningSwapIllegalReason(after, 1, "down")).toBe("not linked");
-    expect(refiningSwapIllegalReason(after, 0, "down")).toBe(null);
-    expect(refiningSwapIllegalReason(s, 0, "down")).toBe("not linked");
+    // Tar over oil swaps, from oil's side going up-right; vapour over oil does not.
+    expect(refiningSwapIllegalReason(s, 3, "upRight")).toBe(null);
+    expect(refiningSwapIllegalReason(after, 3, "upRight")).toBe("not linked");
   });
 
   it("packs the tower as a honeycomb: every other column sits low, and which ones turns over with every draw", () => {
@@ -229,8 +242,9 @@ describe("refining rules", () => {
     expect(refiningPartner(s, 4, "downRight")).toBe(8);
     expect(refiningPartner(s, 7, "downRight")).toBe(null);
     expect(refiningPartner(s, 5, "upRight")).toBe(null);
-    // An inner piece touches six.
-    expect(refiningNeighbours(s, 4).map((n) => n.other).sort((a, b) => a - b)).toEqual([1, 3, 5, 6, 7, 8]);
+    // An inner piece touches four diagonally; the pieces above and below it are not partners.
+    expect(refiningNeighbours(s, 4).map((n) => n.other).sort((a, b) => a - b)).toEqual([3, 5, 6, 8]);
+    expect(refiningPairOf(s, 1, 4)).toBe(null);
     expect(refiningPairOf(s, 5, 4)).toEqual({ cell: 4, dir: "upRight" });
     expect(refiningPairOf(s, 0, 4)).toBe(null);
     // A draw moves every column right, each keeping its height: column 1 now holds what was column 0, and sits high.
@@ -241,11 +255,11 @@ describe("refining rules", () => {
   });
 
   it("refuses a swap off the tower, an unlinked one and a tick that goes backwards or past the round", () => {
-    const s = tower(["vov", "ot*", "***"]);
-    expect(() => reduceRefining(s, { type: "swap", cell: 8, dir: "downRight", tick: 0 })).toThrow(InvalidMoveError);
-    expect(() => reduceRefining(s, { type: "swap", cell: 6, dir: "down", tick: 0 })).toThrow(InvalidMoveError);
+    const s = tower(["vtv", "ov*", "***"]);
+    expect(() => reduceRefining(s, { type: "swap", cell: 2, dir: "downRight", tick: 0 })).toThrow(InvalidMoveError);
+    expect(() => reduceRefining(s, { type: "swap", cell: 4, dir: "upRight", tick: 0 })).toThrow(InvalidMoveError);
+    expect(() => reduceRefining(s, { type: "swap", cell: 0, dir: "upRight", tick: 0 })).toThrow(InvalidMoveError);
     expect(() => reduceRefining(s, { type: "swap", cell: 3, dir: "downRight", tick: 0 })).not.toThrow();
-    expect(() => reduceRefining(s, { type: "swap", cell: 2, dir: "down", tick: 0 })).toThrow(InvalidMoveError);
     const later = reduceRefining(s, { type: "wait", tick: 5 });
     expect(() => reduceRefining(later, { type: "wait", tick: 4 })).toThrow(InvalidMoveError);
     expect(() => reduceRefining(later, { type: "wait", tick: cfg.maxTick + 1 })).toThrow(InvalidMoveError);

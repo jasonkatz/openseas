@@ -20,24 +20,24 @@
   "paceSeconds": 20,
   "roundSeconds": 120,
   "thresholds": [
-    { "score": 180, "rating": 1100 },
-    { "score": 450, "rating": 1300 },
-    { "score": 800, "rating": 1500 },
-    { "score": 1250, "rating": 1700 },
-    { "score": 1800, "rating": 1900 },
-    { "score": 2500, "rating": 2100 }
+    { "score": 130, "rating": 1100 },
+    { "score": 330, "rating": 1300 },
+    { "score": 600, "rating": 1500 },
+    { "score": 940, "rating": 1700 },
+    { "score": 1350, "rating": 1900 },
+    { "score": 1900, "rating": 2100 }
   ],
   "stages": [
     {
       "id": "clears",
       "roundSeconds": 90,
       "thresholds": [
-        { "score": 150, "rating": 1100 },
-        { "score": 350, "rating": 1300 },
-        { "score": 650, "rating": 1500 },
-        { "score": 1000, "rating": 1700 },
-        { "score": 1450, "rating": 1900 },
-        { "score": 2000, "rating": 2100 }
+        { "score": 110, "rating": 1100 },
+        { "score": 260, "rating": 1300 },
+        { "score": 490, "rating": 1500 },
+        { "score": 750, "rating": 1700 },
+        { "score": 1090, "rating": 1900 },
+        { "score": 1500, "rating": 2100 }
       ],
       "config": {
         "runCap": 1,
@@ -50,12 +50,12 @@
       "id": "runs",
       "roundSeconds": 120,
       "thresholds": [
-        { "score": 180, "rating": 1100 },
-        { "score": 450, "rating": 1300 },
-        { "score": 800, "rating": 1500 },
-        { "score": 1250, "rating": 1700 },
-        { "score": 1800, "rating": 1900 },
-        { "score": 2500, "rating": 2100 }
+        { "score": 130, "rating": 1100 },
+        { "score": 330, "rating": 1300 },
+        { "score": 600, "rating": 1500 },
+        { "score": 940, "rating": 1700 },
+        { "score": 1350, "rating": 1900 },
+        { "score": 1900, "rating": 2100 }
       ],
       "config": {
         "smokeEvery": 0,

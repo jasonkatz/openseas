@@ -3,7 +3,7 @@ import {
   refiningDrawValue,
   refiningHint,
   refiningKindChar,
-  refiningLinked,
+  refiningPairLinked,
   refiningPairOf,
   refiningPartner,
   refiningSwapIllegalReason,
@@ -23,7 +23,7 @@ import { HexGrid } from "./hex.js";
 import { refiningKind } from "./pieces.js";
 
 export interface RefiningCallbacks {
-  /** The player swapped the piece at `cell` with the one below it, or one of the two in the column to its right. */
+  /** The player swapped the piece at `cell` with one of the two touching it in the column to its right. */
   onSwap(cell: number, dir: RefiningDir): void;
   /** The player drew the outlet early. */
   onDraw(): void;
@@ -205,7 +205,7 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
     for (let c = 0; c < cells.length; c++) {
       for (const dir of REFINING_DIRS) {
         const o = refiningPartner(state, c, dir);
-        if (o !== null && refiningLinked(cells[c]!.kind, cells[o]!.kind)) l.circle((g.x(c) + g.x(o)) / 2, (g.y(c) + g.y(o)) / 2, r);
+        if (o !== null && refiningPairLinked(state, c, dir)) l.circle((g.x(c) + g.x(o)) / 2, (g.y(c) + g.y(o)) / 2, r);
       }
     }
     l.fill({ color: INK.dim });
@@ -614,7 +614,8 @@ export class RefiningRenderer extends KitBoard<RefiningState> {
   /**
    * Arrows move the cursor: up and down within a column, left and right to the same row of the next.
    * Q, E, A and D step up-left, up-right, down-left and down-right across the honeycomb, W and S up
-   * and down. Space picks the piece under the cursor and the next step swaps it that way. Enter draws now.
+   * and down. Space picks the piece under the cursor and the next step swaps it that way: swaps are
+   * diagonal, so a step up or down bumps. Enter draws now.
    */
   override keyboard(key: string): boolean {
     if (!this.interactive || !this.state) return false;

@@ -8,43 +8,51 @@ const DX = 0.88;
 
 /** Where a board character stands in the cycle vapour, oil, tar: smoke stands as vapour, a catalyst nowhere. */
 const pos = (ch: string): number | null => ({ v: 0, s: 0, o: 1, t: 2 })[ch] ?? null;
-const linked = (a: string, b: string): boolean => {
-  const x = pos(a);
-  const y = pos(b);
-  return x !== null && y !== null && y === (x + 1) % 3;
+/** A diagonal pair swaps when the upper and lower are vapour over tar, tar over oil or oil over vapour. */
+const linked = (upper: string, lower: string): boolean => {
+  const x = pos(upper);
+  const y = pos(lower);
+  return x !== null && y !== null && y === (x + 2) % 3;
 };
 
-type Dir = "down" | "upRight" | "downRight";
+type Dir = "upRight" | "downRight";
 const low = (col: number, phase: number): boolean => ((col + phase) & 1) === 1;
 
 /** The cell a swap from `c` going `dir` pairs it with, or -1: every other column sits half a piece low, as `data-phase` says. */
 function partner(c: number, dir: Dir, phase: number): number {
   const col = c % W;
   const row = Math.floor(c / W);
-  if (dir === "down") return row < H - 1 ? c + W : -1;
   if (col >= W - 1) return -1;
   const r = dir === "upRight" ? (low(col, phase) ? row : row - 1) : low(col, phase) ? row + 1 : row;
   return r >= 0 && r < H ? r * W + col + 1 : -1;
 }
 
+/** Whether the pair `c` makes going `dir` may swap: up-right puts the partner above, down-right below. */
+function pairLinked(board: string, c: number, dir: Dir, phase: number): boolean {
+  const b = partner(c, dir, phase);
+  if (b < 0) return false;
+  return dir === "upRight" ? linked(board[b]!, board[c]!) : linked(board[c]!, board[b]!);
+}
+
 /** Whether the pieces at `a` and `b` touch and may swap, whichever way round they lie. */
 function canSwap(board: string, a: number, b: number, phase: number): boolean {
-  for (const dir of ["down", "upRight", "downRight"] as const) {
-    if (partner(a, dir, phase) === b) return linked(board[a]!, board[b]!);
-    if (partner(b, dir, phase) === a) return linked(board[b]!, board[a]!);
+  for (const dir of ["upRight", "downRight"] as const) {
+    if (partner(a, dir, phase) === b) return pairLinked(board, a, dir, phase);
+    if (partner(b, dir, phase) === a) return pairLinked(board, b, dir, phase);
   }
   return false;
 }
 
-/** A legal swap read off the board string the page publishes: its first cell and its neighbour. */
-function findSwap(board: string, dirs: readonly Dir[], phase: number): { a: number; b: number } {
+/** A legal swap read off the board string the page publishes: its first cell and its neighbour. With `level`, only one whose partner is the same row of the next column. */
+function findSwap(board: string, phase: number, level = false): { a: number; b: number } {
   for (let c = 0; c < W * H; c++) {
-    for (const dir of dirs) {
+    for (const dir of ["upRight", "downRight"] as const) {
       const b = partner(c, dir, phase);
-      if (b >= 0 && linked(board[c]!, board[b]!)) return { a: c, b };
+      if (b < 0 || (level && Math.floor(b / W) !== Math.floor(c / W))) continue;
+      if (pairLinked(board, c, dir, phase)) return { a: c, b };
     }
   }
-  throw new Error(`no ${dirs.join("/")} swap on ${board}`);
+  throw new Error(`no swap on ${board}`);
 }
 
 /** A piece that one drag can carry through two swaps: a to b, then on from b to c. */
@@ -95,25 +103,25 @@ test("Refining plays alone on /play: a swap by key and by pointer, and early dra
   await expect(page.getByTestId("hud-moves")).toHaveText("0");
   await expectViewMatchesState(page, "refining");
 
-  // Keyboard: walk the cursor to a swap down, pick with space, swap with the arrow.
+  // Keyboard: walk the cursor to a swap with the same row of the next column, pick with space, swap with the arrow right.
   const before = await boardString(page);
-  const down = findSwap(before, ["down"], await phaseOf(page));
+  const level = findSwap(before, await phaseOf(page), true);
   const [col, row] = ((await canvas.getAttribute("data-cursor")) ?? "0,0").split(",").map(Number) as [number, number];
-  for (let c = col; c < down.a % W; c++) await page.keyboard.press("ArrowRight");
-  for (let c = col; c > down.a % W; c--) await page.keyboard.press("ArrowLeft");
-  for (let r = row; r < Math.floor(down.a / W); r++) await page.keyboard.press("ArrowDown");
-  for (let r = row; r > Math.floor(down.a / W); r--) await page.keyboard.press("ArrowUp");
-  await expect(canvas).toHaveAttribute("data-cursor", `${down.a % W},${Math.floor(down.a / W)}`);
+  for (let c = col; c < level.a % W; c++) await page.keyboard.press("ArrowRight");
+  for (let c = col; c > level.a % W; c--) await page.keyboard.press("ArrowLeft");
+  for (let r = row; r < Math.floor(level.a / W); r++) await page.keyboard.press("ArrowDown");
+  for (let r = row; r > Math.floor(level.a / W); r--) await page.keyboard.press("ArrowUp");
+  await expect(canvas).toHaveAttribute("data-cursor", `${level.a % W},${Math.floor(level.a / W)}`);
   await page.keyboard.press(" ");
-  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowRight");
   await expect(page.getByTestId("hud-moves")).toHaveText("1");
-  expect(await boardString(page)).toBe(swapped(before, down.a, down.b));
+  expect(await boardString(page)).toBe(swapped(before, level.a, level.b));
   await expectViewMatchesState(page, "refining");
 
   // Pointer: drag a piece across the honeycomb onto the neighbour it is linked to.
   const mid = await boardString(page);
   const phase = await phaseOf(page);
-  const right = findSwap(mid, ["upRight", "downRight"], phase);
+  const right = findSwap(mid, phase);
   const g = await boardGeom(page, "refining");
   const [x, y] = centre(g, right.a, phase);
   const [tx, ty] = centre(g, right.b, phase);

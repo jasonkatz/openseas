@@ -12,16 +12,25 @@ from the original is listed in DESIGN.md section 6.
 
 Out on a refinery rock, the feed comes up in three fractions and is sorted in a tower before the
 burners draw it off. The tower is six columns wide and five tall, always full, and packed as a
-honeycomb: every other column sits half a piece lower, so a piece touches six neighbours, one above,
-one below and two in each column beside it. A column keeps its height as it moves towards the
+honeycomb: every other column sits half a piece lower, so a piece touches two pieces in each column
+beside it, one a half step up and one a half step down. Those four are its partners: swaps are
+diagonal only. A column keeps its height as it moves towards the
 outlet, so which columns sit low turns over with every draw (`refiningLowered`).
 
-- **Three fractions in a cycle.** Vapour (light), oil (middling) and tar (heavy) stand in a cycle:
-  vapour, oil, tar, and back to vapour.
-- **The verb is a swap along a link.** Two neighbours swap when the lower one is next in the cycle
-  after the upper: vapour over oil, oil over tar, tar over vapour. Between columns it reads left to
-  right, the same: vapour left of oil, up or down a half step, and so on. The pair a swap leaves is the cycle the wrong way round, so no swap
-  is undone straight away. The board draws a dot on the edge between every pair that can swap.
+- **Three fractions in a cycle.** Vapour (light, a plume), oil (middling, a round drop) and tar
+  (heavy, a square block) stand in a cycle: vapour, oil, tar, and back to vapour.
+- **The verb is a diagonal swap along a link, one rule a fraction.** Each fraction rises past one
+  partner and sinks past another, the same on either side of it:
+
+  | Fraction | Rises past (swaps up with) | Sinks past (swaps down with) |
+  |---|---|---|
+  | Vapour (plume) | Oil (drop) | Tar (block) |
+  | Oil (drop) | Tar (block) | Vapour (plume) |
+  | Tar (block) | Vapour (plume) | Oil (drop) |
+
+  As a pair, upper over lower: vapour over tar, tar over oil, oil over vapour (`refiningLinked`).
+  The pair a swap leaves is the wrong way round, so no swap is undone straight away. Smoke swaps as
+  vapour; a catalyst swaps with nothing. The board draws a dot on the edge between every pair that can swap.
 - **The clock draws the outlet.** Every eight seconds (`pulseTicks`) the outlet, the rightmost
   column, leaves the tower. Every other column moves one place right and a fresh column of feed
   enters on the left. The player may draw early (a tap on the outlet's lamp, or enter); the clock
@@ -83,8 +92,8 @@ name and one-line card are `refining.stage.<id>` and `_intro`.
   amber ring picks it) and tap its neighbour. Tap the lamp over the outlet to draw now.
 - Keyboard: arrows move the cursor (an amber frame), up and down a column and left and right to the
   same row of the next; Q, E, A and D step up-left, up-right, down-left and down-right across the
-  honeycomb, W and S up and down. Space picks the piece under the cursor and the next step swaps it
-  that way; enter draws now.
+  honeycomb, W and S up and down. Space picks the piece under the cursor and the next diagonal step
+  swaps it that way (a step up or down bumps); enter draws now.
 - The strip over the tower says how the outlet would go if drawn now and what it would score, from
   the engine's `refiningDrawValue`: clear (with its place in the run), smooth, plain, foul, dump or
   spill.
@@ -144,18 +153,18 @@ The bots of this pass, 24 seeds a cell (`pnpm --filter @openseas/bots ladder ref
 
 | Bot | Clears (90 s) | Runs (120 s) | Full (120 s) |
 |---|---|---|---|
-| careless | 38 Green | 47 Green | 73 Green |
-| one move | 398 Steady | 566 Steady | 586 Steady |
-| rollout | 618 Steady | 1,056 Sharp | 949 Steady |
-| sorter | 156 Green | 218 Green | 216 Green |
-| early sorter | 246 Green | 351 Green | 343 Green |
-| two ahead | 715 Steady | 1,528 Sharp | 1,399 Sharp |
-| cash in | 695 Steady | 1,291 Sharp | 1,260 Sharp |
-| outlet only | 563 Steady | 1,065 Sharp | 930 Steady |
-| *Steady from* | *350* | *450* | *450* |
-| *Sharp from* | *825* | *1,024* | *1,024* |
-| *Masterful from* | *1,449* | *1,799* | *1,799* |
-| *Legendary from* | *2,274* | *2,849* | *2,849* |
+| careless | 10 Green | 7 Green | 16 Green |
+| one move | 290 Steady | 408 Steady | 378 Steady |
+| rollout | 558 Steady | 942 Sharp | 853 Sharp |
+| sorter | 131 Green | 196 Green | 187 Green |
+| early sorter | 198 Green | 323 Green | 290 Green |
+| two ahead | 565 Steady | 1,126 Sharp | 1,098 Sharp |
+| cash in | 600 Steady | 1,140 Sharp | 1,136 Sharp |
+| outlet only | 191 Green | 320 Green | 266 Green |
+| *Steady from* | *260* | *330* | *330* |
+| *Sharp from* | *620* | *770* | *770* |
+| *Masterful from* | *1,090* | *1,349* | *1,349* |
+| *Legendary from* | *1,704* | *2,174* | *2,174* |
 
 - **careless**: any choice at random, early draws included.
 - **one move**: the choice worth most now, with how much better sorted it leaves the tower as a
@@ -170,7 +179,7 @@ The bots of this pass, 24 seeds a cell (`pnpm --filter @openseas/bots ladder ref
 - **outlet only** (the bait): two ahead, working only the outlet and the column beside it.
 
 Checks: careless lands a tier below one move on every stage, and the bait loses to two ahead on the
-whole puzzle by 33.5 percent.
+whole puzzle by 75.8 percent.
 
 Open questions for play:
 
@@ -181,8 +190,10 @@ Open questions for play:
 - **The run and smoke layers are not yet proven by bots.** The Runs stage scores about what the full
   puzzle does, and no bot plays smoke or catalysts on purpose, so rule 26's margin for each layer is
   still to show; that wants a bot that sorts into dumps, or people.
-- **The links.** Swaps follow the cycle down columns and across them alike, six neighbours a piece.
+- **The links.** Swaps are diagonal only, four partners a piece, by one rule a fraction (Jason's
+  play notes: a block rises past a plume and sinks past a drop).
   Whether a person reads the dots fast enough at a draw every eight seconds is the first thing to
-  watch. The honeycomb roughly doubled what bots score on the square tower that came first; the
-  thresholds were scaled to match.
+  watch. Thresholds were scaled with each change of the links: the six-neighbour honeycomb roughly
+  doubled what bots scored on the square tower that came first, and diagonal swaps took a quarter
+  back.
 - **The pace.** A swap a second is a guess, and the bots see every link at once.

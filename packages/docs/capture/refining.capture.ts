@@ -120,7 +120,7 @@ test("refining: a swap", async ({ page }) => {
   // A vapour that moves right past the oil beside it.
   const { seed, found } = findSeed("refining-swap", (s) => {
     const g = deal(s);
-    const m = swaps(g).find((x) => x.dir !== "down" && g.cells[x.cell]!.kind === REFINING_VAPOUR && x.cell % W >= 1 && x.cell % W <= W - 3);
+    const m = swaps(g).find((x) => g.cells[x.cell]!.kind === REFINING_VAPOUR && x.cell % W >= 1 && x.cell % W <= W - 3);
     return m ?? null;
   });
   await openLab(page, "refining", { seed, paused: true });

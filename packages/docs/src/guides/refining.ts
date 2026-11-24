@@ -35,7 +35,7 @@ export const refining: Guide = {
   ],
   rules: [
     "The tower holds three fractions: **vapour**, **oil** and **tar**. They stand in a cycle: vapour, oil, tar, and back to vapour.",
-    "Two neighbours swap when the lower one is next in the cycle after the upper: vapour over oil, oil over tar, tar over vapour. Between columns it reads left to right, the same, so a piece has six neighbours. A small dot between two pieces marks every pair that can swap, and no swap can be undone straight away.",
+    "Swaps are diagonal: a piece trades with one of the two pieces touching it in the column on either side. Each fraction rises past one partner and sinks past another, the same on either side: vapour rises past oil and sinks past tar, oil rises past tar and sinks past vapour, tar rises past vapour and sinks past oil. A small dot marks every pair that can swap, and no swap can be undone straight away.",
     `Every ${seconds(c.pulseTicks)} seconds the **outlet**, the rightmost column, is drawn. Every other column moves one place right and fresh feed comes in on the left. You can draw early, and the clock starts again from there.`,
     "A drawn column with more tar than vapour **sinks** to the sump. Anything else **rises** to the tank.",
     "A column of nothing but vapour is **clear**. Clear columns in a row make a **run**, and each pays more than the last.",
@@ -44,14 +44,14 @@ export const refining: Guide = {
   rulesMedia: {
     kind: "clip",
     name: "swap",
-    alt: "The pointer drags a vapour plume across onto the oil drop beside it. The two trade places along the dot that linked them, and the dots around them move to show the swaps there are now.",
+    alt: "The pointer drags a vapour plume diagonally onto the piece a half step from it in the next column. The two trade places along the dot that linked them, and the dots around them move to show the swaps there are now.",
     caption: "Vapour moves right past oil. The dots show every swap on the tower.",
   },
   controls: [
-    { action: "Swap two neighbours", touch: "Drag a piece onto its neighbour, and on over the next to keep swapping", desktop: "Drag with the mouse, and on to keep swapping, or click a piece and then its neighbour" },
+    { action: "Swap two neighbours", touch: "Drag a piece onto a diagonal neighbour, and on over the next to keep swapping", desktop: "Drag with the mouse, and on to keep swapping, or click a piece and then its diagonal neighbour" },
     { action: "Draw the outlet now", touch: "Tap the lamp over the outlet", desktop: "Click the lamp, or press Enter" },
     { action: "Move the cursor", touch: "", desktop: "Arrow keys, or Q, W, E, A, S and D round the honeycomb" },
-    { action: "Swap with the keyboard", touch: "", desktop: "Space picks the piece under the cursor; the next step swaps it that way" },
+    { action: "Swap with the keyboard", touch: "", desktop: "Space picks the piece under the cursor; the next diagonal step swaps it that way" },
   ],
   scoring: [
     `**A clear column pays ${c.clearPoints} times its place in the run**, up to the ${nth(c.runCap)}: ${Array.from({ length: c.runCap }, (_, i) => clear(i + 1)).join(", ")}. A column that sinks with no vapour in it, a **dump**, leaves the run alone. Anything else ends it.`,
@@ -68,8 +68,8 @@ export const refining: Guide = {
           body: "You never need to work out the cycle in your head. Every pair that can swap has a dot between them. Look at the outlet column, find the oil and tar in it, and follow the dots to see which can be swapped for vapour.",
         },
         {
-          title: "Vapour comes in past oil",
-          body: "Vapour moves right only by swapping with oil beside it on its right, a half step up or down. One drag can carry it across several columns. To bring vapour into the outlet, first get oil into the outlet beside it. Tar moves left out of the outlet by swapping with oil on its left.",
+          title: "Vapour climbs past oil",
+          body: "Vapour steps right up past an oil drop or down past a tar block, and one drag can carry it across several columns. To bring vapour into the outlet, look for oil a half step above it or tar a half step below it in the outlet. Tar leaves the outlet sinking past oil or rising past vapour on its left.",
         },
         {
           title: "Watch the lamp",
@@ -97,8 +97,8 @@ export const refining: Guide = {
           },
         },
         {
-          title: "Line up before you swap across",
-          body: "Swaps up and down a column change nothing about what is in it, but they line a piece up beside the one it should trade with. One quiet swap down often sets up the swap across.",
+          title: "Every swap changes two columns",
+          body: "Each swap trades a piece between two columns. Before you make one, check that what leaves each column is something that column should lose.",
         },
       ],
       drill: `Count your clear columns in the summary. Aim for one in every four drawn. You are there when a round finishes above ${p.thresholds[2]!.score} points.`,

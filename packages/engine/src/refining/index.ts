@@ -17,6 +17,7 @@ export {
   neighbours as refiningNeighbours,
   pairOf as refiningPairOf,
   linked as refiningLinked,
+  pairLinked as refiningPairLinked,
   links as refiningLinks,
   swapIllegalReason as refiningSwapIllegalReason,
   column as refiningColumn,
