@@ -20,7 +20,7 @@ import { MOTION, ink } from "../look/tokens.js";
 import { FONT_MONO, INK, drawDot, drawHairline, mix } from "../kit/art.js";
 import { Grid, KitBoard } from "../kit/board.js";
 import { ease } from "../kit/tween.js";
-import { MIRROR_COLOR, MIRROR_PAINT, signOf, signPaint, type SignShape } from "./pieces.js";
+import { LOCKED_MIRROR_COLOR, LOCKED_MIRROR_PAINT, MIRROR_COLOR, MIRROR_PAINT, signOf, signPaint, type SignShape } from "./pieces.js";
 
 export interface DeflectorsCallbacks {
   /** The player tapped the mirror at `cell`. */
@@ -42,6 +42,8 @@ export interface DeflectorsLabels {
   streak(count: number): string;
   longRoute(turns: number): string;
   hull: string;
+  /** Said at a locked mirror a tap could not flip. */
+  locked: string;
 }
 
 export interface DeflectorsRendererOptions {
@@ -97,6 +99,8 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
   private readonly mirrors = new Map<number, Sprite>();
   /** What each cell is drawn as, once any turn in progress ends. */
   private shownMirrors: number[] = [];
+  /** Each cell drawn as a locked mirror. */
+  private shownLocked: boolean[] = [];
   private readonly flights: Flight[] = [];
   /** The last engine event played: a ticked board is handed every event more than once. */
   private lastSeq = 0;
@@ -246,18 +250,30 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     return pts;
   }
 
-  /** A mirror's picture, drawn as a `/`. A `\\` is the same sprite a quarter turn on. */
-  private mirrorTexture(): Texture {
-    return this.piece("mirror", this.grid.cell, MIRROR_COLOR, MIRROR_PAINT);
+  /** A mirror's picture, drawn as a `/`, free or locked. A `\\` is the same sprite a quarter turn on. */
+  private mirrorTexture(locked: boolean): Texture {
+    return locked ? this.piece("mirror-locked", this.grid.cell, LOCKED_MIRROR_COLOR, LOCKED_MIRROR_PAINT) : this.piece("mirror", this.grid.cell, MIRROR_COLOR, MIRROR_PAINT);
+  }
+
+  /** Draw the mirrors the engine has locked as locked, and the rest as free. */
+  private showLocks(state: DeflectorsState): void {
+    state.mirrors.forEach((m, cell) => {
+      const locked = (state.locked[cell] ?? 0) > 0;
+      if (m === DEFLECTORS_EMPTY || this.shownLocked[cell] === locked) return;
+      this.shownLocked[cell] = locked;
+      const s = this.mirrors.get(cell);
+      if (s) s.texture = this.mirrorTexture(locked);
+    });
   }
 
   /** Put exactly the state's mirrors on the grid, each as it is set, with nothing in motion. */
   private snapMirrors(state: DeflectorsState): void {
     for (const s of this.mirrors.values()) s.destroy();
     this.mirrors.clear();
+    this.shownLocked = state.mirrors.map((_, cell) => (state.locked[cell] ?? 0) > 0);
     state.mirrors.forEach((m, cell) => {
       if (m === DEFLECTORS_EMPTY) return;
-      const s = new Sprite(this.mirrorTexture());
+      const s = new Sprite(this.mirrorTexture(this.shownLocked[cell]!));
       s.anchor.set(0.5);
       s.position.set(this.grid.x(cell), this.grid.y(cell));
       s.rotation = m === DEFLECTORS_SLASH ? SLASH_ROTATION : BACKSLASH_ROTATION;
@@ -306,6 +322,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       return;
     }
     for (let c = 0; c < state.mirrors.length; c++) if (state.mirrors[c] !== this.shownMirrors[c]) this.turnMirror(c, state.mirrors[c]!);
+    this.showLocks(state);
     this.play(state.lastMove?.events ?? []);
   }
 
@@ -393,7 +410,8 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       }
       if (outcome.gained !== outcome.base) this.fx.popup(cx, g.oy + c * 0.5, `+${outcome.gained}`, INK.cream, Math.max(18, c * 0.6));
       // The beat is for the long way round, and for a perfect volley; stronger when a perfect one went the long way.
-      if (outcome.perfect) {
+      // A stage with perfect switched off (worth nothing more) never calls it.
+      if (outcome.perfect && this.perfectPays()) {
         this.fx.say(labels.perfect);
         this.beat(longest >= LONG_ROUTE ? 1 : 0.6);
       } else if (longest >= LONG_ROUTE) {
@@ -404,6 +422,11 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
         sfx.multi(2);
       }
     });
+  }
+
+  /** A perfect volley is worth more in this round's config: off in a stage that switches it off. */
+  private perfectPays(): boolean {
+    return (this.state?.config.perfectPercent ?? 100) > 100;
   }
 
   protected view(): string {
@@ -581,7 +604,7 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
       const told = this.ask(state);
       const out = told.outlook;
       const labels = this.opts.labels;
-      if (out?.perfect) {
+      if (out?.perfect && this.perfectPays()) {
         text = labels.outlookPerfect(out.points);
       } else if (out?.clean) text = labels.outlook(out.points, told.best);
       else if (out) {
@@ -624,6 +647,15 @@ export class DeflectorsRenderer extends KitBoard<DeflectorsState> {
     if (!state || state.finished) return;
     if (state.mirrors[cell] === DEFLECTORS_EMPTY) {
       sfx.bump();
+      return;
+    }
+    // A locked mirror is refused at once, as the engine would: a ring in danger and the word, and no flip sent.
+    if ((state.locked[cell] ?? 0) > 0) {
+      const g = this.grid;
+      sfx.bump();
+      this.fx.ring(g.x(cell), g.y(cell), INK.danger, g.cell * 0.32, g.cell * 0.46, MOTION.clear * 2, Math.max(2, g.cell * 0.06));
+      this.fx.popup(g.x(cell), g.y(cell) - g.cell * 0.3, this.opts.labels.locked, INK.danger, Math.max(13, g.cell * 0.28));
+      this.idle = 0;
       return;
     }
     // Following the hint keeps it coming; a flip of the player's own sends it away until the next pause.

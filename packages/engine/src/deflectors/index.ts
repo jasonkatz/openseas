@@ -29,6 +29,8 @@ export {
   outlook as deflectorsOutlook,
   bestPoints as deflectorsBestPoints,
   flipIllegalReason as deflectorsFlipIllegalReason,
+  lockedCells as deflectorsLockedCells,
+  lockAfter as deflectorsLockAfter,
   hint as deflectorsHint,
   viewString as deflectorsViewString,
   type DeflectorsOption,

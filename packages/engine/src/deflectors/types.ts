@@ -15,6 +15,10 @@
  * `best`. No beam is dealt the exit it would leave by as the mirrors stand, so every beam asks for
  * a flip.
  *
+ * Locks (`hotVolleys`): when a volley fires, the last mirror each beam turned at is locked for the
+ * next volley. It cannot be flipped, and that volley is dealt and its best found with it set as it
+ * stands, so every volley can still be routed home.
+ *
  * Cell index = row * size + col, row 0 at the top. Port index = side * size + i: side 0 is the top
  * edge (i counts columns, the beam enters heading down), side 1 the right edge (i counts rows,
  * heading left), side 2 the bottom edge (columns, heading up), side 3 the left edge (rows, heading
@@ -50,6 +54,13 @@ export interface DeflectorsConfig {
   /** A beam out through its exit after b turns scores bouncePoints * (b + 1) * (b + 1), with b counted up to bounceCap. */
   readonly bouncePoints: number;
   readonly bounceCap: number;
+  /**
+   * Locks. When a volley fires, the last hotTurns mirrors each of its beams turned at lock for the
+   * next hotVolleys volleys: a locked mirror cannot be flipped, and the deal and the volley's best
+   * read it as set the way it stands. hotVolleys 0 switches locks off.
+   */
+  readonly hotVolleys: number;
+  readonly hotTurns: number;
   /** What a perfect volley is multiplied by, in percent. */
   readonly perfectPercent: number;
   /** Lost for every beam that leaves by the wrong port. Score never goes below zero. */
@@ -81,6 +92,8 @@ export const DEFAULT_DEFLECTORS_CONFIG: DeflectorsConfig = {
   minBest: 4,
   bouncePoints: 1,
   bounceCap: 16,
+  hotVolleys: 0,
+  hotTurns: 1,
   perfectPercent: 150,
   hullPenalty: 40,
   streakPercent: [100, 110, 120, 130, 140, 150, 160, 180, 200],
@@ -174,6 +187,8 @@ export type DeflectorsEvent =
       /** True when the player fired it before its count ended. */
       readonly early: boolean;
       readonly outcome: DeflectorsOutcome;
+      /** Every cell locked once it fired, in order: what this volley's beams locked and any lock still held. Empty when locks are off. */
+      readonly locked: readonly number[];
     };
 
 export interface DeflectorsMoveReport {
@@ -188,6 +203,8 @@ export interface DeflectorsState {
   readonly tick: number;
   /** One entry a cell: DEFLECTORS_EMPTY, DEFLECTORS_SLASH or DEFLECTORS_BACKSLASH. */
   readonly mirrors: readonly number[];
+  /** One entry a cell: how many more volleys it stays locked, 0 when it is free to flip. All 0 when locks are off. */
+  readonly locked: readonly number[];
   /** The volley waiting to fire, or null between volleys. */
   readonly volley: DeflectorsVolley | null;
   /** The tick the next volley is dealt at, once none is waiting. */

@@ -18,6 +18,8 @@ export const DeflectorsConfigSchema = z.object({
   minBest: z.int().min(0).max(64).describe("A volley is dealt exits whose best setting is worth at least a beam of this many turns, when any are free."),
   bouncePoints: z.int().min(0).max(1000).describe("Points a beam earns at its exit, multiplied by the square of its turns plus one."),
   bounceCap: z.int().min(1).max(64).describe("Turns past this many add nothing to a beam's points."),
+  hotVolleys: z.int().min(0).max(4).describe("Volleys the last mirrors each fired beam turned at stay locked: a locked mirror cannot be flipped. 0 switches locks off."),
+  hotTurns: z.int().min(1).max(8).describe("How many of the last mirrors each beam turned at lock when its volley fires."),
   perfectPercent: z.int().min(100).max(1000).describe("Percent a perfect volley is multiplied by: a clean volley worth its best."),
   hullPenalty: z.int().min(0).max(100_000).describe("Points lost for every beam that leaves by the wrong port. The score never drops below zero."),
   streakPercent: z.array(z.int().min(100).max(1000)).min(1).max(16).describe("Percent the streak multiplies a clean volley by, an entry for each one in a row. The last entry holds."),
