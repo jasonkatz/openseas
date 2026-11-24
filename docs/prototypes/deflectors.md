@@ -1,7 +1,7 @@
 # Deflectors
 
 Status: built. Prototype (ADR 0036), in the studio at `/deflectors`. Ticked (ADR 0015): the round runs on
-the engine's clock, but nothing comes on it: every piece waits for the player. A 120 second round.
+the engine's clock, but nothing comes on it: every piece waits for the player. A 180 second round.
 
 Version 1.0 (ADR 0079). History:
 
@@ -29,7 +29,7 @@ does not want goes in the **bin**: it is used up and put nowhere. Nothing comes 
 nothing is ever placed for the player. The round ends when the clock runs out, or once the pieces
 are all used and the grid lights nothing.
 
-Fifty pieces in 120 seconds is 2.4 seconds a piece. That is the balance: a player who thinks at
+Fifty pieces in 180 seconds is 3.6 seconds a piece. That is the balance: a player who thinks at
 that pace uses every piece, one who rushes gains nothing for the spare time, and one who dwells
 leaves pieces unplaced. Strategy decides what each piece is worth; pace only decides whether the
 last few get played.
@@ -145,7 +145,8 @@ on the content config, a person's pace modelled as 1 s a piece and 0.5 s to fire
 | builder, fires at 150 | 1,211 | Sharp |
 | builder, fires at 800 | 1,978 | Sharp |
 | builder, fires at 1,500 | 1,309 | Sharp |
-| builder, fires at 800, 2.5 s a piece | 1,900 | Sharp |
+| builder, fires at 800, 2.5 s a piece | 1,978 | Sharp |
+| builder, fires at 800, 5 s a piece | 1,452 | Sharp |
 
 The eager bot puts each piece where the shot is worth most now and fires as soon as anything lights.
 A builder puts each piece where the grid is worth most counting one mirror more, bins a piece that
@@ -155,11 +156,11 @@ out, or near the end. One move and rollout play the generic choice list, which f
 - **There is no right threshold, but there is a better one.** Holding too little and holding too
   much both lose: 1,211 at 150, 1,978 at 800, 1,309 at 1,500. That interior optimum is what the
   owner asked for: a choice that matters, with no answer handed over.
-- **Strategy first, pace second.** The same builder at 2.5 s a piece scores 1,900 against 1,978 at
-  1 s: four percent for thinking two and a half times as long. Choosing when to fire is worth more than half
-  again. With sixty pieces (8 seeds) the gap was 31 percent, because the fast bot had pieces the
-  careful one never reached; with forty-five it was none. Fifty keeps pace in the game without
-  letting it lead.
+- **Strategy first, pace second.** The same builder scores 1,978 at 1 s a piece and at 2.5 s: up
+  to the pieces' pace, thinking costs nothing. At 5 s a piece it scores 1,452, a quarter less, as
+  the clock runs out with pieces unplaced. Choosing when to fire is worth more than half again. The
+  round was 120 seconds at first (2.4 s a piece); the owner ran out of time playing it, so it is
+  180, and pace only bites on a player slower than about 3.6 s a piece.
 - **The bin must be used with care.** A builder that bins every piece that adds nothing now scores
   under half of one that bins only what would make the grid worse: the supply is small, and a
   mirror in a corner often pays later.
@@ -176,7 +177,7 @@ out, or near the end. One move and rollout play the generic choice list, which f
 - Is three targets lit ever reached by a person, or does the ×4 only tempt? If never, ×3 may read
   better.
 - Is fifty the right supply for a person? The bots say a careful pace costs little; a person may
-  think slower than 2.5 s a piece. `few_pieces` and `many_pieces` are presets.
+  think slower than 3.6 s a piece. `few_pieces` and `many_pieces` are presets.
 - Is three pieces ahead enough to plan with, or too much to read? `long_view` shows five.
 - Are three emitters too many routes to read at once? `two_emitters` is a preset.
 - Do players plan the next shot through what this one spends, or does it feel like noise?

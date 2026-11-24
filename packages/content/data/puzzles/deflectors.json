@@ -17,11 +17,11 @@
     "lensChance": 22,
     "fireTicks": 10,
     "tickMs": 100,
-    "maxTick": 1200,
+    "maxTick": 1800,
     "maxMoves": 4000
   },
   "paceSeconds": 20,
-  "roundSeconds": 120,
+  "roundSeconds": 180,
   "thresholds": [
     { "score": 60, "rating": 1100 },
     { "score": 200, "rating": 1300 },

@@ -103,7 +103,7 @@ export const DEFAULT_DEFLECTORS_CONFIG: DeflectorsConfig = {
   lensChance: 22,
   fireTicks: 10,
   tickMs: 100,
-  maxTick: 1200,
+  maxTick: 1800,
   maxMoves: 4000,
 };
 

@@ -22,8 +22,9 @@ import type { Bot, BotGame, Choice } from "../core.js";
 
 /** A person's time to put a piece down: see where it goes, turn it, tap. */
 const SECONDS_PER_PLACE = 1;
-/** A careful person's time for the same. */
+/** A careful person's time for the same, and a slow one's. */
 const CAREFUL_SECONDS = 2.5;
+const SLOW_SECONDS = 5;
 /** A person's time to see a shot is ready and fire it. */
 const SECONDS_TO_FIRE = 0.5;
 /** What the builder gives the best a next mirror could make of a grid, against a shot it has now, in percent. */
@@ -181,7 +182,7 @@ export const DEFLECTORS_BOTS: BotGame<DeflectorsState, DeflectorsMove, Deflector
   // What a careful player sees: points scored, and half of what the shot would score now.
   worth: (before, after) => after.score - before.score + (deflectorsOutlook(after).points - deflectorsOutlook(before).points) / 2,
   open: true,
-  bots: [eagerBot(), builderBot(1), builderBot(150), builderBot(800), builderBot(1500), builderBot(800, CAREFUL_SECONDS)],
+  bots: [eagerBot(), builderBot(1), builderBot(150), builderBot(800), builderBot(1500), builderBot(800, CAREFUL_SECONDS), builderBot(800, SLOW_SECONDS)],
   baits: [{ bait: "eager", beats: "builder 150" }],
-  slow: ["builder 1", "builder 150", "builder 800", "builder 1500", `builder 800, ${CAREFUL_SECONDS} s`],
+  slow: ["builder 1", "builder 150", "builder 800", "builder 1500", `builder 800, ${CAREFUL_SECONDS} s`, `builder 800, ${SLOW_SECONDS} s`],
 };
