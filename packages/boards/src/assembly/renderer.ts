@@ -1,5 +1,6 @@
 import { Container, Graphics, Sprite, Text, type Texture } from "pixi.js";
 import {
+  ASSEMBLY_POOL,
   assemblyFitIllegalReason,
   assemblyFitPoints,
   assemblyHint,
@@ -56,6 +57,9 @@ const STRIP = 0.8;
 const TRAY_GAP = 0.35;
 const SLOT_H = 1.55;
 const TRAY = TRAY_GAP + SLOT_H * 2;
+/** The biggest box a blueprint in the pool is drawn on: every one fits its slot at one size. */
+const POOL_W = Math.max(...ASSEMBLY_POOL.map((p) => p.width));
+const POOL_H = Math.max(...ASSEMBLY_POOL.map((p) => p.height));
 const HINT_AFTER_MS = 6000;
 const RING_W = 0.07;
 /** A drag this far, in cells, from a part swaps it that way. */
@@ -183,7 +187,7 @@ export class AssemblyRenderer extends KitBoard<AssemblyState> {
     const top = g.oy + g.height + g.cell * TRAY_GAP;
     this.slots = [];
     for (let i = 0; i < n; i++) this.slots.push({ x: g.ox + (i % perRow) * w, y: top + Math.floor(i / perRow) * h, w, h });
-    this.mini = Math.floor(Math.min((w - 8) / 4, (h - 8) / 3.4));
+    this.mini = Math.floor(Math.min((w - 8) / (POOL_W + 1), (h - 8) / (POOL_H + 0.4)));
     this.trayBg.clear();
     const inset = Math.max(2, g.cell * 0.06);
     for (const s of this.slots) this.trayBg.roundRect(s.x + inset, s.y + inset, s.w - inset * 2, s.h - inset * 2, g.cell * 0.18).fill({ color: INK.raised });

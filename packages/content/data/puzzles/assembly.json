@@ -14,26 +14,26 @@
     "maxMoves": 1000
   },
   "paceSeconds": 20,
-  "roundSeconds": 120,
+  "roundSeconds": 240,
   "thresholds": [
-    { "score": 70, "rating": 1100 },
-    { "score": 210, "rating": 1300 },
-    { "score": 400, "rating": 1500 },
-    { "score": 620, "rating": 1700 },
-    { "score": 850, "rating": 1900 },
-    { "score": 1200, "rating": 2100 }
+    { "score": 90, "rating": 1100 },
+    { "score": 260, "rating": 1300 },
+    { "score": 520, "rating": 1500 },
+    { "score": 800, "rating": 1700 },
+    { "score": 990, "rating": 1900 },
+    { "score": 1450, "rating": 2100 }
   ],
   "stages": [
     {
       "id": "parts",
-      "roundSeconds": 60,
+      "roundSeconds": 120,
       "thresholds": [
-        { "score": 45, "rating": 1100 },
-        { "score": 90, "rating": 1300 },
-        { "score": 175, "rating": 1500 },
-        { "score": 265, "rating": 1700 },
-        { "score": 350, "rating": 1900 },
-        { "score": 480, "rating": 2100 }
+        { "score": 75, "rating": 1100 },
+        { "score": 150, "rating": 1300 },
+        { "score": 290, "rating": 1500 },
+        { "score": 440, "rating": 1700 },
+        { "score": 580, "rating": 1900 },
+        { "score": 800, "rating": 2100 }
       ],
       "config": {
         "chainCap": 1,
@@ -44,14 +44,14 @@
     },
     {
       "id": "chains",
-      "roundSeconds": 90,
+      "roundSeconds": 180,
       "thresholds": [
-        { "score": 60, "rating": 1100 },
-        { "score": 155, "rating": 1300 },
-        { "score": 300, "rating": 1500 },
-        { "score": 450, "rating": 1700 },
-        { "score": 610, "rating": 1900 },
-        { "score": 860, "rating": 2100 }
+        { "score": 80, "rating": 1100 },
+        { "score": 200, "rating": 1300 },
+        { "score": 420, "rating": 1500 },
+        { "score": 620, "rating": 1700 },
+        { "score": 800, "rating": 1900 },
+        { "score": 1150, "rating": 2100 }
       ],
       "config": {
         "startCores": 0,

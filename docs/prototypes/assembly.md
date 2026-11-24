@@ -1,6 +1,6 @@
 # Assembly
 
-Status: built. Prototype (ADR 0036, ADR 0083), in the studio at `/assembly`. Untimed moves; a 120
+Status: built. Prototype (ADR 0036, ADR 0083), in the studio at `/assembly`. Untimed moves; a 240
 second round.
 
 Assembly is a successor, not one of the game's own new designs: it follows the original's
@@ -54,7 +54,7 @@ another as one chain, each on cells of its own.**
 - **Third skill:** holding back. Fitting the moment something fits pays each fit at the first place.
   Setting two or three up and fitting them in a row pays the second double and the third triple.
   Fitting the moment one fits is the bait: it feels like steady work, and it loses to plain set-up
-  play by about a quarter (the bot table below).
+  play by about a fifth (the bot table below).
 - **Fourth skill:** room. Two blueprints set up over the same cells cannot both be fitted, and a
   fit's new parts are drawn at random, so a player sets blueprints up side by side, each on cells of
   its own, and reads the new parts a fit leaves for a blueprint they already nearly make.
@@ -69,9 +69,9 @@ its name and one-line card are `assembly.stage.<id>` and `_intro`.
 
 | Stage | Round | What is on | Switched off |
 |---|---|---|---|
-| Parts | 60s | Swaps and fits | Chains (`chainCap: 1`), cores (`startCores`, `corePermille` and `maxCores` 0) |
-| Chains | 90s | Chains | Cores |
-| Full build | 120s | Everything | |
+| Parts | 120s | Swaps and fits | Chains (`chainCap: 1`), cores (`startCores`, `corePermille` and `maxCores` 0) |
+| Chains | 180s | Chains | Cores |
+| Full build | 240s | Everything | |
 
 ## Input and feedback
 
@@ -124,18 +124,18 @@ fit every 2 (pick the blueprint, then the spot).
 
 The bots of this pass, 24 seeds a cell (`pnpm --filter @openseas/bots ladder assembly`):
 
-| Bot | Parts (60 s) | Chains (90 s) | Full (120 s) |
+| Bot | Parts (120 s) | Chains (180 s) | Full (240 s) |
 |---|---|---|---|
-| careless | 16 Green | 26 Green | 66 Green |
-| one move | 275 Sharp | 465 Sharp | 604 Sharp |
-| rollout | 283 Sharp | 711 Masterful | 1,154 Masterful |
-| fit at once | 283 Sharp | 522 Sharp | 664 Sharp |
-| chain builder | 270 Sharp | 633 Masterful | 880 Masterful |
-| builder of 3 | 275 Sharp | 655 Masterful | 920 Masterful |
-| *Steady from* | *90* | *155* | *210* |
-| *Sharp from* | *220* | *375* | *510* |
-| *Masterful from* | *350* | *610* | *850* |
-| *Legendary from* | *545* | *985* | *1,375* |
+| careless | 27 Green | 38 Green | 87 Green |
+| one move | 426 Sharp | 654 Sharp | 767 Sharp |
+| rollout | 483 Sharp | 1,128 Masterful | 1,387 Masterful |
+| fit at once | 474 Sharp | 712 Sharp | 818 Sharp |
+| chain builder | 414 Sharp | 820 Masterful | 1,025 Masterful |
+| builder of 3 | 460 Sharp | 888 Masterful | 1,129 Masterful |
+| *Steady from* | *150* | *200* | *260* |
+| *Sharp from* | *365* | *520* | *660* |
+| *Masterful from* | *580* | *800* | *990* |
+| *Legendary from* | *910* | *1,325* | *1,679* |
 
 - **careless**: any legal move at random.
 - **one move**: the move worth most now, and no further look.
@@ -147,13 +147,13 @@ The bots of this pass, 24 seeds a cell (`pnpm --filter @openseas/bots ladder ass
 - **builder of 3**: the chain builder, but it starts a chain only once three blueprints are ready.
 
 Checks: careless lands a tier below one move on every stage, and the bait loses to the chain builder
-on the whole puzzle by 25 percent.
+on the whole puzzle by 20 percent.
 
-- **Chains are earned, not given.** On the Chains stage the planning bots score a third to a half
-  more than one move does; on Parts, with chains off, every thinking bot scores the same. The chain is the
+- **Chains are earned, not given.** On the Chains stage the planning bots score a quarter to
+  three quarters more than one move does; on Parts, with chains off, every thinking bot scores the same. The chain is the
   layer that sorts players.
-- **Cores earn their place.** With cores off on the whole puzzle the chain builder scores 721
-  and the bait 623; cores add about 22 percent to the planner.
+- **Cores earn their place.** With cores off on the whole puzzle the chain builder scores 867
+  and the bait 754; cores add about 18 percent to the planner.
 - **No bot reaches Legendary.** The bots read the whole bay in the time a person reads one
   blueprint, so the top tier is left for play that sets up longer chains than these bots do. It
   wants setting by hand once people have played.

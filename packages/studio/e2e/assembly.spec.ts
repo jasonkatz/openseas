@@ -239,7 +239,7 @@ test("an Assembly stage plays from its address: its name in the HUD, its card on
   await expect(page.getByTestId("hud-stage").first()).toHaveAttribute("data-stage", "parts");
   // The first stage deals no core and runs a minute.
   await expect(page.getByTestId("assembly-board")).toHaveAttribute("data-board", /^[0-3]+\//);
-  await expect(page.getByTestId("hud-time").first()).toHaveText(/^(1:00|0:5\d)$/);
+  await expect(page.getByTestId("hud-time").first()).toHaveText(/^(2:00|1:5\d)$/);
   const { bay, tray } = await read(page);
   const s = findSwap(bay, tray);
   await drag(page, s.a, s.b);
