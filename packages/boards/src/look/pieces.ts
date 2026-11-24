@@ -18,6 +18,7 @@ import tug from "../../data/pieces/tug.json" with { type: "json" };
 import racks from "../../data/pieces/racks.json" with { type: "json" };
 import cutting from "../../data/pieces/cutting.json" with { type: "json" };
 import tractor from "../../data/pieces/tractor.json" with { type: "json" };
+import pouring from "../../data/pieces/pouring.json" with { type: "json" };
 
 /**
  * Every puzzle's pieces as data (ADR 0065, docs/BRAND.md section 3): `data/pieces/<puzzle>.json`,
@@ -25,7 +26,7 @@ import tractor from "../../data/pieces/tractor.json" with { type: "json" };
  * `pieces.ts` paints from here, composing a drawing with what only code can say (a plate's
  * footprint, a rod's numeral). The studio's draft may lay its own drawings over these.
  */
-const FILES: Record<PuzzleId, unknown> = { cooling, engines, plating, gunnery, navigation, battle, swordfight, salvage, overload, deflectors, reactor, scanner, tug, racks, cutting, tractor };
+const FILES: Record<PuzzleId, unknown> = { cooling, engines, plating, gunnery, navigation, battle, swordfight, salvage, overload, deflectors, reactor, scanner, tug, racks, cutting, tractor, pouring };
 
 export const SHIPPED_PIECES: Readonly<Record<PuzzleId, PiecesFile>> = Object.fromEntries(Object.entries(FILES).map(([id, file]) => [id, PiecesFileSchema.parse(file)])) as Record<PuzzleId, PiecesFile>;
 
