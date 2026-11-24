@@ -8,11 +8,14 @@ import {
   InvalidMoveError,
   advanceDeflectors,
   createDeflectorsGame,
+  DEFLECTORS_LENS,
   deflectorsBeamPoints,
-  deflectorsBeamsAt,
   deflectorsBestPoints,
-  deflectorsChargeTicksAt,
   deflectorsHint,
+  deflectorsIsHome,
+  deflectorsIsMirror,
+  deflectorsRecipeSize,
+  deflectorsSettle,
   deflectorsOutlook,
   deflectorsPortCount,
   deflectorsStreakPercentAt,
@@ -45,7 +48,7 @@ function playRandom(seed: string, picks: readonly number[], config: DeflectorsCo
     const kind = picks[i + 1]! % 5;
     let move: DeflectorsMove;
     if (kind <= 2) {
-      const cells = at.mirrors.flatMap((m, c) => (m === DEFLECTORS_EMPTY ? [] : [c]));
+      const cells = at.mirrors.flatMap((m, c) => (deflectorsIsMirror(m) ? [c] : []));
       move = { type: "flip", cell: cells[picks[i + 2]! % cells.length]!, tick };
     } else if (kind === 3 && at.volley) move = { type: "fire", volley: at.volley.id, tick };
     else move = { type: "wait", tick };
@@ -57,17 +60,24 @@ function playRandom(seed: string, picks: readonly number[], config: DeflectorsCo
 
 const picksArb = fc.array(fc.nat({ max: 10_000 }), { minLength: 0, maxLength: 240 });
 
-/** A grid from rows of characters: `.` empty, `/` and `\` mirrors. No volley is waiting and none is due for a long while. */
+/**
+ * A grid from rows of characters: `.` empty, `/` and `\` mirrors, `a`, `b`, `c` lenses. No volley is
+ * waiting and none is due for a long while. Mirrors are not spent unless `over` says so, and a grid
+ * with no lenses has recipes off.
+ */
 function grid(rows: readonly string[], over: Partial<DeflectorsConfig> = {}): DeflectorsState {
   const text = rows.join("");
-  const config: DeflectorsConfig = { ...cfg, size: rows.length, mirrors: Math.max(1, text.replace(/\./g, "").length), ...over };
+  const lenses = text.replace(/[^abc]/g, "").length;
+  const mirrors = Math.max(1, text.replace(/[^/\\]/g, "").length);
+  const config: DeflectorsConfig = { ...cfg, size: rows.length, mirrors, lenses, recipeLenses: lenses ? cfg.recipeLenses : 0, spend: false, ...over };
   const base = createDeflectorsGame("t", config);
-  return { ...base, nextDealTick: config.maxTick, mirrors: text.split("").map((ch) => (ch === "/" ? DEFLECTORS_SLASH : ch === "\\" ? DEFLECTORS_BACKSLASH : DEFLECTORS_EMPTY)) };
+  const cell = (ch: string): number => (ch === "/" ? DEFLECTORS_SLASH : ch === "\\" ? DEFLECTORS_BACKSLASH : ch >= "a" && ch <= "c" ? DEFLECTORS_LENS + ch.charCodeAt(0) - 97 : DEFLECTORS_EMPTY);
+  return { ...base, nextDealTick: config.maxTick, mirrors: text.split("").map(cell) };
 }
 
-/** `state` with a volley of these beams waiting, worth `best` at most, its count ending at tick 100. */
-function waiting(state: DeflectorsState, beams: ReadonlyArray<readonly [entry: number, exit: number]>, best: number): DeflectorsState {
-  return { ...state, nextVolleyId: 2, volley: { id: 1, beams: beams.map(([entry, exit], sign) => ({ sign, entry, exit })), dealTick: 0, fireTick: 100, best } };
+/** `state` with a volley of these beams waiting, worth `best` at most. A beam's recipe is 0 unless given. */
+function waiting(state: DeflectorsState, beams: ReadonlyArray<readonly [entry: number, exit: number, recipe?: number]>, best: number): DeflectorsState {
+  return { ...state, nextVolleyId: 2, volley: { id: 1, beams: beams.map(([entry, exit, recipe], sign) => ({ sign, entry, exit, recipe: recipe ?? 0 })), dealTick: 0, best } };
 }
 
 /** Set the mirrors to a best setting for the waiting volley, by the engine's own flips, at `tick`. */
@@ -81,13 +91,15 @@ function routeBest(state: DeflectorsState, tick: number): DeflectorsState {
 const fires = (s: DeflectorsState): Extract<DeflectorsEvent, { type: "fire" }>[] => (s.lastMove?.events ?? []).flatMap((e) => (e.type === "fire" ? [e] : []));
 
 describe("deflectors grid", () => {
-  it("opens with the configured mirrors, no volley waiting, and the first one due", () => {
+  it("opens with the configured mirrors and lenses, no volley waiting, and the first one due", () => {
     fc.assert(
       fc.property(fc.string(), (seed) => {
         const s = createDeflectorsGame(seed);
         expect(s.mirrors.length).toBe(cfg.size * cfg.size);
-        expect(s.mirrors.filter((m) => m !== DEFLECTORS_EMPTY).length).toBe(cfg.mirrors);
-        expect(s.mirrors.every((m) => m === DEFLECTORS_EMPTY || m === DEFLECTORS_SLASH || m === DEFLECTORS_BACKSLASH)).toBe(true);
+        expect(s.mirrors.filter((m) => deflectorsIsMirror(m)).length).toBe(cfg.mirrors);
+        const lenses = s.mirrors.filter((m) => m >= DEFLECTORS_LENS).map((m) => m - DEFLECTORS_LENS);
+        expect(lenses.sort()).toEqual([0, 1, 2]);
+        expect(s.mirrors.every((m) => m >= DEFLECTORS_EMPTY && m <= DEFLECTORS_LENS + 2)).toBe(true);
         expect(s.volley).toBeNull();
         expect(s.nextDealTick).toBe(cfg.openingTicks);
         expect(s.score).toBe(0);
@@ -99,10 +111,14 @@ describe("deflectors grid", () => {
   it("rejects an invalid config", () => {
     expect(() => createDeflectorsGame("x", { ...cfg, size: 2 })).toThrow();
     expect(() => createDeflectorsGame("x", { ...cfg, mirrors: 37 })).toThrow();
-    expect(() => createDeflectorsGame("x", { ...cfg, chargeTicksMin: cfg.chargeTicks + 1 })).toThrow();
+    expect(() => createDeflectorsGame("x", { ...cfg, mirrors: 34, lenses: 3 })).toThrow();
+    expect(() => createDeflectorsGame("x", { ...cfg, lenses: 0 })).toThrow();
+    expect(() => createDeflectorsGame("x", { ...cfg, recipeLenses: 4 })).toThrow();
     expect(() => createDeflectorsGame("x", { ...cfg, streakPercent: [] })).toThrow();
-    expect(() => createDeflectorsGame("x", { ...cfg, maxBeams: 4 })).toThrow();
-    expect(() => createDeflectorsGame("x", { ...cfg, beamTicks: -1 })).toThrow();
+    expect(() => createDeflectorsGame("x", { ...cfg, beams: 4 })).toThrow();
+    expect(() => createDeflectorsGame("x", { ...cfg, respawnTicks: -1 })).toThrow();
+    expect(() => createDeflectorsGame("x", { ...cfg, spend: 1 as unknown as boolean })).toThrow();
+    expect(() => createDeflectorsGame("x", { ...cfg, lenses: 0, recipeLenses: 0 })).not.toThrow();
   });
 });
 
@@ -157,8 +173,9 @@ describe("deflectors determinism (ADR 0003)", () => {
         const before = JSON.stringify(state);
         const tick = Math.min(cfg.maxTick, state.tick + 200);
         advanceDeflectors(state, tick);
-        const cell = state.mirrors.findIndex((m) => m !== DEFLECTORS_EMPTY);
+        const cell = state.mirrors.findIndex((m) => deflectorsIsMirror(m));
         reduceDeflectors(state, { type: "flip", cell, tick });
+        if (state.volley) reduceDeflectors(state, { type: "fire", volley: state.volley.id, tick });
         deflectorsOutlook(state);
         deflectorsHint(state);
         expect(JSON.stringify(state)).toBe(before);
@@ -180,14 +197,19 @@ describe("deflectors beams and mirrors", () => {
     // Port 10 is the left edge, row 1, heading right; ports 1 and 7 are the top and bottom of column 1.
     const slash = grid(["...", "./.", "..."]);
     expect(slash.config.size).toBe(3);
-    expect(deflectorsTrace(slash.config, slash.mirrors, 10)).toEqual({ out: 1, bounces: 1, turns: [4] });
+    const none = { lenses: 0, lensCells: [] };
+    expect(deflectorsTrace(slash.config, slash.mirrors, 10)).toEqual({ out: 1, bounces: 1, turns: [4], ...none });
     const back = grid(["...", ".\\.", "..."]);
-    expect(deflectorsTrace(back.config, back.mirrors, 10)).toEqual({ out: 7, bounces: 1, turns: [4] });
+    expect(deflectorsTrace(back.config, back.mirrors, 10)).toEqual({ out: 7, bounces: 1, turns: [4], ...none });
     // No mirror on the row: straight out the far side (the right edge, row 0).
-    expect(deflectorsTrace(back.config, back.mirrors, 9)).toEqual({ out: 3, bounces: 0, turns: [] });
+    expect(deflectorsTrace(back.config, back.mirrors, 9)).toEqual({ out: 3, bounces: 0, turns: [], ...none });
     // Two mirrors make a dog-leg: right, up at the first, right again at the second.
     const two = grid(["./.", "./.", "..."]);
-    expect(deflectorsTrace(two.config, two.mirrors, 10)).toEqual({ out: 3, bounces: 2, turns: [4, 1] });
+    expect(deflectorsTrace(two.config, two.mirrors, 10)).toEqual({ out: 3, bounces: 2, turns: [4, 1], ...none });
+    // A lens is passed straight through, and the beam carries its kind.
+    const lens = grid(["...", "a/c", ".b."]);
+    expect(deflectorsTrace(lens.config, lens.mirrors, 10)).toEqual({ out: 1, bounces: 1, turns: [4], lenses: 0b001, lensCells: [3] });
+    expect(deflectorsTrace(lens.config, lens.mirrors, 7)).toEqual({ out: 4, bounces: 1, turns: [4], lenses: 0b110, lensCells: [7, 5] });
   });
 
   it("a route runs the same backwards", () => {
@@ -200,16 +222,21 @@ describe("deflectors beams and mirrors", () => {
         expect(back.out).toBe(entry);
         expect(back.bounces).toBe(there.bounces);
         expect(back.turns).toEqual(there.turns.slice().reverse());
+        expect(back.lenses).toBe(there.lenses);
       }),
     );
   });
 
-  it("the search agrees with trying every setting of the mirrors, for one beam and for two together", () => {
-    const small: DeflectorsConfig = { ...cfg, size: 4, mirrors: 8 };
+  it.each([
+    ["with recipes", { size: 4, mirrors: 8, lenses: 3, recipeLenses: 2 }],
+    ["without recipes", { size: 4, mirrors: 8, lenses: 0, recipeLenses: 0 }],
+  ] as const)("the search agrees with trying every setting of the mirrors, for one beam and for two together, %s", (_, over) => {
+    const small: DeflectorsConfig = { ...cfg, ...over };
     const ports = deflectorsPortCount(small);
+    const recipes = small.recipeLenses > 0;
     for (let g = 0; g < 8; g++) {
       const s = createDeflectorsGame(`brute-${g}`, small);
-      const cells = s.mirrors.flatMap((m, c) => (m === DEFLECTORS_EMPTY ? [] : [c]));
+      const cells = s.mirrors.flatMap((m, c) => (deflectorsIsMirror(m) ? [c] : []));
       const settings: number[][] = [];
       for (let mask = 0; mask < 1 << cells.length; mask++) {
         const m = s.mirrors.slice();
@@ -222,9 +249,12 @@ describe("deflectors beams and mirrors", () => {
           const traces = entries.map((e) => deflectorsTrace(small, m, e));
           const outs = traces.map((t) => t.out);
           if (outs.some((o) => entries.includes(o)) || new Set(outs).size !== outs.length) continue;
-          const total = traces.reduce((a, t) => a + deflectorsBeamPoints(small, t.bounces), 0);
-          const seen = found.get(outs.join(","));
-          found.set(outs.join(","), { best: Math.max(seen?.best ?? total, total), least: Math.min(seen?.least ?? total, total) });
+          const masks = traces.map((t) => (recipes ? t.lenses : 0));
+          if (recipes && masks.some((m) => m === 0 || deflectorsRecipeSize(m) > small.recipeLenses)) continue;
+          const total = traces.reduce((a, t, i) => a + deflectorsBeamPoints(small, t.bounces, masks[i]), 0);
+          const key = `${outs.join(",")}~${masks.join(",")}`;
+          const seen = found.get(key);
+          found.set(key, { best: Math.max(seen?.best ?? total, total), least: Math.min(seen?.least ?? total, total) });
         }
         return found;
       };
@@ -232,13 +262,13 @@ describe("deflectors beams and mirrors", () => {
         const want = brute(entries);
         const got = deflectorsVolleyOptions(small, s.mirrors, entries);
         expect(got.length).toBe(want.size);
-        for (const o of got) expect({ best: o.best, least: o.least }, `${entries.join()} to ${o.exits.join()}`).toEqual(want.get(o.exits.join(",")));
-        // In a fixed order: by the first beam's exit, then the next.
-        const keys = got.map((o) => o.exits.reduce((a, e) => a * ports + e, 0));
+        for (const o of got) expect({ best: o.best, least: o.least }, `${entries.join()} to ${o.exits.join()}`).toEqual(want.get(`${o.exits.join(",")}~${o.recipes.join(",")}`));
+        // In a fixed order: by the first beam's exit and recipe, then the next.
+        const keys = got.map((o) => o.exits.reduce((a, e, i) => (a * ports + e) * 8 + o.recipes[i]!, 0));
         expect(keys).toEqual(keys.slice().sort((a, b) => a - b));
-        // And the best a pair of exits is worth is what the route to it comes to.
+        // And the best a set of exits and recipes is worth is what the route to it comes to.
         for (const o of got) {
-          const beams: DeflectorsBeam[] = entries.map((entry, sign) => ({ sign, entry, exit: o.exits[sign]! }));
+          const beams: DeflectorsBeam[] = entries.map((entry, sign) => ({ sign, entry, exit: o.exits[sign]!, recipe: o.recipes[sign]! }));
           expect(deflectorsVolleyBest(small, s.mirrors, beams)).toBe(o.best);
         }
       };
@@ -247,13 +277,16 @@ describe("deflectors beams and mirrors", () => {
     }
   });
 
-  it("no setting reaches an exit the search does not list", () => {
+  it("no setting reaches an exit and recipe the search does not list", () => {
     const s = createDeflectorsGame("none");
-    const reachable = new Set(deflectorsVolleyOptions(cfg, s.mirrors, [0]).map((o) => o.exits[0]));
+    const reachable = new Set(deflectorsVolleyOptions(cfg, s.mirrors, [0]).map((o) => `${o.exits[0]}~${o.recipes[0]}`));
     for (let exit = 1; exit < deflectorsPortCount(cfg); exit++) {
-      const route = deflectorsVolleyRoute(cfg, s.mirrors, [{ sign: 0, entry: 0, exit }]);
-      expect(route === null).toBe(!reachable.has(exit));
-      expect(deflectorsVolleyBest(cfg, s.mirrors, [{ sign: 0, entry: 0, exit }]) === -1).toBe(!reachable.has(exit));
+      for (let recipe = 1; recipe < 8; recipe++) {
+        const beam = { sign: 0, entry: 0, exit, recipe };
+        const listed = reachable.has(`${exit}~${recipe}`) || (deflectorsRecipeSize(recipe) > cfg.recipeLenses && deflectorsVolleyRoute(cfg, s.mirrors, [beam]) !== null);
+        expect(deflectorsVolleyRoute(cfg, s.mirrors, [beam]) === null).toBe(!listed);
+        expect(deflectorsVolleyBest(cfg, s.mirrors, [beam]) === -1).toBe(!listed);
+      }
     }
   });
 
@@ -263,18 +296,19 @@ describe("deflectors beams and mirrors", () => {
         const s = createDeflectorsGame(seed);
         const entries = [a, (a + 1 + step) % 24];
         for (const o of deflectorsVolleyOptions(cfg, s.mirrors, entries).slice(0, 12)) {
-          const beams: DeflectorsBeam[] = entries.map((entry, sign) => ({ sign, entry, exit: o.exits[sign]! }));
+          const beams: DeflectorsBeam[] = entries.map((entry, sign) => ({ sign, entry, exit: o.exits[sign]!, recipe: o.recipes[sign]! }));
           const route = deflectorsVolleyRoute(cfg, s.mirrors, beams)!;
           expect(route.base).toBe(o.best);
           const m = s.mirrors.slice();
           for (const cell of route.flips) {
-            expect(m[cell]).not.toBe(DEFLECTORS_EMPTY);
+            expect(deflectorsIsMirror(m[cell]!)).toBe(true);
             m[cell] = m[cell] === DEFLECTORS_SLASH ? DEFLECTORS_BACKSLASH : DEFLECTORS_SLASH;
           }
           expect(new Set(route.flips).size).toBe(route.flips.length);
           const traces = beams.map((b) => deflectorsTrace(cfg, m, b.entry));
           expect(traces.map((t) => t.out)).toEqual(o.exits);
-          expect(traces.reduce((sum, t) => sum + deflectorsBeamPoints(cfg, t.bounces), 0)).toBe(o.best);
+          expect(traces.map((t) => t.lenses)).toEqual(o.recipes);
+          expect(traces.reduce((sum, t, i) => sum + deflectorsBeamPoints(cfg, t.bounces, o.recipes[i]), 0)).toBe(o.best);
         }
       }),
       { numRuns: 30 },
@@ -294,11 +328,13 @@ describe("deflectors beams and mirrors", () => {
   it("refuses moves that are not legal", () => {
     const s = advanceDeflectors(createDeflectorsGame("illegal"), 50);
     const empty = s.mirrors.findIndex((m) => m === DEFLECTORS_EMPTY);
-    const mirror = s.mirrors.findIndex((m) => m !== DEFLECTORS_EMPTY);
+    const lens = s.mirrors.findIndex((m) => m >= DEFLECTORS_LENS);
+    const mirror = s.mirrors.findIndex((m) => deflectorsIsMirror(m));
     const bad = (move: DeflectorsMove): void => {
       expect(() => reduceDeflectors(s, move)).toThrow(InvalidMoveError);
     };
     bad({ type: "flip", cell: empty, tick: 50 });
+    bad({ type: "flip", cell: lens, tick: 50 });
     bad({ type: "flip", cell: -1, tick: 50 });
     bad({ type: "flip", cell: 36, tick: 50 });
     bad({ type: "flip", cell: mirror, tick: 49 });
@@ -312,9 +348,9 @@ describe("deflectors beams and mirrors", () => {
 });
 
 describe("deflectors rounds", () => {
-  it("every volley is dealt ports of its own, exits one setting reaches together, and the most they are worth", () => {
+  it("every volley is dealt ports of its own, exits and recipes one setting reaches together, and the most they are worth", () => {
     fc.assert(
-      fc.property(fc.string(), picksArb, fc.constantFrom<Partial<DeflectorsConfig>>({}, { maxBeams: 3, rampTicks: 100 }), (seed, picks, over) => {
+      fc.property(fc.string(), picksArb, fc.constantFrom<Partial<DeflectorsConfig>>({}, { beams: 3 }, { recipeLenses: 1 }, { recipeLenses: 0, lenses: 0, spend: false }), (seed, picks, over) => {
         const config = { ...cfg, ...over };
         let state = createDeflectorsGame(seed, config);
         let seq = 0;
@@ -330,17 +366,25 @@ describe("deflectors rounds", () => {
             if (e.type !== "deal") continue;
             const v = e.volley;
             expect(v.beams.length).toBeGreaterThanOrEqual(1);
-            expect(v.beams.length).toBeLessThanOrEqual(deflectorsBeamsAt(config, e.tick));
+            expect(v.beams.length).toBeLessThanOrEqual(config.beams);
+            for (const b of v.beams) {
+              if (config.recipeLenses === 0) expect(b.recipe).toBe(0);
+              else expect(deflectorsRecipeSize(b.recipe)).toBeGreaterThanOrEqual(1);
+              expect(deflectorsRecipeSize(b.recipe)).toBeLessThanOrEqual(config.recipeLenses);
+            }
             expect(v.beams.map((b) => b.sign)).toEqual(v.beams.map((_, n) => n));
             // No port is used twice: every entry and every exit is its own.
             const ports = v.beams.flatMap((b) => [b.entry, b.exit]);
             expect(new Set(ports).size).toBe(ports.length);
             expect(v.best).toBeGreaterThan(0);
-            expect(deflectorsVolleyBest(config, state.mirrors, v.beams)).toBe(v.best);
+            // Checked on the grid it was dealt on: the volley still waits, or the move fired it and spent the grid.
+            if (state.volley?.id === v.id) expect(deflectorsVolleyBest(config, state.mirrors, v.beams)).toBe(v.best);
+            else expect(deflectorsVolleyBest(config, at.mirrors, v.beams)).toBe(v.best);
             expect(v.dealTick).toBe(e.tick);
-            expect(v.fireTick).toBe(v.dealTick + deflectorsChargeTicksAt(config, v.dealTick, v.beams.length));
           }
-          if (state.volley) expect(state.volley.fireTick).toBeGreaterThan(state.tick);
+          // The grid keeps its mirrors and lenses, however many were spent.
+          expect(state.mirrors.filter((m) => deflectorsIsMirror(m)).length).toBe(config.mirrors);
+          expect(state.mirrors.filter((m) => m >= DEFLECTORS_LENS).length).toBe(config.lenses);
           // The tallies agree with each other and with the report.
           expect(state.score).toBe(before.score + state.lastMove!.points);
           expect(state.score).toBeGreaterThanOrEqual(0);
@@ -364,13 +408,13 @@ describe("deflectors rounds", () => {
         const fired = reduceDeflectors(state, { type: "fire", volley: at.volley.id, tick: at.tick });
         const e = fires(fired).at(-1)!;
         expect(e.outcome).toEqual(told);
-        expect(e.early).toBe(true);
         expect(fired.score).toBe(at.score + told.points);
         expect(fired.combo).toBe(told.streak);
         // The shots are the beams as the mirrors send them.
         for (const shot of told.shots) {
-          expect(deflectorsTrace(cfg, at.mirrors, shot.entry)).toEqual({ out: shot.out, bounces: shot.bounces, turns: shot.turns });
-          expect(shot.hit).toBe(shot.out === shot.exit);
+          expect(deflectorsTrace(cfg, at.mirrors, shot.entry)).toEqual({ out: shot.out, bounces: shot.bounces, turns: shot.turns, lenses: shot.lenses, lensCells: shot.lensCells });
+          expect(shot.atExit).toBe(shot.out === shot.exit);
+          expect(shot.hit).toBe(shot.atExit && shot.lenses === shot.recipe);
         }
         expect(told.points).toBe(told.gained - told.lost);
         expect(told.clean).toBe(told.hits === told.shots.length);
@@ -379,21 +423,25 @@ describe("deflectors rounds", () => {
     );
   });
 
-  it("deals the first volley at the opening and fires it when its count ends", () => {
+  it("deals the first volley at the opening, and it waits until it is fired", () => {
     const s = createDeflectorsGame("count");
     expect(advanceDeflectors(s, cfg.openingTicks - 1).volley).toBeNull();
     const dealt = advanceDeflectors(s, cfg.openingTicks);
     const volley = dealt.volley!;
-    expect(volley).toMatchObject({ id: 1, dealTick: cfg.openingTicks, fireTick: cfg.openingTicks + deflectorsChargeTicksAt(cfg, cfg.openingTicks, 1) });
-    expect(volley.beams.length).toBe(1);
-    expect(advanceDeflectors(s, volley.fireTick - 1).volleys).toBe(0);
-    const fired = reduceDeflectors(s, { type: "wait", tick: volley.fireTick });
+    expect(volley).toMatchObject({ id: 1, dealTick: cfg.openingTicks });
+    // Every volley holds every beam, from the first second.
+    expect(volley.beams.length).toBe(cfg.beams);
+    // Left alone to the end of the round, nothing fires.
+    const late = reduceDeflectors(s, { type: "wait", tick: cfg.maxTick - 1 });
+    expect(late.volleys).toBe(0);
+    expect(late.volley).toEqual(volley);
+    const fired = reduceDeflectors(s, { type: "fire", volley: 1, tick: 100 });
     expect(fired.volleys).toBe(1);
-    expect(fires(fired)[0]).toMatchObject({ early: false, tick: volley.fireTick });
-    // The next volley is dealt after the short pause.
+    expect(fires(fired)[0]).toMatchObject({ tick: 100 });
+    // The next volley is dealt once the grid has settled.
     expect(fired.volley).toBeNull();
-    expect(advanceDeflectors(fired, volley.fireTick + cfg.respawnTicks - 1).volley).toBeNull();
-    expect(advanceDeflectors(fired, volley.fireTick + cfg.respawnTicks).volley?.id).toBe(2);
+    expect(advanceDeflectors(fired, 100 + cfg.respawnTicks - 1).volley).toBeNull();
+    expect(advanceDeflectors(fired, 100 + cfg.respawnTicks).volley?.id).toBe(2);
   });
 
   it("a volley left alone goes into the hull: no beam is dealt the exit it runs to already", () => {
@@ -414,12 +462,12 @@ describe("deflectors rounds", () => {
     expect(deflectorsOutlook(s)).toMatchObject({ hits: 1, clean: true, perfect: true, base: 4, streak: 1, streakPercent: cfg.streakPercent[0], gained: 6, lost: 0, points: 6 });
     const hit = reduceDeflectors(s, { type: "fire", volley: 1, tick: 5 });
     const e = fires(hit)[0]!;
-    expect(e).toMatchObject({ early: true, tick: 5 });
-    expect(e.outcome.shots).toEqual([{ sign: 0, entry: 10, exit: 1, out: 1, bounces: 1, turns: [4], hit: true, points: 4 }]);
+    expect(e).toMatchObject({ tick: 5, spent: [] });
+    expect(e.outcome.shots).toEqual([{ sign: 0, entry: 10, exit: 1, recipe: 0, out: 1, bounces: 1, turns: [4], lenses: 0, lensCells: [], atExit: true, hit: true, points: 4 }]);
     expect(e.outcome.gained).toBe(Math.floor((deflectorsBeamPoints(s.config, 1) * cfg.perfectPercent) / 100));
     expect(hit).toMatchObject({ score: 6, volleys: 1, hits: 1, misses: 0, perfects: 1, combo: 1, bestCombo: 1, longest: 1, volley: null });
     expect(summarizeDeflectors(hit)).toEqual({ score: 6, moves: 1, bestCombo: 1 });
-    // Firing early brought the next volley after the short pause.
+    // Firing brings the next volley after the short pause.
     expect(hit.nextDealTick).toBe(5 + cfg.respawnTicks);
     // The same route with a longer one left unfound is clean and not perfect.
     const short = reduceDeflectors({ ...s, volley: { ...s.volley!, best: 9 } }, { type: "fire", volley: 1, tick: 5 });
@@ -446,10 +494,71 @@ describe("deflectors rounds", () => {
     expect(fires(zero)[0]!.outcome).toMatchObject({ lost: 0, points: 0 });
     expect(Object.is(fires(zero)[0]!.outcome.shots[0]!.points, 0)).toBe(true);
     expect(zero.score).toBe(0);
-    // A count that runs out is no kinder.
-    const late = reduceDeflectors({ ...base, score: 100 }, { type: "wait", tick: 100 });
-    expect(fires(late)[0]).toMatchObject({ early: false, tick: 100 });
-    expect(late.score).toBe(100 - cfg.hullPenalty);
+  });
+
+  it("a beam is home only through exactly its recipe: a lens short or a lens too many is the hull", () => {
+    // From the left edge, row 1: through the a lens, up at the mirror, out the top of column 1.
+    // From the bottom of column 1: through the b lens, right at the mirror, through the c lens, out the right edge, row 1 (port 4).
+    const g = grid(["...", "a/c", ".b."]);
+    const one = waiting(g, [[10, 1, 0b001]], 6);
+    expect(deflectorsOutlook(one)).toMatchObject({ hits: 1, clean: true, base: 6 });
+    // One lens in the recipe: (1 + 1) squared, and half as much again.
+    expect(deflectorsBeamPoints(g.config, 1, 0b001)).toBe(6);
+    expect(deflectorsBeamPoints(g.config, 1, 0b011)).toBe(8);
+    // Two lenses, and the beam passes both.
+    const two = waiting(g, [[7, 4, 0b110]], 8);
+    expect(deflectorsOutlook(two)).toMatchObject({ hits: 1, base: 8 });
+    // The right exit, a lens short: not home.
+    const short = waiting(g, [[7, 4, 0b100]], 6);
+    expect(deflectorsOutlook(short)!.shots[0]).toMatchObject({ atExit: true, hit: false });
+    expect(deflectorsOutlook({ ...short, score: 100 })).toMatchObject({ hits: 0, clean: false, lost: cfg.hullPenalty });
+    // The right exit, a lens too many.
+    const extra = waiting(g, [[10, 1, 0b010]], 6);
+    expect(deflectorsOutlook(extra)!.shots[0]).toMatchObject({ atExit: true, hit: false, lenses: 0b001 });
+    expect(deflectorsIsHome(g.config, { exit: 1, recipe: 0b001 }, 1, 0b001)).toBe(true);
+    expect(deflectorsIsHome(g.config, { exit: 1, recipe: 0b001 }, 1, 0b011)).toBe(false);
+    // With recipes off, a lens is only glass.
+    const off = { ...g.config, recipeLenses: 0 };
+    expect(deflectorsIsHome(off, { exit: 1, recipe: 0 }, 1, 0b011)).toBe(true);
+    expect(deflectorsBeamPoints(off, 1, 0b011)).toBe(4);
+  });
+
+  it("the grid settles: spent mirrors go, what stood above drops, and fresh mirrors come in at the top", () => {
+    const g = grid(["/a.", "\\..", "/.\\"]);
+    const n = 3;
+    // Spend the mirror in the middle of column 0 and the one at the bottom of column 2.
+    const { cells, fell } = deflectorsSettle(g.config, g.mirrors, [3, 8], g.rng);
+    // Column 0: a fresh mirror on top, the top one dropped one, the bottom one stayed.
+    expect(deflectorsIsMirror(cells[0]!)).toBe(true);
+    expect(cells[3]).toBe(DEFLECTORS_SLASH);
+    expect(cells[6]).toBe(DEFLECTORS_SLASH);
+    expect([fell[0], fell[3], fell[6]]).toEqual([1, 1, 0]);
+    // Column 1 is untouched, lens and all.
+    expect([cells[1], cells[4], cells[7]]).toEqual([g.mirrors[1], g.mirrors[4], g.mirrors[7]]);
+    // Column 2: a fresh mirror on top, the empty cells below it.
+    expect(deflectorsIsMirror(cells[2]!)).toBe(true);
+    expect([cells[5], cells[8]]).toEqual([DEFLECTORS_EMPTY, DEFLECTORS_EMPTY]);
+    expect([fell[2], fell[5], fell[8]]).toEqual([1, 0, 0]);
+    expect(cells.length).toBe(n * n);
+    // A lens drops like anything else.
+    const lens = deflectorsSettle(g.config, g.mirrors.map((m, c) => (c === 4 ? DEFLECTORS_SLASH : m)), [4], g.rng);
+    expect(lens.cells[4]).toBe(DEFLECTORS_LENS);
+    expect(lens.fell[4]).toBe(1);
+  });
+
+  it("a fired volley spends every mirror its beams turned at, home or not; spending off, the grid stays", () => {
+    // The first beam turns at the top left; the second at the bottom right and goes astray.
+    const half = waiting(grid(["/..", "...", "..\\"], { spend: true }), [[9, 0], [5, 8]], 8);
+    const fired = reduceDeflectors(half, { type: "fire", volley: 1, tick: 0 });
+    const e = fires(fired)[0]!;
+    expect(e.spent).toEqual([0, 8]);
+    expect(fired.spent).toBe(2);
+    expect(fired.mirrors.filter((m) => deflectorsIsMirror(m)).length).toBe(2);
+    expect(deflectorsIsMirror(fired.mirrors[0]!) && deflectorsIsMirror(fired.mirrors[2]!)).toBe(true);
+    expect(e.fell[0]).toBe(1);
+    const kept = reduceDeflectors({ ...half, config: { ...half.config, spend: false } }, { type: "fire", volley: 1, tick: 0 });
+    expect(fires(kept)[0]!.spent).toEqual([]);
+    expect(kept.mirrors).toEqual(half.mirrors);
   });
 
   it("two beams fire together: the hits are banked, the hull takes its due, and only a clean volley builds the streak", () => {
@@ -495,44 +604,16 @@ describe("deflectors rounds", () => {
     expect(s.longest).toBeGreaterThan(0);
   });
 
-  it("a volley holds one beam at first and one more after the ramp, with longer to wait", () => {
-    expect(deflectorsBeamsAt(cfg, 0)).toBe(1);
-    expect(deflectorsBeamsAt(cfg, cfg.rampTicks - 1)).toBe(1);
-    expect(deflectorsBeamsAt(cfg, cfg.rampTicks)).toBe(Math.min(2, cfg.maxBeams));
-    expect(deflectorsBeamsAt(cfg, cfg.maxTick * 10)).toBe(cfg.maxBeams);
-    expect(deflectorsChargeTicksAt(cfg, 0, 2)).toBe(deflectorsChargeTicksAt(cfg, 0, 1) + cfg.beamTicks);
-    let s = createDeflectorsGame("ramp");
-    s = reduceDeflectors(s, { type: "wait", tick: cfg.openingTicks });
-    expect(s.volley!.beams.length).toBe(1);
-    // Fire every volley as it comes until one is dealt after the ramp.
-    while (s.volley === null || s.volley.dealTick < cfg.rampTicks) {
-      const tick = s.volley ? s.tick : s.nextDealTick;
-      s = reduceDeflectors(s, s.volley ? { type: "fire", volley: s.volley.id, tick } : { type: "wait", tick });
-    }
-    expect(s.volley.beams.length).toBe(2);
-    expect(s.volley.fireTick - s.volley.dealTick).toBe(deflectorsChargeTicksAt(cfg, s.volley.dealTick, 2));
-  });
-
-  it("the count a volley is given shortens across the round", () => {
-    expect(deflectorsChargeTicksAt(cfg, 0)).toBe(cfg.chargeTicks);
-    expect(deflectorsChargeTicksAt(cfg, cfg.maxTick)).toBe(cfg.chargeTicksMin);
-    let last = cfg.chargeTicks;
-    for (let t = 0; t <= cfg.maxTick; t += 25) {
-      const now = deflectorsChargeTicksAt(cfg, t);
-      expect(now).toBeLessThanOrEqual(last);
-      last = now;
-    }
-  });
-
-  it("a fire asked for on the tick the count ends, or for a volley gone by, finds nothing to fire", () => {
+  it("a fire for a volley gone by finds nothing to fire", () => {
     const s = createDeflectorsGame("late");
     const volley = advanceDeflectors(s, cfg.openingTicks).volley!;
-    expect(() => reduceDeflectors(s, { type: "fire", volley: volley.id, tick: volley.fireTick })).toThrow(InvalidMoveError);
-    expect(reduceDeflectors(s, { type: "fire", volley: volley.id, tick: volley.fireTick - 1 }).volleys).toBe(1);
+    const fired = reduceDeflectors(s, { type: "fire", volley: volley.id, tick: 20 });
+    expect(fired.volleys).toBe(1);
+    expect(() => reduceDeflectors(fired, { type: "fire", volley: volley.id, tick: 21 })).toThrow(InvalidMoveError);
     // A tap meant for the first volley that lands once the second is waiting fires neither.
-    const next = volley.fireTick + cfg.respawnTicks + 2;
-    expect(advanceDeflectors(s, next).volley?.id).toBe(2);
-    expect(() => reduceDeflectors(s, { type: "fire", volley: volley.id, tick: next })).toThrow(InvalidMoveError);
+    const next = 20 + cfg.respawnTicks + 2;
+    expect(advanceDeflectors(fired, next).volley?.id).toBe(2);
+    expect(() => reduceDeflectors(fired, { type: "fire", volley: volley.id, tick: next })).toThrow(InvalidMoveError);
   });
 
   it("the round is over at its last tick, and at the move cap", () => {
@@ -551,7 +632,7 @@ describe("deflectors rounds", () => {
   it("the hint is a flip towards the best the volley can be, and following it arrives", () => {
     fc.assert(
       fc.property(fc.string(), fc.boolean(), (seed, two) => {
-        const config: DeflectorsConfig = two ? { ...cfg, rampTicks: 1 } : cfg;
+        const config: DeflectorsConfig = two ? cfg : { ...cfg, beams: 1 };
         let s = advanceDeflectors(createDeflectorsGame(seed, config), config.openingTicks);
         const volley = s.volley!;
         const far = deflectorsVolleyRoute(config, s.mirrors, volley.beams)!.flips.length;
@@ -559,7 +640,7 @@ describe("deflectors rounds", () => {
         for (; followed < 40; followed++) {
           const h = deflectorsHint(s);
           if (!h) break;
-          expect(s.mirrors[h.cell]).not.toBe(DEFLECTORS_EMPTY);
+          expect(deflectorsIsMirror(s.mirrors[h.cell]!)).toBe(true);
           s = reduceDeflectors(s, { type: "flip", cell: h.cell, tick: s.tick });
         }
         // Each flip is one fewer to go, so it takes no more than the route was long.
@@ -573,18 +654,25 @@ describe("deflectors rounds", () => {
   });
 
   it("a small or bare grid still deals volleys", () => {
-    const bare: DeflectorsConfig = { ...cfg, size: 3, mirrors: 1, maxBeams: 3, rampTicks: 1 };
-    const s = reduceDeflectors(createDeflectorsGame("bare", bare), { type: "wait", tick: 600 });
-    expect(s.volleys).toBeGreaterThan(0);
-    expect(s.hits + s.misses).toBeGreaterThanOrEqual(s.volleys);
-    const full: DeflectorsConfig = { ...cfg, size: 10, mirrors: 100, maxBeams: 3, rampTicks: 1 };
-    const big = reduceDeflectors(createDeflectorsGame("full", full), { type: "wait", tick: 600 });
-    expect(big.volleys).toBeGreaterThan(0);
+    // Fire every volley as it comes, for a while.
+    const run = (config: DeflectorsConfig, seed: string): DeflectorsState => {
+      let s = createDeflectorsGame(seed, config);
+      for (let i = 0; i < 40 && s.tick < 600; i++) {
+        const tick = s.volley ? s.tick + 1 : Math.max(s.tick, s.nextDealTick);
+        s = reduceDeflectors(s, s.volley ? { type: "fire", volley: s.volley.id, tick } : { type: "wait", tick });
+      }
+      return s;
+    };
+    const bare = run({ ...cfg, size: 3, mirrors: 1, lenses: 0, recipeLenses: 0, beams: 3 }, "bare");
+    expect(bare.volleys).toBeGreaterThan(0);
+    expect(bare.hits + bare.misses).toBeGreaterThanOrEqual(bare.volleys);
+    expect(run({ ...cfg, size: 3, mirrors: 1, beams: 3 }, "bare lenses").volleys).toBeGreaterThan(0);
+    expect(run({ ...cfg, size: 10, mirrors: 97, beams: 3 }, "full").volleys).toBeGreaterThan(0);
   });
 
   it("the view string names every cell and every waiting beam", () => {
-    const s = grid(["/..", ".\\.", "..."]);
-    expect(deflectorsViewString(s.mirrors, [])).toBe("/...\\....|");
-    expect(deflectorsViewString(s.mirrors, [{ sign: 1, entry: 3, exit: 7 }, { sign: 0, entry: 10, exit: 1 }])).toBe("/...\\....|0:10>1,1:3>7");
+    const s = grid(["/..", ".\\b", "..."]);
+    expect(deflectorsViewString(s.mirrors, [])).toBe("/...\\b...|");
+    expect(deflectorsViewString(s.mirrors, [{ sign: 1, entry: 3, exit: 7, recipe: 2 }, { sign: 0, entry: 10, exit: 1, recipe: 0 }])).toBe("/...\\b...|0:10>1~0,1:3>7~2");
   });
 });
