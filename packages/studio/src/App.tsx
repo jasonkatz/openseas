@@ -86,7 +86,7 @@ function Lanes() {
   const desktop = useMediaQuery("(min-width: 900px)");
   if (path.startsWith(PLAY)) {
     const id = path.slice(PLAY.length).replace(/\/$/, "");
-    // A puzzle of the domain engine has one page, the puzzle alone (ADR 0088).
+    // A puzzle of the domain engine has one page, the puzzle alone (ADR 0089).
     if (isDomainPuzzle(id)) return <DomainPlay key={id} id={id} />;
     if (isPuzzle(id)) return <Puzzle id={id} mode={new URLSearchParams(window.location.search).has(THUMB_PARAM) ? "thumb" : "play"} />;
     if (looksLikeLinkId(id)) return <LinkPlay key={id} id={id} />;

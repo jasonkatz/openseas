@@ -348,7 +348,7 @@ export function checkRules(doc: PuzzleDoc, rules: { readonly id: string; readonl
 }
 
 /**
- * The parts of the guide this engine does not run yet (ADR 0088). A puzzle that declares one is
+ * The parts of the guide this engine does not run yet (ADR 0089). A puzzle that declares one is
  * refused rather than run wrongly.
  */
 export function unsupported(doc: PuzzleDoc): string[] {

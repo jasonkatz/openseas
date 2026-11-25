@@ -1,5 +1,5 @@
 /**
- * The puzzle domain engine (ADR 0088, docs/puzzles/DOMAIN.md). A puzzle is a document and its
+ * The puzzle domain engine (ADR 0089, docs/puzzles/DOMAIN.md). A puzzle is a document and its
  * rules; this package runs any such puzzle, and holds none of the game's world.
  */
 export * from "./document.js";

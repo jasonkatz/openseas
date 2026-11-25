@@ -1,4 +1,4 @@
-# 0088. The domain engine runs a puzzle from its document and its rules, and Swap is its first
+# 0089. The domain engine runs a puzzle from its document and its rules, and Swap is its first
 
 Status: Accepted. Builds on [0003](./0003-pure-engine-replay-verification.md), whose purity and replay it
 keeps, [0072](./0072-a-round-keeps-one-difficulty-and-the-stage-sets-it.md) to
@@ -92,6 +92,9 @@ Writing Swap from the guide alone found these. None is settled here; each needs 
 - There are two ways to write a puzzle for now. Whether the old engines move onto this one, in what
   order, and what the rules share between puzzles are being settled as the engine's vision and are
   recorded in ADRs of their own. This one moves nothing and stands in the way of none of it.
+- The rules here are the first shape ADR 0088 speaks of: a handful of functions, with one, `play`,
+  holding everything a move sets off. ADR 0088 replaces that shape with hooks on one round loop.
+  Until the engine and Swap are moved onto it, the code differs from the guide's section The rules.
 - Not yet as that vision has them: the rules' types are written by hand, not generated from the
   document; the theme is built in code in `boards`, not a document in a folder with its skins; and
   the host's functions take no storage or clock, because nothing here stores a round.

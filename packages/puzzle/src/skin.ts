@@ -51,7 +51,7 @@ export interface Skin {
   readonly texts: Readonly<Record<string, string>>;
   /**
    * What the board itself shows of a gauge: rows counted from the bottom or the top, washed in one
-   * of the theme's colours. The guide does not yet say how a gauge is drawn on a board (ADR 0088).
+   * of the theme's colours. The guide does not yet say how a gauge is drawn on a board (ADR 0089).
    */
   readonly board?: { readonly gauges?: Readonly<Record<string, { readonly rows: "bottom" | "top"; readonly color: string }>> };
 }

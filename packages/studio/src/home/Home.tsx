@@ -309,7 +309,7 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
 };
 
 
-/** The puzzles of the domain engine (ADR 0088), shown in the grid beside the others for now. */
+/** The puzzles of the domain engine (ADR 0089), shown in the grid beside the others for now. */
 const DOMAIN: readonly PuzzleDoc[] = [SWAP];
 
 /** A domain puzzle's row: a few of its pieces as its skin draws them, and one link, to the puzzle alone. */

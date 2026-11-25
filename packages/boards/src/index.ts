@@ -90,7 +90,7 @@ export { PactIcon, type PactIconPiece } from "./pact/PactIcon.jsx";
 export { PouringBoard, type PouringBoardProps } from "./pouring/PouringBoard.jsx";
 export { PouringGlassIcon, PouringPieceIcon, PouringRingIcon } from "./pouring/PouringIcon.jsx";
 export { POURING_BREWS, POURING_GLASSES, pouringSeatRing } from "./pouring/pieces.js";
-// The domain board (ADR 0088): one board for any puzzle of the domain engine, dressed by a skin and the game's theme.
+// The domain board (ADR 0089): one board for any puzzle of the domain engine, dressed by a skin and the game's theme.
 export { PlayBoard, PlayPieceIcon, type PlayBoardProps } from "./play/PlayBoard.jsx";
 export { type PlayFrame } from "./play/renderer.js";
 export { fill, skinOf, spaceTheme } from "./play/theme.js";

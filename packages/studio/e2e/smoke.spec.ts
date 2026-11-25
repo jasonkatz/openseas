@@ -37,7 +37,7 @@ test("the home list shows every puzzle alike and pictures each board from this b
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   const tiles = page.getByTestId("puzzle-list").locator("li");
-  // Every puzzle with an engine of its own, and the domain engine's one (ADR 0088), which shows its pieces, not a picture of its board.
+  // Every puzzle with an engine of its own, and the domain engine's one (ADR 0089), which shows its pieces, not a picture of its board.
   await expect(tiles).toHaveCount(24);
   // A row stands on its glyph until its picture is taken, then shows the board itself.
   await expect(page.getByTestId("puzzle-list").locator('img[data-testid^="thumb-"]')).toHaveCount(23, { timeout: 60_000 });

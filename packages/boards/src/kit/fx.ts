@@ -139,7 +139,7 @@ export class Fx {
   }
 
   /**
-   * The beat of a board dressed by a skin (ADR 0088): the same one pulse, with the length, the
+   * The beat of a board dressed by a skin (ADR 0089): the same one pulse, with the length, the
    * colour, the strength and the cue the skin gives it. `sound` plays the skin's beat cue, with the pulse.
    */
   beatAs(strength: number, own: { readonly ms: number; readonly color: number; readonly from: number; readonly to: number; readonly sound: (strength: number) => void }): void {

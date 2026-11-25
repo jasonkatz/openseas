@@ -49,7 +49,7 @@ written in.
 
 ## Stack
 
-TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `puzzle` (the domain engine, ADR 0088: pure like `engine`, it runs any puzzle written as a puzzle document and its rules by `docs/puzzles/DOMAIN.md`; Swap, Cooling written again, is its first, drawn by the one board in `boards/src/play` from its skin in `boards/data/skins` and shown in the studio at `/play/swap`), `protocol` (Zod schemas), `content`,
+TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `puzzle` (the domain engine, ADR 0089: pure like `engine`, it runs any puzzle written as a puzzle document and its rules by `docs/puzzles/DOMAIN.md`; Swap, Cooling written again, is its first, drawn by the one board in `boards/src/play` from its skin in `boards/data/skins` and shown in the studio at `/play/swap`), `protocol` (Zod schemas), `content`,
 `boards` (the PixiJS boards, each painting its pieces in code from drawings in `boards/data/pieces`, each puzzle's own cues in `boards/data/cues/<puzzle>.json` and the game's in `boards/data/cues.json`, the round runner and server connection both front ends share, ADR 0019, ADR 0062, ADR 0065),
 `server` (ws, Drizzle, Better Auth), `client` (the game: Vite, React, the three.js world, ADR 0020), `studio` (the puzzle studio at studio.openseas.online, once the harness, built step by step, ADR 0042: a page a puzzle with its board and a tuning panel built from
 `content` and the wire schema, each puzzle alone at `/play/<id>`, every round local, and the voyage bench for ships and crews, ADR 0027), `studio-server` (the studio's own small service: tester links by id,
