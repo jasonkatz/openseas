@@ -101,10 +101,10 @@ before it was written down, and all eight fit.
 ## Consequences
 
 - The guide gains a section, The rules, with the loop and the hooks. Its lines on points and the
-  score, between sides, tiers, Versus, secrets, tasks, sides and stand-ins say what is decided here,
-  and the puzzle document gains `evaluation.by` for a puzzle between sides, a secret's `seenBy` and a
-  task's `next`. A puzzle between sides is ready when it takes the four stand-in types or brings one
-  of its own. The glossary gains loop, hook and question.
+  score, between sides, tiers, Versus, secrets, tasks, sides and stand-ins say what is decided here.
+  In the puzzle document `evaluation.by` may say `score` as well as `outcome`, a secret gains
+  `seenBy` and a task gains `next`. A puzzle between sides is ready when it takes the four stand-in
+  types or brings one of its own. The glossary gains loop, hook and question.
 - This moves no puzzle and adds no code. Every engine in `engine` keeps its reducer until it is moved
   by a change of its own, held to the bar in decision 12.
 - The six puzzles between sides that exist, Space Battle, Swordfighting, Freefall, Showdown, Pact and
