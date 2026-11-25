@@ -41,7 +41,7 @@ test.describe("drafts in the service", () => {
     await expect(page.getByTestId("cooling-canvas")).toBeVisible();
   });
 
-  test("the first change opens a draft, the home grid marks it, and it is discarded only after a confirmation", async ({ page }) => {
+  test("the first change opens a draft, the home list marks it, and it is discarded only after a confirmation", async ({ page }) => {
     const s = await service(page, { login: "octo" });
     await page.goto("/cooling");
     await expect(store(page)).toHaveAttribute("data-draft", "");
@@ -72,7 +72,7 @@ test.describe("drafts in the service", () => {
     await expect(page.getByTestId("changed-count")).not.toContainText("1");
     expect(s.drafts).toEqual([]);
     await page.goto("/");
-    await expect(page.getByTestId("puzzle-grid")).toBeVisible();
+    await expect(page.getByTestId("puzzle-list")).toBeVisible();
     await expect(page.getByTestId("draft-mark-cooling")).toHaveCount(0);
   });
 

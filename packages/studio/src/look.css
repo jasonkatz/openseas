@@ -1,5 +1,5 @@
 /* The studio's look (ADR 0058): its palette, type and shape as `--st-*` variables, and
-   that look laid over the pages drawn with the shared board styles: the home grid, the voyage
+   that look laid over the pages drawn with the shared board styles: the home list, the voyage
    bench and the ground under `/play`. Imported last. A board, its HUD and its cards are never
    restyled here: they are the game's. */
 :root {
@@ -80,7 +80,7 @@ body:has(.puzzle.play) {
   letter-spacing: 0.09em;
 }
 
-/* ---- the home grid */
+/* ---- the home list */
 .studio-home .masthead {
   padding-top: 20px;
 }
@@ -106,14 +106,19 @@ body:has(.puzzle.play) {
   font-weight: 600;
   color: var(--st-fg);
 }
-.studio-home .studio-tile,
+.studio-home .studio-list,
 .studio-home .practice-tile.live {
   border-radius: var(--st-r-panel);
   background: var(--st-surface);
   box-shadow: var(--st-float);
 }
-.studio-home .studio-tile:hover,
-.studio-home .studio-tile:focus-within,
+.studio-home .studio-row {
+  border-top-color: var(--st-line);
+}
+.studio-home .studio-row:hover,
+.studio-home .studio-row:focus-within {
+  background: var(--st-hover);
+}
 .studio-home .practice-tile.live:hover {
   transform: none;
   box-shadow:
@@ -131,8 +136,8 @@ body:has(.puzzle.play) {
 .studio-home .tile-blurb {
   font-size: 12.5px;
 }
-.studio-home .studio-tile-play {
-  border-top-color: var(--st-line);
+.studio-home .studio-row-play {
+  border-left-color: var(--st-line);
   color: var(--st-accent-text);
   font-weight: 500;
 }

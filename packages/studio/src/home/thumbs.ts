@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { PuzzleId } from "@openseas/engine";
 
 /**
- * The home grid's thumbnails (DESIGN.md 3.14): each is a picture of the puzzle's real board, drawn
+ * The home list's thumbnails (DESIGN.md 3.14): each is a picture of the puzzle's real board, drawn
  * by this build. The home page opens every puzzle's `/play` page in turn in one hidden frame, with
  * `thumb=1`; that page draws the board alone, copies its canvas and posts the picture back
  * (ThumbShell). So a thumbnail needs no code a puzzle and is never out of date with the board. One

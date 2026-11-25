@@ -224,7 +224,7 @@ export function RoundFrame({ mode, puzzle, link = null, children }: { mode: Fram
     },
     [id],
   );
-  // The puzzle's own cues are the ones heard on its page (ADR 0070); a thumbnail on the home grid plays none.
+  // The puzzle's own cues are the ones heard on its page (ADR 0070); a thumbnail on the home list plays none.
   useEffect(() => {
     if (mode === "thumb") return;
     playCuesOf(puzzle.id);

@@ -717,10 +717,10 @@ exist. The draft lives in the address bar. The bench is gone: the inspector, rou
 review, the clock's controls, the seed finder, and recorded and unrated rounds. The studio asks
 nothing of the game's server.
 
-The home page is the grid of all fifteen, the prototypes marked as such and otherwise treated like
-the rest. A tile's picture is the puzzle's real board as this build draws it: the page opens each
+The home page is a compact list of every puzzle, one row each, the prototypes marked as such and
+otherwise treated like the rest. A row's small picture is the puzzle's real board as this build draws it: the page opens each
 puzzle's `/play` page in turn in one hidden frame, which draws the board alone and hands back a
-picture, so a thumbnail needs no code a puzzle and cannot fall behind the board. A tile opens the
+picture, so a thumbnail needs no code a puzzle and cannot fall behind the board. A row opens the
 studio page, and a second link the puzzle alone. A puzzle the signed-in owner has a draft open on
 carries a mark; the mark for a pull request waits for Save.
 
@@ -752,7 +752,7 @@ page. A later Save adds commits to the same pull request, and a number put back 
 put back in it. When the pull request is merged or closed the draft clears; discarding the draft
 closes it. When `main` has moved under a saved draft the panel says so and merges it in when
 asked, never by itself. No agent runs yet, so the checklist for a changed puzzle is not worked
-and the pull request stays a draft that says so. The home grid's mark says when a draft has a
+and the pull request stays a draft that says so. The home list's mark says when a draft has a
 pull request. A service with no volume or no App keeps drafts and offers no Save.
 
 **The chat** (ADR 0047). Beside the board, for the signed-in owner: an agent on the draft's
@@ -913,7 +913,7 @@ what is picked (Save, Send, the mode on the rail, a switch that is on). Amber is
 number's dot, name, slider and the button that puts it back, and the band that says nothing is
 saved. Each of those is a shape or a word as well as a color. Titles and the small capital labels
 are set in Space Grotesk, everything else in Inter, and numbers, seeds and the status line in
-JetBrains Mono. The home grid and the voyage bench wear the same look: the same ground, panels,
+JetBrains Mono. The home list and the voyage bench wear the same look: the same ground, panels,
 type and teal, and on the grid a puzzle with a draft open is marked in amber. `/play` stands on
 the same ground and is otherwise the game's: its board, HUD, cards and sheet are what a player
 sees.
