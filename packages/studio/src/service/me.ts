@@ -6,7 +6,7 @@ import { SERVICE_URL, fetchMe, signOut as sendSignOut } from "./client.js";
 export type Me = StudioMe | null | "loading";
 
 /**
- * One answer for the whole site, asked once a page load: the home grid, a puzzle's frame and its
+ * One answer for the whole site, asked once a page load: the home list, a puzzle's frame and its
  * tester links all read it, and signing out tells them all. Nothing asks until something on
  * screen needs to know, so `/play` pages never do.
  */

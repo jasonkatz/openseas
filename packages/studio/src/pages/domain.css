@@ -27,11 +27,11 @@
   gap: 4px;
 }
 .studio-thumb.domain-thumb {
-  grid-template-columns: repeat(4, auto);
+  grid-template-columns: repeat(2, auto);
   place-content: center;
-  gap: 12px 8px;
+  gap: 3px 2px;
 }
 .studio-thumb.domain-thumb img {
-  width: 34px;
-  height: 34px;
+  width: 13px;
+  height: 13px;
 }

@@ -312,24 +312,28 @@ const GLYPHS: Record<PuzzleId, ReactNode> = {
 /** The puzzles of the domain engine (ADR 0088), shown in the grid beside the others for now. */
 const DOMAIN: readonly PuzzleDoc[] = [SWAP];
 
-/** A domain puzzle's tile: its pieces as its skin draws them, and one link, to the puzzle alone. */
+/** A domain puzzle's row: a few of its pieces as its skin draws them, and one link, to the puzzle alone. */
 function DomainTile({ doc }: { doc: PuzzleDoc }) {
   const skin = skinOf(doc);
   if (!skin) return null;
-  const drawn = Object.keys(skin.pieces).slice(0, 8);
+  const drawn = Object.keys(skin.pieces).slice(0, 4);
   return (
-    <li className="studio-tile">
-      <Link to={`/play/${doc.id}`} className="studio-tile-main" data-testid={`tile-${doc.id}`}>
+    <li className="studio-row">
+      <Link to={`/play/${doc.id}`} className="studio-row-main" data-testid={`tile-${doc.id}`}>
         <span className="studio-thumb domain-thumb" aria-hidden="true">
           {drawn.map((piece) => (
-            <PlayPieceIcon key={piece} skin={skin} piece={piece} size={30} />
+            <PlayPieceIcon key={piece} skin={skin} piece={piece} size={13} />
           ))}
         </span>
-        <span className="eyebrow">{t("domain.eyebrow")}</span>
-        <span className="tile-title">{t(`${doc.id}.name`)}</span>
-        <span className="tile-blurb">{t(`${doc.id}.blurb`)}</span>
+        <span className="studio-row-text">
+          <span className="studio-row-head">
+            <span className="tile-title">{t(`${doc.id}.name`)}</span>
+            <span className="eyebrow">{t("domain.eyebrow")}</span>
+          </span>
+          <span className="tile-blurb">{t(`${doc.id}.blurb`)}</span>
+        </span>
       </Link>
-      <Link to={`/play/${doc.id}`} className="studio-tile-play" data-testid={`tile-play-${doc.id}`}>
+      <Link to={`/play/${doc.id}`} className="studio-row-play" data-testid={`tile-play-${doc.id}`}>
         {t("studio.home.play_alone")}
       </Link>
     </li>
@@ -354,10 +358,10 @@ function useOpenDrafts(): ReadonlyMap<PuzzleId, { pull: boolean }> {
 }
 
 /**
- * The studio's home (DESIGN.md 3.14): a grid of every puzzle, the game's and the prototypes
- * alike, each with a picture of its board as this build draws it (home/thumbs) over the glyph it
- * shows until that picture is taken. A tile opens the puzzle's studio page; its second link opens
- * the puzzle alone. A puzzle the signed-in owner has a draft open on carries a mark, which says
+ * The studio's home (DESIGN.md 3.14): a compact list of every puzzle, the game's and the
+ * prototypes alike, one row each with a small picture of its board as this build draws it
+ * (home/thumbs) over the glyph it shows until that picture is taken. A row opens the puzzle's
+ * studio page; its second link opens the puzzle alone. A puzzle the signed-in owner has a draft open on carries a mark, which says
  * so when the draft has a pull request.
  */
 export function Home() {
@@ -373,25 +377,29 @@ export function Home() {
       </header>
 
       <section>
-        <ul className="studio-grid" data-testid="puzzle-grid">
+        <ul className="studio-list" data-testid="puzzle-list">
           {ids.map((id) => (
-            <li key={id} className="studio-tile">
-              <Link to={`/${id}`} className="studio-tile-main" data-testid={`tile-${id}`}>
+            <li key={id} className="studio-row">
+              <Link to={`/${id}`} className="studio-row-main" data-testid={`tile-${id}`}>
                 <span className={`studio-thumb ${thumbs[id] ? "is-drawn" : ""}`} aria-hidden="true">
                   {thumbs[id] ? <img src={thumbs[id]} alt="" data-testid={`thumb-${id}`} /> : GLYPHS[id]}
                 </span>
-                {drafts.has(id) && (
-                  <span className="studio-mark" data-testid={`draft-mark-${id}`} data-pull={drafts.get(id)?.pull ? "1" : "0"}>
-                    {drafts.get(id)?.pull ? t("studio.home.pull") : t("studio.home.draft")}
+                <span className="studio-row-text">
+                  <span className="studio-row-head">
+                    <span className="tile-title">{t(`home.practice_${id}`)}</span>
+                    <span className="eyebrow" data-testid={`category-${id}`}>
+                      {t(`studio.category.${content.puzzles[id].category}`)}
+                    </span>
+                    {drafts.has(id) && (
+                      <span className="studio-mark" data-testid={`draft-mark-${id}`} data-pull={drafts.get(id)?.pull ? "1" : "0"}>
+                        {drafts.get(id)?.pull ? t("studio.home.pull") : t("studio.home.draft")}
+                      </span>
+                    )}
                   </span>
-                )}
-                <span className="eyebrow" data-testid={`category-${id}`}>
-                  {t(`studio.category.${content.puzzles[id].category}`)}
+                  <span className="tile-blurb">{t(`home.practice_${id}_blurb`)}</span>
                 </span>
-                <span className="tile-title">{t(`home.practice_${id}`)}</span>
-                <span className="tile-blurb">{t(`home.practice_${id}_blurb`)}</span>
               </Link>
-              <Link to={`/play/${id}`} className="studio-tile-play" data-testid={`tile-play-${id}`}>
+              <Link to={`/play/${id}`} className="studio-row-play" data-testid={`tile-play-${id}`}>
                 {t("studio.home.play_alone")}
               </Link>
             </li>
