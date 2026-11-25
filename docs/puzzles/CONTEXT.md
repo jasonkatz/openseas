@@ -12,9 +12,26 @@ settings, pieces, moves, events and signals.
 _Avoid_: game, minigame, board (the board is what a player sees)
 
 **Rules**:
-The sealed part of a puzzle that decides what every move does. The same seed, settings and log
-always make the same round.
+The sealed part of a puzzle that decides what every move does, written as hooks. The same seed,
+settings and log always make the same round.
 _Avoid_: engine, logic
+
+**Loop**:
+The stages every round runs, the same for every puzzle: start, then wait, check, move, cascade, move
+end and close for each entry, then end. It keeps what every puzzle shares, such as the log, seats,
+tasks and points.
+_Avoid_: lifecycle, state machine
+
+**Hook**:
+A named place in the loop where the rules are asked, such as `onMove`, what a move does. One whose
+name starts with `on` reports events; any other is a question. Three are required, and every other
+has a default.
+_Avoid_: callback, handler, name
+
+**Question**:
+A hook that only answers and never changes a round, such as whether a move is allowed or what a move
+would do. A board, a stand-in or a hint may ask one at any time.
+_Avoid_: query, getter, read
 
 **Round**:
 One play of a puzzle, from its start until one of its endings is met.
@@ -53,8 +70,8 @@ A setting that caps what one draw can give, so no round is made by one windfall.
 _Avoid_: limit, cap (a cap is a payout's)
 
 **Secret**:
-Part of the deal a player does not see, such as where contacts lie, revealed only by events. A round
-with one is run by its host.
+Part of the deal a player does not see, such as where contacts lie, revealed only by events. Until
+then it says who may see it: nobody, its seat or its side. A round with one is run by its host.
 _Avoid_: hidden state, fog (that is how a skin shows one)
 
 **Stock**:
@@ -154,7 +171,8 @@ Something the rules report happened during a round, carrying what a player needs
 _Avoid_: report, effect
 
 **Points**:
-What one event adds to the score, each point belonging to a payout.
+What one event adds to the score, each point belonging to a payout. They go to the seat that earned
+them, and stop at zero as they are added.
 
 **Payout**:
 A named way a puzzle pays points, such as a path or a loop, paid on an event and grown from what that
@@ -174,7 +192,8 @@ is a step, and every event in a cascade belongs to the move that started it.
 _Avoid_: chain (a streak is not a cascade), combo
 
 **Score**:
-The sum of a round's points. It never goes below zero.
+The sum of a round's points. It never goes below zero. Between sides it is the points of the
+player's side, unless the rules read it from every side's points, the time played and the outcome.
 
 **Multiplier**:
 A percent that scales named payouts on an event: a setting, or an entry in a table indexed by the
@@ -366,14 +385,15 @@ The players who win or lose a round together.
 _Avoid_: team
 
 **Seat**:
-A place on a side for one player.
+A place on a side for one player. Every move is made by a seat, and a solo puzzle has one.
 
 **Opponent**:
 Whoever holds a seat on another side: a player or a stand-in.
 
 **Stand-in**:
-An opponent the rules play themselves, in a seat no player holds: a type and its dials. Its standing
-is measured, never set by hand.
+An opponent the rules play themselves, in a seat no player holds: a type and its dials. Its moves
+pass the same rules as a player's and are never in the log. Its standing is measured, never set by
+hand.
 _Avoid_: bot, AI, NPC
 
 **Stand-in type**:
