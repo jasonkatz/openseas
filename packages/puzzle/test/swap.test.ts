@@ -111,6 +111,28 @@ describe("what comes out", () => {
     );
   });
 
+  test("the loop counts each swap's steps from 1 with none skipped, and reads the line once a swap", () => {
+    fc.assert(
+      fc.property(fc.string(), fc.constantFrom(...STAGES), plays, (seed, stage, list) => {
+        for (const events of playAll(seed, stage, list).events) {
+          const steps = events.map((e) => e.step);
+          // A signal's events are no part of a cascade: they are step 0.
+          if (events[0]?.id !== "trade") {
+            expect(steps.every((step) => step === 0)).toBe(true);
+            continue;
+          }
+          expect(steps[0]).toBe(1);
+          for (let i = 1; i < steps.length; i++) expect(steps[i]! - steps[i - 1]!).toBeGreaterThanOrEqual(0);
+          for (let i = 1; i < steps.length; i++) expect(steps[i]! - steps[i - 1]!).toBeLessThanOrEqual(1);
+          expect(events.filter((e) => e.id === "lift").length).toBeLessThanOrEqual(1);
+          expect(events.filter((e) => e.id === "level").length).toBeLessThanOrEqual(1);
+          expect(events.filter((e) => e.id === "streak").length).toBeLessThanOrEqual(1);
+        }
+      }),
+      { numRuns: 100 },
+    );
+  });
+
   test("the board is always full and settled between entries: no gap, no run left standing, every id its own", () => {
     fc.assert(
       fc.property(fc.string(), fc.constantFrom(...STAGES), plays, (seed, stage, list) => {
@@ -373,7 +395,7 @@ describe("what a round refuses", () => {
   ];
   test.each(bad)("%s", (_name, move) => {
     expect(() => swap.play(round, { at: 100, move: move as never })).toThrow(Refused);
-    expect(swap.allows(round, move as never)).not.toBeNull();
+    expect(swap.canMove(round, move as never)).not.toBeNull();
   });
 
   test("a time that runs back, a time that is no whole number, an unknown signal and a signal of the wrong type", () => {

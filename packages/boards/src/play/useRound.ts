@@ -135,7 +135,7 @@ export function usePlayRound<S>(engine: Engine<S>, skin: Skin, first: { seed: st
   const move = useCallback(
     (m: Move): boolean => {
       const l = live.current;
-      if (!l || !l.running || engine.allows(l.round, m) !== null) return false;
+      if (!l || !l.running || engine.canMove(l.round, m) !== null) return false;
       const entry: Entry = { at: Math.max(l.round.at, Math.floor(performance.now() - l.t0)), move: m };
       try {
         const played = engine.play(l.round, entry);

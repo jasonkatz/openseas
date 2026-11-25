@@ -28,8 +28,10 @@ guide describes one, so nothing showed whether the guide is enough to build from
    bounds and relations, layers and stages, a stream for each draw from the seed and the draw's id,
    the board and its changes, points from payouts and multipliers settled once an event, the streak,
    pace, tiers and performance.
-3. **The rules are the only part of a puzzle that is code,** and they reach a round through a context
-   alone. They cannot change the board without a board change on an event, pay a point that is not a
+3. **The rules are the only part of a puzzle that is code,** written as hooks on the one loop the
+   engine runs (ADR 0088): `onStart`, `canMove` and `onMove`, with `onCascade`, `onMoveEnd`, `onTick`
+   and `onSignal` where a puzzle needs them. The engine counts a cascade's steps. The rules reach a
+   round through a context alone. They cannot change the board without a board change on an event, pay a point that is not a
    declared payout's, read a setting the round does not have, or draw from a stream that is not a
    declared draw's. `checkRules` holds what the rules know equal to what the document declares, and
    `checkPuzzle` holds the document to the guide, before any round runs.
@@ -92,9 +94,12 @@ Writing Swap from the guide alone found these. None is settled here; each needs 
 - There are two ways to write a puzzle for now. Whether the old engines move onto this one, in what
   order, and what the rules share between puzzles are being settled as the engine's vision and are
   recorded in ADRs of their own. This one moves nothing and stands in the way of none of it.
-- The rules here are the first shape ADR 0088 speaks of: a handful of functions, with one, `play`,
-  holding everything a move sets off. ADR 0088 replaces that shape with hooks on one round loop.
-  Until the engine and Swap are moved onto it, the code differs from the guide's section The rules.
+- The engine runs the loop of ADR 0088 for one seat. Its first shape for the rules, a handful of
+  functions with one, `play`, holding everything a move sets off, is the one ADR 0088 replaced, and
+  none of it is left. Not asked yet, because nothing here has a second seat or a task: `whoseTurn`,
+  `pickMove`, `listMoves`, `onTaskNeeded`, `pointsFor`, `score`, `hint` and `checkSettings`. The
+  streak is still built by the rules saying so, not read from the document's `builds`. What a tick or
+  a signal reports runs no cascade and no move end.
 - Not yet as that vision has them: the rules' types are written by hand, not generated from the
   document; the theme is built in code in `boards`, not a document in a folder with its skins; and
   the host's functions take no storage or clock, because nothing here stores a round.

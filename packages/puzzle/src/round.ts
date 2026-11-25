@@ -5,6 +5,11 @@
  * the log's cap, a stream for each draw, the board and its changes, points from payouts and
  * multipliers, the streak, and judgement. The rules own only what is theirs: what a move does.
  *
+ * Every round runs one loop (DOMAIN.md, "The rules", ADR 0088), and the rules are hooks on it:
+ * `start` runs Start and asks `onStart`; `play` runs Check to Close for one entry, asking `canMove`,
+ * `onMove`, `onCascade` until it reports nothing, and `onMoveEnd` once; a tick goes to `onTick` and
+ * a signal in to `onSignal`. The loop counts a cascade's steps: the rules never do.
+ *
  * The rules reach the round through a context and nothing else, so they cannot change the board
  * without a board change on an event, pay a point that is not a declared payout's, read a setting
  * the round does not have, or draw from a stream that is not a declared draw's.
@@ -36,7 +41,7 @@ export interface Log {
 /** Something the rules report happened, with the board changes it carries and its points by payout. */
 export interface RoundEvent {
   readonly id: string;
-  /** The cascade step it belongs to, from 1. Everything in one step plays together. 0 for a tick or a signal. */
+  /** The cascade step it belongs to, from 1, as the loop counted it. Everything in one step plays together. 0 for a tick or a signal. */
   readonly step: number;
   readonly fields: Readonly<Record<string, unknown>>;
   readonly changes: readonly Change[];
@@ -132,12 +137,14 @@ export interface StartContext {
   place(piece: NewPiece, at: Place): number;
 }
 
-export interface PlayContext<S> extends RulesView<S> {
+/**
+ * What a hook that starts with `on` is asked with. It changes the round in one way only: it reports
+ * events, and reads the board as each event leaves it.
+ */
+export interface HookContext<S> extends RulesView<S> {
   readonly draw: Draws;
-  /** The cascade step now, from 1. */
+  /** The cascade step the loop is on, from 1: the move is step 1, and every asking of `onCascade` or `onMoveEnd` that reports something is the next. 0 for a tick or a signal. */
   readonly step: number;
-  /** Everything after this belongs to the cascade's next step. */
-  nextStep(): void;
   /** Report an event. Its board changes happen together when `build` returns, and its points are settled then. */
   emit(id: string, fields: Readonly<Record<string, unknown>>, build?: (e: EventBuilder) => void): RoundEvent;
   /** This move built the streak. Returns the streak after it. */
@@ -162,22 +169,43 @@ export interface Draws {
   pick(draw: string, length: number): number;
 }
 
-/** The part of a puzzle that is code. */
+/**
+ * The part of a puzzle that is code: hooks on the loop every round runs (DOMAIN.md, "The rules").
+ * A hook that starts with `on` is asked when something has happened, and returns what the rules
+ * keep besides the board. Every other hook is a question: answering it changes nothing.
+ *
+ * Three hooks are required. Every other has a default, so a puzzle writes only the ones it needs.
+ * Not asked yet, because this engine runs one seat and no tasks: `whoseTurn`, `pickMove`,
+ * `listMoves`, `onTaskNeeded`, `pointsFor`, `score`, `hint` and `checkSettings`.
+ */
 export interface Rules<S> {
   readonly id: string;
   /** The version of the puzzle document these rules are written for. */
   readonly version: string;
   /** Everything the rules know, by id: held equal to what the document declares before any round runs. */
   readonly knows: Knows;
-  start(ctx: StartContext): S;
-  /** Null when the round allows the move now, or the reason it does not. */
-  allows(view: RulesView<S>, move: Move): string | null;
-  play(ctx: PlayContext<S>, move: Move): S;
-  signal?(ctx: PlayContext<S>, id: string, value: SignalValue): S;
-  tick?(ctx: PlayContext<S>): S;
+  /** Once, at Start: deal the board. */
+  onStart(ctx: StartContext): S;
+  /** At Check: null when the move may be made now, or the reason it may not. */
+  canMove(view: RulesView<S>, move: Move): string | null;
+  /** At Move: what a move that passed the check does. */
+  onMove(ctx: HookContext<S>, move: Move): S;
+  /** At Cascade, again and again until it reports nothing: one step of what follows by itself. Left out, nothing follows. */
+  onCascade?(ctx: HookContext<S>): S;
+  /** Once a move, when the cascade has run dry: what the end of the move brings. What it reports sets the cascade off again, on the same count. */
+  onMoveEnd?(ctx: HookContext<S>): S;
+  /** Once for every tick, in order. Left out, nothing happens between moves. */
+  onTick?(ctx: HookContext<S>): S;
+  /** A signal in arrives. Left out, it changes nothing. */
+  onSignal?(ctx: HookContext<S>, id: string, value: SignalValue): S;
+  /** Where the round's gauges are read. */
   gauges(view: RulesView<S>): Readonly<Record<string, number>>;
+  /** Where the round's stats are read. */
   stats(view: RulesView<S>): Readonly<Record<string, number>>;
 }
+
+/** More steps than any cascade has: a cascade that reports something this many times never runs dry, and that is the rules' mistake. */
+const CASCADE_LIMIT = 10_000;
 
 export interface EngineOptions {
   /** The host's scale. */
@@ -200,8 +228,8 @@ export interface Engine<S> {
   /** Time passes with nothing played: ticks fall due and the clock can end the round. Also the log's final time mark. */
   mark(round: Round<S>, at: number): Played<S>;
   read(round: Round<S>): Read;
-  /** Null when the round allows the move now, or the reason it does not. */
-  allows(round: Round<S>, move: Move): string | null;
+  /** The loop's Check, asked without playing: null when the move may be made now, or the reason it may not. */
+  canMove(round: Round<S>, move: Move): string | null;
   /** Performance over the recent stretch of the round, read at a time. Null without a clock to read it against. */
   pace(round: Round<S>, at: number): { readonly performance: number; readonly tier: Tier } | null;
   /** A short fingerprint of everything a round is, to tell two rounds apart cheaply. */
@@ -292,7 +320,7 @@ export function engine<S>(doc: PuzzleDoc, rules: Rules<S>, options: EngineOption
   const clockMs = (settings: Settings): number | null => (clock ? (settings.values[clock.setting!] as number) * 1000 : null);
 
   /** One call's working copy of a round. Made, used and frozen inside a single `start`, `play` or `mark`. */
-  class Work implements PlayContext<S>, StartContext {
+  class Work implements HookContext<S>, StartContext {
     board: Board;
     state: S;
     streams: Record<string, DrawState>;
@@ -408,10 +436,6 @@ export function engine<S>(doc: PuzzleDoc, rules: Rules<S>, options: EngineOption
       if (piece.kind !== undefined) on.kind = piece.kind;
       if (piece.state !== undefined) on.state = piece.state;
       return on;
-    }
-
-    nextStep(): void {
-      this.step++;
     }
 
     built(): number {
@@ -555,13 +579,13 @@ export function engine<S>(doc: PuzzleDoc, rules: Rules<S>, options: EngineOption
     const until = end === null ? at : Math.min(at, end);
     let r = round;
     const out: RoundEvent[] = [];
-    if (tickMs > 0 && rules.tick) {
+    if (tickMs > 0 && rules.onTick) {
       // Tick n falls due n ticks after the start. One that would fall on the clock's end is never played.
       while (!r.ended && (r.ticks + 1) * tickMs <= until && (end === null || (r.ticks + 1) * tickMs < end)) {
         const due = (r.ticks + 1) * tickMs;
         const w = new Work({ ...r, at: due });
         w.step = 0;
-        w.state = rules.tick(w);
+        w.state = rules.onTick(w);
         out.push(...w.out);
         r = w.freeze({ at: due, ticks: r.ticks + 1, recent: recentAfter(r, due, w.points), ended: w.closed ? { by: w.closed, at: due } : w.didSpend ? { by: "stock", at: due } : null });
       }
@@ -607,7 +631,7 @@ export function engine<S>(doc: PuzzleDoc, rules: Rules<S>, options: EngineOption
         ended: null,
       };
       const w = new Work(blank, true);
-      w.state = rules.start(w);
+      w.state = rules.onStart(w);
       return w.freeze({});
     },
 
@@ -624,10 +648,36 @@ export function engine<S>(doc: PuzzleDoc, rules: Rules<S>, options: EngineOption
       if ("move" in entry) {
         const decl = moves.get(entry.move.id);
         if (!decl) throw new Refused("entry", [`no move ${String(entry.move.id)}`]);
-        const bad = moveProblem(decl, entry.move, r.board) ?? rules.allows(viewOf(r), entry.move);
+        // Check: a move the rules do not allow changes nothing, and its reason goes back.
+        const bad = moveProblem(decl, entry.move, r.board) ?? rules.canMove(viewOf(r), entry.move);
         if (bad) throw new Refused("entry", [bad]);
         trace?.("moves", decl.id);
-        w.state = rules.play(w, entry.move);
+        // Move: step 1.
+        w.state = rules.onMove(w, entry.move);
+        // Cascade: a step at a time until a step reports nothing. Then Move end, asked once: what
+        // it reports is a step too, and sets the cascade off again on the same count.
+        let steps = 1;
+        const cascade = (): void => {
+          if (!rules.onCascade) return;
+          for (;;) {
+            if (steps >= CASCADE_LIMIT) throw new Error(`${doc.id}'s cascade never ran dry`);
+            const before = w.out.length;
+            w.step = steps + 1;
+            w.state = rules.onCascade(w);
+            if (w.out.length === before) return;
+            steps++;
+          }
+        };
+        cascade();
+        if (rules.onMoveEnd) {
+          const before = w.out.length;
+          w.step = steps + 1;
+          w.state = rules.onMoveEnd(w);
+          if (w.out.length > before) {
+            steps++;
+            cascade();
+          }
+        }
         // A move that builds nothing is a miss; more misses in a row than the grace break the streak.
         if (streakOn(r.settings) && !w.didBuild) {
           w.misses++;
@@ -635,13 +685,13 @@ export function engine<S>(doc: PuzzleDoc, rules: Rules<S>, options: EngineOption
         }
       } else {
         const decl = signals.get(entry.signal.id);
-        if (!decl || !rules.signal) throw new Refused("entry", [`no signal ${String(entry.signal.id)}`]);
+        if (!decl) throw new Refused("entry", [`no signal ${String(entry.signal.id)}`]);
         const v = entry.signal.value;
         const ok = decl.type === "number" ? whole(v) : decl.type === "flag" ? typeof v === "boolean" : typeof v === "string";
         if (!ok) throw new Refused("entry", [`signal ${decl.id} must be a ${decl.type}`]);
         trace?.("signals", decl.id);
         w.step = 0;
-        w.state = rules.signal(w, decl.id, v);
+        if (rules.onSignal) w.state = rules.onSignal(w, decl.id, v);
       }
 
       const movesMade = r.moves + ("move" in entry ? 1 : 0);
@@ -663,11 +713,11 @@ export function engine<S>(doc: PuzzleDoc, rules: Rules<S>, options: EngineOption
       return advance(round, at);
     },
 
-    allows(round, move) {
+    canMove(round, move) {
       if (round.ended) return "the round has ended";
       const decl = moves.get(move.id);
       if (!decl) return `no move ${String(move.id)}`;
-      return moveProblem(decl, move, round.board) ?? rules.allows(viewOf(round), move);
+      return moveProblem(decl, move, round.board) ?? rules.canMove(viewOf(round), move);
     },
 
     read(round) {

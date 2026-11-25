@@ -1,25 +1,29 @@
 /**
- * Swap's rules: the only part of the puzzle that is code (docs/puzzles/DOMAIN.md). Everything a
- * reader needs to know about the puzzle is in `puzzle.json`; this file says what a move does.
+ * Swap's rules: the only part of the puzzle that is code, written as hooks on the loop every round
+ * runs (docs/puzzles/DOMAIN.md, "The rules"). Everything a reader needs to know about the puzzle is
+ * in `puzzle.json`; this file says what a swap does and what follows it.
  *
  * The board is a grid counted from the top. Pieces rise: a gap is filled by the pieces below it,
  * and new pieces come in from below the board. The line is counted in rows from the bottom, so a
  * row is under the line when it is among the bottom `rows`.
  *
- * A swap trades a piece with its left or right neighbour. Then, a step at a time:
- * 1. a burst that was swapped clears the pieces round where it landed, a sweep that was swapped
- *    clears itself and every piece of the kind it was swapped with, and every run of three or more
- *    of one kind, in a row or a column, clears; runs that touch are one group;
- * 2. the pieces rise, new ones come in, and any run that makes is the cascade's next step;
- * 3. once nothing clears, the line is read again, every float above it lifts off together, and
- *    the board rises and cascades again from 2.
+ * - `canMove`: a swap trades a piece with its left or right neighbour, where the board has one.
+ * - `onMove`: the two trade places. A burst that was swapped clears the pieces round where it
+ *   landed, a sweep that was swapped clears itself and every piece of the kind it was swapped
+ *   with, and every run of three or more of one kind, in a row or a column, clears; runs that
+ *   touch are one group. Where anything cleared, the pieces rise and new ones come in.
+ * - `onCascade`: one step of what follows. Every run the last rise made clears, and the pieces
+ *   rise again. A board with no run reports nothing, and the cascade has run dry.
+ * - `onMoveEnd`: the line is read, once a swap. Every float above it lifts off together and the
+ *   pieces rise, which sets the cascade off again. A swap that has scored builds the streak.
+ *
  * While no `level` signal has come, the puzzle moves the line itself: every swap raises it a share
- * of a row and the swap's points lower it, never below `minRows`. From the first signal the line
- * is the signal's, and the puzzle stops moving it.
+ * of a row, and the points made since the line was last read lower it, never below `minRows`. From
+ * the first signal (`onSignal`) the line is the signal's, and the puzzle stops moving it.
  */
 import type { Board, PieceOn } from "../../board.js";
 import { Refused } from "../../errors.js";
-import type { Move, NewPiece, PlayContext, Rules, RulesView, StartContext } from "../../round.js";
+import type { HookContext, Move, NewPiece, Rules, RulesView, StartContext } from "../../round.js";
 import type { SettingsReader } from "../../settings.js";
 
 export interface SwapState {
@@ -29,6 +33,8 @@ export interface SwapState {
   readonly rows: number;
   /** True once a `level` signal has come: the line is the signal's. */
   readonly wired: boolean;
+  /** The round's score when the line was last read: what it has gained since lowers the line. */
+  readonly counted: number;
   readonly swaps: number;
   readonly runs: number;
   readonly longest: number;
@@ -120,6 +126,59 @@ function partner(board: Board, at: number, to: unknown): number | null {
 /** Rows under the line for a line held in parts of a row. */
 const rowsOf = (settings: SettingsReader, heat: number): number => Math.floor(heat / (settings.number("riseMoves") * settings.number("ventPoints")));
 
+type Ctx = HookContext<SwapState>;
+
+/** Clear a group of cells on an event of its own. */
+function clear(ctx: Ctx, event: "run" | "burst" | "sweep", fields: Readonly<Record<string, unknown>>, places: readonly number[]): void {
+  const cells = ctx.board.cells;
+  ctx.emit(event, { ...fields, places }, (e) => {
+    for (const p of places) e.leave(cells[p]!.id, p);
+    e.pay(event);
+    e.scale("cascade");
+    e.scale("streak");
+  });
+}
+
+/** Every run on the board clears, each on an event of its own. Returns the state with its stats, and how many groups cleared. */
+function clearRuns(ctx: Ctx, s: SwapState, gone: ReadonlySet<number> = new Set()): readonly [SwapState, number] {
+  const runs = findRuns(ctx.board, gone);
+  let longest = s.longest;
+  for (const places of runs) {
+    longest = Math.max(longest, places.length);
+    clear(ctx, "run", {}, places);
+  }
+  return [{ ...s, runs: s.runs + runs.length, longest }, runs.length];
+}
+
+/** The bonus for clearing several groups in one step. */
+function together(ctx: Ctx, s: SwapState, groups: number): SwapState {
+  if (groups >= 2 && ctx.settings.has("chains")) {
+    ctx.emit("together", { groups }, (e) => {
+      e.pay("together");
+      e.scale("cascade");
+      e.scale("streak");
+    });
+  }
+  return { ...s, together: Math.max(s.together, groups) };
+}
+
+/** The pieces rise into the gaps, column by column, and new ones come in from below. */
+function rise(ctx: Ctx): void {
+  const { width, height, cells } = ctx.board;
+  ctx.emit("rise", {}, (e) => {
+    for (let c = 0; c < width; c++) {
+      let write = 0;
+      for (let r = 0; r < height; r++) {
+        const p = cells[r * width + c];
+        if (!p) continue;
+        if (r !== write) e.travel(p.id, r * width + c, write * width + c);
+        write++;
+      }
+      for (let r = write; r < height; r++) e.arrive(deal(ctx.settings, ctx.draw, false), r * width + c, { off: "down" });
+    }
+  });
+}
+
 export const SWAP_RULES: Rules<SwapState> = {
   id: "swap",
   version: "0.1",
@@ -143,7 +202,7 @@ export const SWAP_RULES: Rules<SwapState> = {
     stats: ["best_streak", "swaps", "runs", "longest", "together", "lifted", "best_lift"],
   },
 
-  start(ctx: StartContext): SwapState {
+  onStart(ctx: StartContext): SwapState {
     const { settings } = ctx;
     const { width, height } = ctx.board;
     const kinds = settings.number("kinds");
@@ -166,20 +225,17 @@ export const SWAP_RULES: Rules<SwapState> = {
     const line = settings.has("line");
     const per = line ? settings.number("riseMoves") * settings.number("ventPoints") : 1;
     const rows = line ? settings.number("startRows") : 0;
-    return { heat: rows * per, rows, wired: false, swaps: 0, runs: 0, longest: 0, together: 0, lifted: 0, bestLift: 0 };
+    return { heat: rows * per, rows, wired: false, counted: 0, swaps: 0, runs: 0, longest: 0, together: 0, lifted: 0, bestLift: 0 };
   },
 
-  allows(view: RulesView<SwapState>, move: Move): string | null {
+  canMove(view: RulesView<SwapState>, move: Move): string | null {
     if (typeof move.at !== "number") return "a swap starts on a cell";
     if (move.to !== "left" && move.to !== "right") return "a piece is swapped left or right";
     return partner(view.board, move.at, move.to) === null ? "there is no piece that way" : null;
   },
 
-  play(ctx: PlayContext<SwapState>, move: Move): SwapState {
-    const { settings } = ctx;
+  onMove(ctx: Ctx, move: Move): SwapState {
     const { width, height } = ctx.board;
-    const s = ctx.state;
-    const stats = { runs: s.runs, longest: s.longest, together: s.together, lifted: s.lifted, bestLift: s.bestLift };
     const a = move.at as number;
     const b = partner(ctx.board, a, move.to)!;
     const first = ctx.board.cells[a]!;
@@ -189,63 +245,7 @@ export const SWAP_RULES: Rules<SwapState> = {
       e.travel(second.id, b, a);
     });
 
-    /** Clear a group of cells on an event of its own. */
-    const clear = (event: "run" | "burst" | "sweep", fields: Readonly<Record<string, unknown>>, places: readonly number[]): void => {
-      const cells = ctx.board.cells;
-      ctx.emit(event, { ...fields, places }, (e) => {
-        for (const p of places) e.leave(cells[p]!.id, p);
-        e.pay(event);
-        e.scale("cascade");
-        e.scale("streak");
-      });
-    };
-    /** The bonus for clearing several groups in one step. */
-    const together = (groups: number): void => {
-      stats.together = Math.max(stats.together, groups);
-      if (groups < 2 || !settings.has("chains")) return;
-      ctx.emit("together", { groups }, (e) => {
-        e.pay("together");
-        e.scale("cascade");
-        e.scale("streak");
-      });
-    };
-    const clearRuns = (gone: ReadonlySet<number>): number => {
-      const runs = findRuns(ctx.board, gone);
-      for (const places of runs) {
-        stats.runs++;
-        stats.longest = Math.max(stats.longest, places.length);
-        clear("run", {}, places);
-      }
-      return runs.length;
-    };
-    /** The pieces rise into the gaps, column by column, and new ones come in from below. */
-    const rise = (): void => {
-      const cells = ctx.board.cells;
-      ctx.emit("rise", {}, (e) => {
-        for (let c = 0; c < width; c++) {
-          let write = 0;
-          for (let r = 0; r < height; r++) {
-            const p = cells[r * width + c];
-            if (!p) continue;
-            if (r !== write) e.travel(p.id, r * width + c, write * width + c);
-            write++;
-          }
-          for (let r = write; r < height; r++) e.arrive(deal(settings, ctx.draw, false), r * width + c, { off: "down" });
-        }
-      });
-    };
-    /** After a step that cleared: rise, and clear whatever that makes, a step at a time. */
-    const cascade = (): void => {
-      for (;;) {
-        rise();
-        ctx.nextStep();
-        const groups = clearRuns(new Set());
-        if (groups === 0) return;
-        together(groups);
-      }
-    };
-
-    // Step 1: what the swap itself clears. The two that were swapped act from where they landed.
+    // What the swap itself clears. The two that were swapped act from where they landed.
     const board = ctx.board;
     const gone = new Set<number>();
     const claim = (cells: readonly number[]): number[] => {
@@ -270,7 +270,7 @@ export const SWAP_RULES: Rules<SwapState> = {
       }
       const places = claim(blast);
       if (places.length === 0) continue;
-      clear("burst", { place: at }, places);
+      clear(ctx, "burst", { place: at }, places);
       groups++;
     }
     for (const [at, piece, other] of landed) {
@@ -279,52 +279,60 @@ export const SWAP_RULES: Rules<SwapState> = {
       if (other.piece === "kind") board.cells.forEach((p, i) => void (kindAt(p) === other.kind && wipe.push(i)));
       const places = claim(wipe);
       if (places.length === 0) continue;
-      clear("sweep", { place: at }, places);
+      clear(ctx, "sweep", { place: at }, places);
       groups++;
     }
-    groups += clearRuns(gone);
-    together(groups);
-    if (groups > 0) cascade();
+    const [cleared, runs] = clearRuns(ctx, { ...ctx.state, swaps: ctx.state.swaps + 1 }, gone);
+    groups += runs;
+    const s = together(ctx, cleared, groups);
+    if (groups > 0) rise(ctx);
+    return s;
+  },
 
-    // The line, and the floats above it. The puzzle's own line rises a share of a row with the swap
-    // and falls with the swap's points so far, never below its least; a signal's line stays put.
-    let heat = s.heat;
-    let rows = s.rows;
+  onCascade(ctx: Ctx): SwapState {
+    const [cleared, groups] = clearRuns(ctx, ctx.state);
+    if (groups === 0) return ctx.state;
+    const s = together(ctx, cleared, groups);
+    rise(ctx);
+    return s;
+  },
+
+  onMoveEnd(ctx: Ctx): SwapState {
+    const { settings } = ctx;
+    const { width, height } = ctx.board;
+    let s = ctx.state;
     if (settings.has("line")) {
-      const per = settings.number("riseMoves") * settings.number("ventPoints");
-      for (;;) {
-        if (!s.wired) {
-          heat = Math.max(settings.number("minRows") * per, Math.min(height * per, s.heat + settings.number("ventPoints") - ctx.points * settings.number("riseMoves")));
-          const now = rowsOf(settings, heat);
-          if (now !== rows) ctx.emit("level", { rows: now });
-          rows = now;
-        }
-        const cells = ctx.board.cells;
-        const places: number[] = [];
-        for (let i = 0; i < (height - rows) * width; i++) if (cells[i]?.piece === "float") places.push(i);
-        if (places.length === 0) break;
-        ctx.nextStep();
-        stats.lifted += places.length;
-        stats.bestLift = Math.max(stats.bestLift, places.length);
+      // The puzzle's own line rises a share of a row with the swap and falls with the points made
+      // since it was last read, never below its least. A signal's line stays put.
+      if (!s.wired) {
+        const per = settings.number("riseMoves") * settings.number("ventPoints");
+        const heat = Math.max(settings.number("minRows") * per, Math.min(height * per, s.heat + settings.number("ventPoints") - (ctx.score - s.counted) * settings.number("riseMoves")));
+        const rows = rowsOf(settings, heat);
+        if (rows !== s.rows) ctx.emit("level", { rows });
+        s = { ...s, heat, rows, counted: ctx.score };
+      }
+      const cells = ctx.board.cells;
+      const places: number[] = [];
+      for (let i = 0; i < (height - s.rows) * width; i++) if (cells[i]?.piece === "float") places.push(i);
+      if (places.length > 0) {
         ctx.emit("lift", { places, count: places.length }, (e) => {
           for (const p of places) e.leave(cells[p]!.id, p);
           e.pay("lift");
           e.scale("streak");
         });
-        cascade();
+        rise(ctx);
+        s = { ...s, lifted: s.lifted + places.length, bestLift: Math.max(s.bestLift, places.length) };
       }
     }
-
-    // A swap that scored builds the streak.
+    // A swap that has scored builds the streak.
     if (ctx.points > 0) {
-      const before = ctx.streak;
       const count = ctx.built();
-      if (count > before) ctx.emit("streak", { count });
+      if (count > ctx.streak) ctx.emit("streak", { count });
     }
-    return { heat, rows, wired: s.wired, swaps: s.swaps + 1, ...stats };
+    return s;
   },
 
-  signal(ctx: PlayContext<SwapState>, id: string, value): SwapState {
+  onSignal(ctx: Ctx, id: string, value): SwapState {
     const s = ctx.state;
     if (id !== "level" || typeof value !== "number") return s;
     if (!ctx.settings.has("line")) throw new Refused("entry", ["this round has no line to set"]);

@@ -51,11 +51,16 @@ Every number is a setting in `packages/puzzle/src/puzzles/swap/puzzle.json`.
   `burstPoints` 1 each. **A sweep** (`sweepPermille` 8) clears itself and every piece of the kind it is
   swapped with, for `sweepPoints` 2 each (layer `specials`).
 - **The line** (layer `line`) is counted in rows from the bottom, `startRows` 3 at the start. A
-  **float** (`floatPermille` 10) cannot be matched. Once nothing clears, every float above the line
-  lifts off together and pays `liftPoints` 15 times the square of how many. Lifting two or more is the
-  puzzle's moment, sized out of four. On its own, the line rises a row every `riseMoves` 10 swaps and
-  falls a row for every `ventPoints` 40 points, never below `minRows` 3; `dangerRows` 6 is where the
-  gauge reads danger.
+  **float** (`floatPermille` 10) cannot be matched. The line is read once a swap, when nothing more
+  clears: every float above it lifts off together and pays `liftPoints` 15 times the square of how
+  many, and the board cascades again. A float that comes in above the line after that waits for the
+  next swap. Lifting two or more is the puzzle's moment, sized out of four. On its own, the line rises
+  a row every `riseMoves` 10 swaps and falls a row for every `ventPoints` 40 points made since it was
+  last read, never below `minRows` 3; `dangerRows` 6 is where the gauge reads danger.
+- **On the loop** (the guide's section The rules): `onMove` trades the two pieces, clears what the
+  swap itself clears and lets the pieces rise; `onCascade` clears the runs each rise makes, a step at a
+  time, until a board has none; `onMoveEnd` reads the line, lifts the floats and builds the streak.
+  `onSignal` takes a line set from outside.
 - **Points** are settled once an event: its payout, times its multipliers together, rounded down once.
 - **The round** is 150 seconds on the clock (`roundSeconds`). The log holds 2000 entries at most.
 - **Tier starts:** Steady 220, Sharp 580, Masterful 1150, Legendary 2000. The pace reads the last 10

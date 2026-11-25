@@ -95,14 +95,14 @@ const RULES: Rules<Tally> = {
     signals: ["crash"],
     stats: ["bags"],
   },
-  start(ctx) {
+  onStart(ctx) {
     ctx.place({ piece: "kind", kind: ctx.draw.bag("tray", ctx.settings.number("kinds")) + 1 }, { zone: "tray", spot: 0 });
     return { dealt: 1, bonus: ctx.settings.list("bonus")[ctx.draw.pick("bonus", 2)]! };
   },
-  allows(view, move) {
+  canMove(view, move) {
     return typeof move.at === "number" && view.board.cells[move.at] === null ? null : "that cell is taken";
   },
-  play(ctx, move) {
+  onMove(ctx, move) {
     const tray = ctx.board.zones["tray"]![0]!;
     const at = move.at as number;
     const { width, height } = ctx.board;
@@ -113,17 +113,21 @@ const RULES: Rules<Tally> = {
       e.pay("set");
       if (corner) e.scale("corner");
     });
+    return ctx.state;
+  },
+  // What the end of a move brings: the next piece on the tray, or the stock worked through.
+  onMoveEnd(ctx) {
     const kinds = ctx.settings.number("kinds");
     const dealt = ctx.state.dealt + 1;
     if (Math.floor(ctx.state.dealt / kinds) >= ctx.settings.number("stock")) ctx.spent();
     else ctx.emit("dealt", {}, (e) => void e.arrive({ piece: "kind", kind: ctx.draw.bag("tray", kinds) + 1 }, { zone: "tray", spot: 0 }, "in-place"));
     return { ...ctx.state, dealt };
   },
-  signal(ctx) {
+  onSignal(ctx) {
     ctx.emit("crash", {});
     return ctx.state;
   },
-  tick(ctx) {
+  onTick(ctx) {
     if (ctx.settings.has("waiting")) ctx.emit("waited", {}, (e) => e.pay("wait"));
     return ctx.state;
   },
@@ -208,6 +212,47 @@ describe("the engine, on a puzzle of its own", () => {
     expect(tally.mark(crashed.round, 99).round.at).toBe(5);
   });
 
+  test("the loop counts a cascade's steps: the move is the first, each asking that reports is the next, and the move's end is asked once", () => {
+    // `dealt` stands in for where the cascade is: two steps follow the move, and one more follows its end.
+    let ends = 0;
+    const waited = (ctx: Parameters<Rules<Tally>["onMove"]>[0]): Tally => (ctx.emit("waited", {}), { ...ctx.state, dealt: ctx.state.dealt + 1 });
+    const e = engine(
+      DOC,
+      {
+        ...RULES,
+        onMove: (ctx, move) => ({ ...RULES.onMove(ctx, move), dealt: 0 }),
+        onCascade: (ctx) => (ctx.state.dealt < 2 || ctx.state.dealt === 3 ? waited(ctx) : ctx.state),
+        onMoveEnd: (ctx) => (ends++, ctx.emit("waited", {}), { ...ctx.state, dealt: 3 }),
+      },
+      { scale: SCALE },
+    );
+    const played = e.play(e.start("loop", e.settings()), set(1, 0));
+    expect(played.events.map((x) => [x.id, x.step])).toEqual([["set", 1], ["waited", 2], ["waited", 3], ["waited", 4], ["waited", 5]]);
+    expect(ends).toBe(1);
+    expect(played.round.state.dealt).toBe(4);
+    // A move's end that reports nothing sets nothing off, and is no step.
+    const quiet = engine(DOC, { ...RULES, onCascade: (ctx) => (ctx.state.dealt === 0 ? waited(ctx) : ctx.state), onMove: (ctx, move) => ({ ...RULES.onMove(ctx, move), dealt: 0 }), onMoveEnd: (ctx) => ctx.state }, { scale: SCALE });
+    expect(quiet.play(quiet.start("loop", quiet.settings()), set(1, 0)).events.map((x) => [x.id, x.step])).toEqual([["set", 1], ["waited", 2]]);
+  });
+
+  test("a cascade that never runs dry is the rules' mistake, and is caught", () => {
+    const e = engine(DOC, { ...RULES, onCascade: (ctx) => (ctx.emit("waited", {}), ctx.state) }, { scale: SCALE });
+    expect(() => e.play(e.start("loop", e.settings()), set(1, 0))).toThrow(/never ran dry/);
+  });
+
+  test("three hooks are enough: every other has a default", () => {
+    const { id, version, knows, onStart, canMove, onMove, gauges, stats } = RULES;
+    const e = engine(DOC, { id, version, knows, onStart, canMove, onMove, gauges, stats }, { scale: SCALE });
+    const round = e.start("three", e.settings());
+    const played = e.play(round, set(1, 250));
+    // Nothing follows the move, nothing happens between moves, and a signal changes nothing.
+    expect(played.events.map((x) => x.id)).toEqual(["set"]);
+    const signalled = e.play(played.round, { at: 300, signal: { id: "crash", value: true } });
+    expect(signalled.events).toEqual([]);
+    expect(signalled.round.ended).toBeNull();
+    expect(e.canMove(signalled.round, { id: "set", at: 1 })).toBe("that cell is taken");
+  });
+
   test("a round is judged only once it has ended, from a replay of its log", () => {
     const settings = tally.settings({ stage: "base" });
     const from = { seed: "judge", layers: settings.layers, settings: settings.values };
@@ -226,18 +271,18 @@ describe("the engine, on a puzzle of its own", () => {
       const e = engine(DOC, { ...RULES, ...over }, { scale: SCALE });
       return () => e.play(e.start("x", e.settings()), set(1, 0));
     };
-    expect(broken({ play: (ctx) => (ctx.emit("boom", {}), ctx.state) })).toThrow(/not a declared event/);
-    expect(broken({ play: (ctx) => (ctx.emit("set", { at: 1, kind: 1 }, (e) => e.pay("wait")), ctx.state) })).toThrow(/not declared to pay on set/);
-    expect(broken({ play: (ctx) => (ctx.emit("set", { at: 1 }), ctx.state) })).toThrow(/set.kind must be a number/);
-    expect(broken({ play: (ctx) => (ctx.emit("set", { at: 1, kind: 1, points: 99 }), ctx.state) })).toThrow(/not a field the rules may set/);
-    expect(broken({ play: (ctx) => (ctx.emit("waited", {}, (e) => e.travel(1, 0, 1)), ctx.state) })).toThrow(/not declared to carry travel/);
-    expect(broken({ play: (ctx) => (ctx.draw.even("tray", 3), ctx.state) })).toThrow(/declared bag/);
-    expect(broken({ play: (ctx) => (ctx.draw.even("luck", 3), ctx.state) })).toThrow(/not a declared draw/);
-    expect(broken({ play: (ctx) => (ctx.settings.number("speed"), ctx.state) })).toThrow(/does not have/);
-    expect(broken({ play: (ctx) => (ctx.emit("dealt", {}, (e) => void e.arrive({ piece: "kind", kind: 9 }, 1, "in-place")), ctx.state) })).toThrow(/needs a kind/);
-    expect(broken({ play: (ctx) => (ctx.emit("dealt", {}, (e) => void e.arrive({ piece: "kind", kind: 1 }, { zone: "tray", spot: 0 }, "in-place")), ctx.state) })).toThrow(/taken twice/);
+    expect(broken({ onMove: (ctx) => (ctx.emit("boom", {}), ctx.state) })).toThrow(/not a declared event/);
+    expect(broken({ onMove: (ctx) => (ctx.emit("set", { at: 1, kind: 1 }, (e) => e.pay("wait")), ctx.state) })).toThrow(/not declared to pay on set/);
+    expect(broken({ onMove: (ctx) => (ctx.emit("set", { at: 1 }), ctx.state) })).toThrow(/set.kind must be a number/);
+    expect(broken({ onMove: (ctx) => (ctx.emit("set", { at: 1, kind: 1, points: 99 }), ctx.state) })).toThrow(/not a field the rules may set/);
+    expect(broken({ onMove: (ctx) => (ctx.emit("waited", {}, (e) => e.travel(1, 0, 1)), ctx.state) })).toThrow(/not declared to carry travel/);
+    expect(broken({ onMove: (ctx) => (ctx.draw.even("tray", 3), ctx.state) })).toThrow(/declared bag/);
+    expect(broken({ onMove: (ctx) => (ctx.draw.even("luck", 3), ctx.state) })).toThrow(/not a declared draw/);
+    expect(broken({ onMove: (ctx) => (ctx.settings.number("speed"), ctx.state) })).toThrow(/does not have/);
+    expect(broken({ onMove: (ctx) => (ctx.emit("dealt", {}, (e) => void e.arrive({ piece: "kind", kind: 9 }, 1, "in-place")), ctx.state) })).toThrow(/needs a kind/);
+    expect(broken({ onMove: (ctx) => (ctx.emit("dealt", {}, (e) => void e.arrive({ piece: "kind", kind: 1 }, { zone: "tray", spot: 0 }, "in-place")), ctx.state) })).toThrow(/taken twice/);
     // A layer that is off brings nothing: its event cannot be reported and its setting cannot be read.
-    const base = engine(DOC, { ...RULES, tick: (ctx) => (ctx.emit("waited", {}), ctx.state) }, { scale: SCALE });
+    const base = engine(DOC, { ...RULES, onTick: (ctx) => (ctx.emit("waited", {}), ctx.state) }, { scale: SCALE });
     expect(() => base.mark(base.start("x", base.settings({ stage: "base" })), 100)).toThrow(/whose layer is off/);
   });
 
