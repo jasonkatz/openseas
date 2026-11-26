@@ -91,7 +91,7 @@ Vitest with property-based determinism tests on engines, Playwright smoke on all
   takes it on finishes it by the `puzzles` skill's "Changing a puzzle" before marking it ready.
 - A change to `docs/puzzles/DOMAIN.md` is also a change to the docs site: a new section is given a page in
   `packages/docs/src/domain/pages.ts`, and a key added to a document's shape gets its typed field in the reference,
-  `packages/docs/src/api/schema/`. A hook added to the guide's list gets its declaration and its page in the
+  `packages/docs/src/api/schema/`. A hook added to the guide's list gets its declaration and its section in the
   rules SDK. The site's tests fail without them.
 - Every puzzle has a guide in `docs`. A change to a puzzle's rules, scoring or controls re-reads its
   guide in the same PR; a change to how its board looks re-runs its capture

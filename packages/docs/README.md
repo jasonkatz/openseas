@@ -38,21 +38,21 @@ The puzzle, skin and theme objects are typed data in `src/api/schema/` (`puzzle.
 
 | Address | Shows |
 |---|---|
-| `/api/<object>` | A top-level object: its own fields, and a link to each object that belongs to it |
-| `/api/<object>/<key>` | One object that belongs to it, with everything nested inside defined on the same page |
+| `/api/<object>` | A top-level object, whole, on one page: its own fields, then a section for each object that belongs to it, with everything nested inside defined there |
+| `/api/<object>#<key>` | The section of one object that belongs to it. A field inside it is at `#<key>-<path>` |
 | `/api/types` | The primitive values and the named types fields share |
 
 - **A field** is `req`, `opt` or `when` (required in one case, refused in every other), with a type built from
   `src/api/schema/types.ts` and one description. An optional field says what leaving it out means (`absent`).
-  What must hold between fields goes in its `only`, `never` and `must`, or in the page's `rules`.
+  What must hold between fields goes in its `only`, `never` and `must`, or in the section's `rules`.
 - **An enum** lists every value with a sentence on what the value means. A value that is one of several forms
   is `variants` (told apart by a field) or `or` (told apart by its type).
-- **A page** is an object directly under a top-level object. Add it with `page({...})` and place it in a group
-  of the root. Nothing nested more deeply gets a page.
+- **A section** is an object directly under a top-level object. Add it with `page({...})` and place it in a group
+  of the root. No object gets a page of its own: a top-level object is one page.
 - **Every key is covered.** `test/reference.test.ts` reads the shapes in the domain guide and fails when a key
   is not in the reference, when an enum value has no explanation, and when a field is not typed down to a
   primitive value.
-- **Every example is real.** Each example on a page, and the whole Paths puzzle and skin in
+- **Every example is real.** Each example beside a section, and the whole Paths puzzle and skin in
   `docs/puzzles/examples/`, are checked against the reference's own types (`src/api/schema/check.ts`).
 
 ## The rules SDK reference
@@ -62,8 +62,8 @@ The SDK is declared in one file, `content/api/sdk/engine.d.ts`, and described as
 
 | Address | Shows |
 |---|---|
-| `/api/hooks`, `/api/view`, `/api/context` | The rules object, a view and a context: every member, with a link to the page of each |
-| `/api/hooks/<hook>`, `/api/view/<member>`, `/api/context/<member>` | One hook or method: its signature, its parameters, what it returns and when it is refused. What it holds is defined on the same page, as an event's builder is on `emit` |
+| `/api/hooks`, `/api/view`, `/api/context` | The rules object, a view and a context, each whole on one page: a section for every hook or method, with its signature, its parameters, what it returns and when it is refused |
+| `/api/hooks#<hook>`, `/api/view#<member>`, `/api/context#<member>` | The section of one hook or method. What it holds is defined inside it, as an event's builder is in `emit`, at `#e-<name>` |
 | `/api/sdk` | The two functions, every type down to plain values, and the declarations whole |
 
 - **The declarations come first.** Change `engine.d.ts`, then the data. `test/sdk.test.ts` fails when a member

@@ -24,18 +24,18 @@ The split between the files is strict, and it is what makes a puzzle safe to cha
 
 ## How to read the reference
 
-Each of the three documents is one JSON object, and the reference is laid out the way the object is. The [puzzle object](/api/puzzle), the [skin object](/api/skin) and the [theme object](/api/theme) each have a page that lists every key. Every object inside one has a page of its own under it, such as [`round`](/api/puzzle/round) under the puzzle. Whatever is nested deeper is defined on its parent's page.
+Each of the three documents is one JSON object, and the reference is laid out the way the object is. The [puzzle object](/api/puzzle), the [skin object](/api/skin) and the [theme object](/api/theme) each have one page, with everything in the object on it. Every object inside one is a section of that page, such as [`round`](/api/puzzle#round) in the puzzle, and whatever is nested deeper is defined inside its parent's section.
 
 Every field says four things.
 
 | Part | Says |
 |---|---|
-| Name | The key as it is written, with its path from the page's object, such as `tempo.kind` |
+| Name | The key as it is written, with its path from its section's object, such as `tempo.kind` |
 | Type | What its value is, down to a primitive value. A list always says what it is a list of. A named type links to [Types](/api/types) |
 | Required, optional or conditional | Whether the key is always written, may be left out, or is written in one case and refused in every other |
 | Description | What the value means. Then what leaving it out means, what it may only sit beside, what it may never sit beside, and what it must agree with |
 
-Where a value is one of a fixed set, every possible value is listed and explained. Each page ends with what must hold across its fields: the combinations a host refuses.
+Where a value is one of a fixed set, every possible value is listed and explained. Each section ends with what must hold across its fields: the combinations a host refuses.
 
 A key that is left out is left out of the file. It is never written as `null`.
 

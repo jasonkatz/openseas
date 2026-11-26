@@ -47,16 +47,16 @@ describe("the site", () => {
     expect(searchIndex().length).toBeGreaterThan(300);
     expect(search("streak")[0]?.title).toBe("Streak");
     expect(search("hooks").some((h) => h.path === "/api/hooks")).toBe(true);
-    expect(search("oncascade")[0]?.path).toBe("/api/hooks/onCascade");
-    expect(search("ctx.emit")[0]?.path).toBe("/api/context/emit");
-    expect(search("e.arrive")[0]?.path).toBe("/api/context/emit#e-arrive");
+    expect(search("oncascade")[0]?.path).toBe("/api/hooks#oncascade");
+    expect(search("ctx.emit")[0]?.path).toBe("/api/context#emit");
+    expect(search("e.arrive")[0]?.path).toBe("/api/context#e-arrive");
     expect(search("NewPiece")[0]?.path).toBe("/api/sdk#newpiece");
     expect(search("cooling")[0]?.path).toBe("/guides/cooling");
     expect(search("tier starts").length).toBeGreaterThan(0);
     // A field of the reference, by its name, and a named type.
-    expect(search("loglimit")[0]?.path).toBe("/api/puzzle/round#loglimit");
-    expect(search("tickMs").some((h) => h.kind === "field" && h.path.startsWith("/api/puzzle/round#"))).toBe(true);
-    expect(search("puzzle.round")[0]?.path).toBe("/api/puzzle/round");
+    expect(search("loglimit")[0]?.path).toBe("/api/puzzle#round-loglimit");
+    expect(search("tickMs").some((h) => h.kind === "field" && h.path.startsWith("/api/puzzle#round-"))).toBe(true);
+    expect(search("puzzle.round")[0]?.path).toBe("/api/puzzle#round");
     expect(search("zzzz")).toEqual([]);
     expect(search("  ")).toEqual([]);
   });

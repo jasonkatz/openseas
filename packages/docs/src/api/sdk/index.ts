@@ -18,18 +18,16 @@ export const sdkRootOf = (root: string): SdkRoot | undefined => SDK_ROOTS.find((
 
 export const SDK_TYPES_PATH = "/api/sdk";
 export const sdkRootPath = (root: SdkRootId): string => `/api/${root}`;
-export const memberPath = (root: SdkRootId, member: Member): string => `/api/${root}/${member.name}`;
+/** The anchor of a hook or a member on its object's page. */
+export const memberAnchor = (member: Member): string => member.name.toLowerCase();
+export const memberPath = (root: SdkRootId, member: Member): string => `/api/${root}#${memberAnchor(member)}`;
 
 /** Every member of an object, in reading order. */
 export const membersOf = (root: SdkRoot): Member[] => root.groups.flatMap((g) => g.members);
-/** The members that have a page of their own. */
+/** The members written out in full: each a section of its object's page, with its examples beside it. */
 export const memberPagesOf = (root: SdkRoot): Member[] => membersOf(root).filter((m) => m.page);
-export const memberPageOf = (root: string, name: string): Member | undefined => {
-  const r = sdkRootOf(root);
-  return r ? memberPagesOf(r).find((m) => m.name === name) : undefined;
-};
 
-/** The anchor of a member defined inside a page: `e-arrive`, `draw-even`, `board-at`. */
+/** The anchor of a member defined inside another's section: `e-arrive`, `draw-even`, `board-at`. */
 export const innerAnchor = (owner: string, name: string): string => `${owner}-${name}`.toLowerCase();
 export const typeAnchor = (name: string): string => name.toLowerCase();
 
@@ -52,16 +50,16 @@ export function declOf(name: string, source: string = ENGINE_DTS): string {
 /** A type's definition as it is declared, without the `export`. */
 export const definitionOf = (def: TypeDef): string => declOf(def.name).replace(/^export /, "");
 
-/** Where each name the SDK's signatures use is defined: a type on the types page, or an object's own page. */
+/** Where each name the SDK's signatures use is defined: a type on the types page, or a section of an object's page. */
 const NAMED: ReadonlyMap<string, string> = new Map<string, string>([
   ...TYPE_DEFS.map((d) => [d.name, `${SDK_TYPES_PATH}#${typeAnchor(d.name)}`] as const),
   ...ID_TYPES.map((v) => [v.value.replace(/<.*/, ""), `${SDK_TYPES_PATH}#ids`] as const),
   ["Rules", "/api/hooks"],
   ["View", "/api/view"],
   ["Ctx", "/api/context"],
-  ["Board", "/api/view/board"],
-  ["Draw", "/api/context/draw"],
-  ["Changes", "/api/context/emit"],
+  ["Board", "/api/view#board"],
+  ["Draw", "/api/context#draw"],
+  ["Changes", "/api/context#emit"],
 ]);
 export const namedPath = (name: string): string | undefined => NAMED.get(name);
 

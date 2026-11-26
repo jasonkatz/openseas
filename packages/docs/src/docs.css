@@ -2188,3 +2188,76 @@ button.figure-frame {
     transition: none !important;
   }
 }
+
+/* ---- one page an object: each object inside it is a section, with its examples beside it */
+.ref-page > * + * {
+  margin-top: 32px;
+}
+.ref-page > .ref-section {
+  margin-top: 0;
+  padding: 44px 0;
+  border-top: 1px solid var(--line);
+}
+.ref-page > .ref-group-head {
+  margin-top: 0;
+  padding-top: 44px;
+  border-top: 1px solid var(--line);
+}
+.ref-page > .ref-group-head + .ref-section {
+  border-top: 0;
+  padding-top: 28px;
+}
+.ref-group-head > h2 {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.prose > h3.ref-key {
+  margin-top: 0;
+  font-size: 24px;
+}
+.ref-key a {
+  text-decoration: none;
+}
+.ref-key code {
+  font-family: var(--font-mono);
+}
+.ref-section > .ref-main > .lede {
+  font-size: 17px;
+}
+.ref-section > .ref-main > h4 {
+  margin-top: 36px;
+  font-size: 16px;
+  color: var(--cream);
+}
+.ref-section h5 {
+  margin: 20px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--dim);
+}
+.contents {
+  margin: 16px 0 0;
+  display: grid;
+  gap: 14px;
+}
+.contents > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px 20px;
+}
+.contents dt {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dim);
+}
+.contents dd {
+  margin: 0;
+}
+@media (min-width: 600px) {
+  .contents > div {
+    grid-template-columns: 160px minmax(0, 1fr);
+    align-items: baseline;
+  }
+}

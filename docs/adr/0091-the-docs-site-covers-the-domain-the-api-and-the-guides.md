@@ -31,9 +31,9 @@ The owner asked for one site that covers all three, reads well from first princi
 3. **The API area is written for the site, and its reference is typed data.** `packages/docs/src/api/schema/`
    holds the puzzle, skin and theme objects as data: every field with its type down to a primitive value,
    whether it is required, what leaving it out means, every value an enum takes with what the value means, and
-   what must hold between fields. The site draws an object browser from it. Each top-level object has a page
-   at `/api/<object>`, and every object that belongs to it has a page under that, at `/api/<object>/<key>`.
-   Anything nested more deeply is defined on its parent's page. The types that fields share are on one page,
+   what must hold between fields. The site draws an object browser from it. Each top-level object is one
+   page, at `/api/<object>`, and every object that belongs to it is a section of that page, at
+   `/api/<object>#<key>`, with anything nested more deeply defined inside it. No object has a page of its own. The types that fields share are on one page,
    `/api/types`. Tests read the shapes in the domain guide and fail when a key is not in the reference, and
    hold the Paths puzzle, its skin and every example on a page to the types the reference gives.
    `packages/docs/content/api/` holds the rest in Markdown: the overview, a worked puzzle from an empty
@@ -42,7 +42,7 @@ The owner asked for one site that covers all three, reads well from first princi
    ADR 0090 is not built. `packages/docs/content/api/sdk/engine.d.ts` declares its whole surface, and
    `packages/docs/src/api/sdk/` describes it as data: every hook, every member of a view and a context, and
    every type, with its signature, its parameters, what each value it gives back means, and when a call is
-   refused. The rules object, the view and the context each have a page, with a page under it for every hook
+   refused. The rules object, the view and the context are each one page, with a section for every hook
    or method, and the types share one page. Tests hold every signature on a page to the declarations, and
    compile every example against them with the TypeScript compiler, on two generated puzzle types kept
    beside them. The pages carry a notice that this is a design. Where the ADRs name a thing and give it no

@@ -11,6 +11,7 @@ import {
   definitionOf,
   innerAnchor,
   linked,
+  memberAnchor,
   memberPath,
   sdkRootPath,
   typeAnchor,
@@ -24,6 +25,7 @@ import {
 import type { Need, Rule } from "../api/schema/index.js";
 import { t } from "../content.js";
 import { Code, Line } from "../md/Markdown.jsx";
+import { slug } from "../md/slug.js";
 import { Link } from "../router.jsx";
 import { Pager } from "../Shell.jsx";
 import { useTitle } from "./DocPage.jsx";
@@ -144,7 +146,7 @@ function Refused({ items }: { items: readonly string[] }) {
 
 const kindOf = (member: Member): string => (member.kind === "hook" ? t(member.given === "context" ? "docs.sdk.kind.hook_on" : "docs.sdk.kind.hook_ask") : t(`docs.sdk.kind.${member.kind}`));
 
-/** A member defined inside another's page: a draw's `even`, an event builder's `arrive`, a board's `at`. */
+/** A member defined inside another's section: a draw's `even`, an event builder's `arrive`, a board's `at`. */
 function Inner({ member, owner }: { member: Member; owner: string }) {
   const anchor = innerAnchor(owner, member.name);
   return (
@@ -205,22 +207,21 @@ function Preview() {
   );
 }
 
-/** The page of one hook, or of one member of a view or a context: its signature, and everything about calling it. */
-export function SdkMemberPage({ root, member }: { root: SdkRoot; member: Member }) {
-  useTitle(root.root === "hooks" ? member.name : `${root.root}.${member.name}`);
+/** One hook, or one member of a view or a context, as a section of its object's page: its signature, and everything about calling it. */
+function MemberSection({ root, member }: { root: SdkRoot; member: Member }) {
   const hook = member.kind === "hook";
+  const anchor = memberAnchor(member);
   return (
-    <div className="ref" data-testid={`sdk-${root.root}-${member.name}`}>
-      <article className="prose ref-main">
-        <header className="doc-head">
-          <Crumbs items={[{ title: t("docs.area.api"), path: "/api" }, { title: root.title, path: sdkRootPath(root.root) }, { title: member.name }]} />
-          <h1><code>{member.name}</code></h1>
-          <p className="ref-type">
-            <span className="type"><span className="type-fact">{kindOf(member)}</span></span>
-            {hook && member.need && <NeedTag need={member.need} />}
-          </p>
-          <p className="lede"><Line text={member.description} /></p>
-        </header>
+    <section className="ref ref-section" id={anchor} data-testid={`sdk-${root.root}-${member.name}`}>
+      <div className="prose ref-main">
+        <h3 className="ref-key">
+          <a href={`#${anchor}`} data-testid="sdk-child"><code>{member.name}</code></a>
+        </h3>
+        <p className="ref-type">
+          <span className="type"><span className="type-fact">{kindOf(member)}</span></span>
+          {hook && member.need && <NeedTag need={member.need} />}
+        </p>
+        <p className="lede"><Line text={member.description} /></p>
         <Sig text={member.signature} label={t("docs.sdk.signature")} />
         {member.each && (
           <>
@@ -243,7 +244,7 @@ export function SdkMemberPage({ root, member }: { root: SdkRoot; member: Member 
         )}
         {hook && (
           <>
-            <h2 id="when-it-is-asked">{t("docs.sdk.asked")}</h2>
+            <h4>{t("docs.sdk.asked")}</h4>
             <dl className="asked">
               <div>
                 <dt>{t("docs.sdk.stage")}</dt>
@@ -260,7 +261,7 @@ export function SdkMemberPage({ root, member }: { root: SdkRoot; member: Member 
             </dl>
             {member.before && (
               <>
-                <h3 id="before-it-is-asked">{t("docs.sdk.before")}</h3>
+                <h5>{t("docs.sdk.before")}</h5>
                 <Refused items={member.before} />
               </>
             )}
@@ -268,13 +269,13 @@ export function SdkMemberPage({ root, member }: { root: SdkRoot; member: Member 
         )}
         {member.kind !== "property" && (
           <>
-            <h2 id="parameters">{t("docs.sdk.params")}</h2>
-            {member.params?.length ? <div className="ref-fields" data-testid="sdk-params"><Params params={member.params} owner="param" /></div> : <p className="muted">{t("docs.sdk.no_params")}</p>}
+            <h4>{t("docs.sdk.params")}</h4>
+            {member.params?.length ? <div className="ref-fields" data-testid="sdk-params"><Params params={member.params} /></div> : <p className="muted">{t("docs.sdk.no_params")}</p>}
           </>
         )}
         {member.returns && (
           <>
-            <h2 id="returns">{t("docs.sdk.returns")}</h2>
+            <h4>{t("docs.sdk.returns")}</h4>
             <div className="returns returns-top" data-testid="sdk-returns">
               <p className="field-head"><TypeTag text={member.returns.type} /></p>
               <p className="field-text"><Line text={member.returns.description} /></p>
@@ -284,26 +285,26 @@ export function SdkMemberPage({ root, member }: { root: SdkRoot; member: Member 
         )}
         {hook && member.after && (
           <>
-            <h3 id="after-it-returns">{t("docs.sdk.after")}</h3>
+            <h5>{t("docs.sdk.after")}</h5>
             <Refused items={member.after} />
           </>
         )}
         {member.rules && (
           <>
-            <h2 id="what-must-hold">{t("docs.sdk.rules")}</h2>
+            <h4>{t("docs.sdk.rules")}</h4>
             <Rules rules={member.rules} />
           </>
         )}
         {member.refused && (
           <>
-            <h2 id="refused-when">{t("docs.sdk.refused")}</h2>
+            <h4>{t("docs.sdk.refused")}</h4>
             <p className="muted">{t("docs.sdk.refused_blurb")}</p>
             <Refused items={member.refused} />
           </>
         )}
         {member.members?.map((group) => (
           <section key={group.title} className="ref-group">
-            <h2 id={group.title.toLowerCase().replace(/\W+/g, "-")}>{group.title}</h2>
+            <h4>{group.title}</h4>
             {group.note && <p><Line text={group.note} /></p>}
             <nav className="jump" aria-label={group.title}>
               {group.members.map((m) => (
@@ -317,94 +318,122 @@ export function SdkMemberPage({ root, member }: { root: SdkRoot; member: Member 
             </ul>
           </section>
         ))}
-        <Pager area="api" path={memberPath(root.root, member)} />
-      </article>
+      </div>
       <Examples examples={member.examples ?? []} />
-    </div>
+    </section>
   );
 }
 
-function RootRow({ root, member }: { root: SdkRoot; member: Member }): ReactNode {
-  const to = member.page ? memberPath(root.root, member) : member.from ? `${sdkRootPath("view")}${memberPagePath(member)}` : undefined;
-  const anchor = member.name.toLowerCase();
+/** A member short enough to need no section: a line in a list, whole. One of a view's on a context leads to where the view defines it. */
+function RootRow({ member }: { member: Member }): ReactNode {
+  const anchor = memberAnchor(member);
   return (
-    <li className={`field ${member.page ? "field-page" : ""}`} id={anchor}>
+    <li className="field" id={anchor}>
       <p className="field-head">
-        {member.page ? (
-          <Link className="field-name" to={to!} data-testid="sdk-child"><code>{member.name}</code></Link>
-        ) : (
-          <a className="field-name" href={`#${anchor}`}><code>{member.name}</code></a>
-        )}
+        <a className="field-name" href={`#${anchor}`}><code>{member.name}</code></a>
         <span className="type"><span className="type-fact">{kindOf(member)}</span></span>
         {member.kind === "hook" && member.need && <NeedTag need={member.need} />}
       </p>
       <Sig text={member.signature} />
       <p className="field-text"><Line text={member.description} /></p>
-      {!member.page && !member.from && member.about?.map((p, i) => <p key={i} className="field-text"><Line text={p} /></p>)}
+      {!member.from && member.about?.map((p, i) => <p key={i} className="field-text"><Line text={p} /></p>)}
       {member.kind === "hook" && <Rules absent={member.absent} need={member.need} />}
-      {!member.page && !member.from && <Rules rules={member.rules} />}
-      {!member.page && !member.from && <Cases values={member.returns?.values} title={t("docs.sdk.cases")} />}
-      {member.page && (
-        <p className="field-more">
-          <Link to={to!}>{t("docs.sdk.open")}</Link>
-        </p>
-      )}
+      {!member.from && <Rules rules={member.rules} />}
+      {!member.from && <Cases values={member.returns?.values} title={t("docs.sdk.cases")} />}
       {member.from && (
         <p className="field-more">
-          <Link to={to!}>{t("docs.sdk.from_view")}</Link>
+          <Link to={memberPath("view", member)}>{t("docs.sdk.from_view")}</Link>
         </p>
       )}
     </li>
   );
 }
 
-/** Where a view's member is defined: its own page, or its row on the view's page. */
-const VIEW_PAGES = new Set(["board", "zone", "next", "sideOf", "seatsOf"]);
-const memberPagePath = (member: Member): string => (VIEW_PAGES.has(member.name) ? `/${member.name}` : `#${member.name.toLowerCase()}`);
+/** A group's members in order, cut into runs: the short ones listed together, each of the others a section. */
+function runsOf(members: readonly Member[]): (Member[] | Member)[] {
+  const out: (Member[] | Member)[] = [];
+  for (const m of members) {
+    const last = out.at(-1);
+    if (m.page) out.push(m);
+    else if (Array.isArray(last)) last.push(m);
+    else out.push([m]);
+  }
+  return out;
+}
 
-/** The page of the rules object, a view or a context: every member it has, with a link to the page of each. */
+/** The page of the rules object, a view or a context: every member it has, each written out in full. */
 export function SdkRootPage({ root }: { root: SdkRoot }) {
   useTitle(root.title);
   return (
-    <div className="ref" data-testid={`sdk-${root.root}`}>
-      <article className="prose ref-main">
-        <header className="doc-head">
-          <Crumbs items={[{ title: t("docs.area.api"), path: "/api" }, { title: t("docs.sdk.group") }]} />
-          <h1>{root.title}</h1>
-          <p className="ref-type">
-            <span className="type"><span className="type-name">{root.name}{"<P, S>"}</span><span className="type-fact"><code>@openseas/engine</code></span></span>
-          </p>
-          <p className="lede"><Line text={root.lede} /></p>
-        </header>
-        <Preview />
-        {root.about.map((p, i) => (
-          <p key={i}><Line text={p} /></p>
-        ))}
-        <h2 id="members">{t(root.root === "hooks" ? "docs.sdk.hooks" : "docs.sdk.members")}</h2>
-        {root.groups.map((group) => (
-          <section key={group.title} className="ref-group">
-            <h3>{group.title}</h3>
+    <div className="ref-page" data-testid={`sdk-${root.root}`}>
+      <div className="ref">
+        <article className="prose ref-main">
+          <header className="doc-head">
+            <Crumbs items={[{ title: t("docs.area.api"), path: "/api" }, { title: t("docs.sdk.group") }]} />
+            <h1>{root.title}</h1>
+            <p className="ref-type">
+              <span className="type"><span className="type-name">{root.name}{"<P, S>"}</span><span className="type-fact"><code>@openseas/engine</code></span></span>
+            </p>
+            <p className="lede"><Line text={root.lede} /></p>
+          </header>
+          <Preview />
+          {root.about.map((p, i) => (
+            <p key={i}><Line text={p} /></p>
+          ))}
+          <h2 id="members">{t(root.root === "hooks" ? "docs.sdk.hooks" : "docs.sdk.members")}</h2>
+          <dl className="contents" data-testid="sdk-contents">
+            {root.groups.map((group) => (
+              <div key={group.title}>
+                <dt>{group.title}</dt>
+                <dd className="jump">
+                  {group.members.map((m) => (
+                    <a key={m.name} href={`#${memberAnchor(m)}`}><code>{m.name}</code></a>
+                  ))}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </article>
+        <Examples examples={[root.example]} />
+      </div>
+      {root.groups.map((group) => (
+        <Fragment key={group.title}>
+          <div className="prose ref-group-head">
+            <h2 id={`group-${slug(group.title)}`}>{group.title}</h2>
             {group.note && <p className="muted"><Line text={group.note} /></p>}
-            <ul className="fields">
-              {group.members.map((m) => (
-                <RootRow key={m.name} root={root} member={m} />
-              ))}
-            </ul>
-          </section>
-        ))}
-        {root.holds && (
-          <>
-            <h2 id="what-holds">{root.holds.title}</h2>
-            <ul className="holds">
-              {root.holds.items.map((item, i) => (
-                <li key={i}><Line text={item} /></li>
-              ))}
-            </ul>
-          </>
-        )}
-        <Pager area="api" path={sdkRootPath(root.root)} />
-      </article>
-      <Examples examples={[root.example]} />
+          </div>
+          {runsOf(group.members).map((run) =>
+            Array.isArray(run) ? (
+              <div key={run[0]!.name} className="ref">
+                <div className="prose ref-main ref-group">
+                  <ul className="fields">
+                    {run.map((m) => (
+                      <RootRow key={m.name} member={m} />
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              <MemberSection key={run.name} root={root} member={run} />
+            ),
+          )}
+        </Fragment>
+      ))}
+      <div className="ref">
+        <div className="prose ref-main">
+          {root.holds && (
+            <>
+              <h2 id="what-holds">{root.holds.title}</h2>
+              <ul className="holds">
+                {root.holds.items.map((item, i) => (
+                  <li key={i}><Line text={item} /></li>
+                ))}
+              </ul>
+            </>
+          )}
+          <Pager area="api" path={sdkRootPath(root.root)} />
+        </div>
+      </div>
     </div>
   );
 }

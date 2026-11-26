@@ -1,6 +1,6 @@
 import { CORE_PUZZLE_IDS, PROTOTYPE_PUZZLE_IDS, PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
 import { API_GROUPS, apiContent, apiPath } from "./api/pages.js";
-import { ALIASES, ROOTS, TYPES_PATH, isPage, pagePath, pageView, pagesOf, rootNodes, rootPath } from "./api/schema/index.js";
+import { ALIASES, ROOTS, TYPES_PATH, isPage, nodePath, pagePath, pageView, pagesOf, rootNodes, rootPath } from "./api/schema/index.js";
 import { FUNCTIONS, SDK_ROOTS, SDK_TYPES_PATH, TYPE_DEFS, innerAnchor, memberPagesOf, memberPath, membersOf, sdkRootPath, typeAnchor } from "./api/sdk/index.js";
 import { t } from "./content.js";
 import { GLOSSARY } from "./domain/glossary.js";
@@ -25,7 +25,7 @@ export interface NavItem {
   readonly title: string;
   /** Written as code: the key of an object in a file. */
   readonly code?: boolean | undefined;
-  /** The pages under it, listed while the reader is on it or on one of them. */
+  /** The sections of its page, listed while the reader is on it. */
   readonly children?: readonly NavItem[] | undefined;
 }
 export interface NavGroup {
@@ -48,7 +48,7 @@ export function navOf(area: Area): NavGroup[] {
   ];
 }
 
-/** The reference: the three top-level objects, each with a page for every object inside it, and the types they share. */
+/** The reference: the three top-level objects, each one page with a section for every object inside it, and the types they share. */
 function referenceNav(): NavGroup {
   return {
     title: t("docs.ref.group.reference"),
@@ -62,7 +62,7 @@ function referenceNav(): NavGroup {
 /** The group of prose pages the SDK's reference is listed in. */
 const SDK_GROUP = "Rules SDK";
 
-/** The rules SDK: the rules object, a view and a context, each with a page for every hook or member, and its types. */
+/** The rules SDK: the rules object, a view and a context, each one page with a section for every hook or member, and its types. */
 function sdkNav(): NavItem[] {
   return [
     ...SDK_ROOTS.map((root): NavItem => ({ path: sdkRootPath(root.root), title: root.title, children: memberPagesOf(root).map((m) => ({ path: memberPath(root.root, m), title: m.name, code: true })) })),
@@ -71,7 +71,7 @@ function sdkNav(): NavItem[] {
 }
 
 export function neighbours(area: Area, path: string): { prev?: NavItem | undefined; next?: NavItem | undefined } {
-  const all = navOf(area).flatMap((g) => g.items.flatMap((i) => [i, ...(i.children ?? [])]));
+  const all = navOf(area).flatMap((g) => g.items);
   const at = all.findIndex((i) => i.path === path);
   return at < 0 ? {} : { prev: all[at - 1], next: all[at + 1] };
 }
@@ -122,8 +122,8 @@ export function searchIndex(): Hit[] {
       for (const f of group.fields) if (!isPage(f)) out.push({ title: `${root.root}.${f.name}`, path: `${rootPath(root.root)}#${rootNodes(root).get(f)!.anchor}`, area: "api", kind: "field", sub: clean(f.description) });
     }
     for (const page of pagesOf(root)) {
-      out.push({ title: `${root.root}.${page.key}`, path: pagePath(page), area: "api", kind: "page", sub: clean(page.lede) });
-      for (const node of pageView(page).all) out.push({ title: `${page.key}.${node.path}`, path: `${pagePath(page)}#${node.anchor}`, area: "api", kind: "field", sub: clean(node.field.description) });
+      out.push({ title: `${root.root}.${page.key}`, path: pagePath(page), area: "api", kind: "section", sub: clean(page.lede) });
+      for (const node of pageView(page).all) out.push({ title: `${page.key}.${node.path}`, path: nodePath(page, node), area: "api", kind: "field", sub: clean(node.field.description) });
     }
   }
   for (const a of ALIASES) out.push({ title: a.name, path: `${TYPES_PATH}#${a.name.replace(/\s+/g, "-")}`, area: "api", kind: "type", sub: clean(a.description) });
@@ -132,9 +132,9 @@ export function searchIndex(): Hit[] {
     out.push({ title: root.title, path: sdkRootPath(root.root), area: "api", kind: "page", sub: clean(root.lede) });
     for (const m of membersOf(root)) {
       if (m.from) continue;
-      const path = m.page ? memberPath(root.root, m) : `${sdkRootPath(root.root)}#${m.name.toLowerCase()}`;
+      const path = memberPath(root.root, m);
       out.push({ title: `${owner}${m.name}`, path, area: "api", kind: m.kind === "hook" ? "hook" : "member", sub: clean(m.description) });
-      for (const group of m.members ?? []) for (const inner of group.members) out.push({ title: `${group.name}.${inner.name}`, path: `${path}#${innerAnchor(group.name, inner.name)}`, area: "api", kind: "member", sub: clean(inner.description) });
+      for (const group of m.members ?? []) for (const inner of group.members) out.push({ title: `${group.name}.${inner.name}`, path: `${sdkRootPath(root.root)}#${innerAnchor(group.name, inner.name)}`, area: "api", kind: "member", sub: clean(inner.description) });
     }
   }
   for (const fn of FUNCTIONS) out.push({ title: fn.name, path: `${SDK_TYPES_PATH}#${typeAnchor(fn.name)}`, area: "api", kind: "member", sub: clean(fn.description) });

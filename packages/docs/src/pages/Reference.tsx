@@ -6,7 +6,7 @@ import {
   TYPES_PATH,
   isPage,
   needLabel,
-  pagePath,
+  pageAnchor,
   pageView,
   rootNodes,
   rootPath,
@@ -22,6 +22,7 @@ import {
 } from "../api/schema/index.js";
 import { t } from "../content.js";
 import { Code, Line } from "../md/Markdown.jsx";
+import { slug } from "../md/slug.js";
 import { Link } from "../router.jsx";
 import { Pager } from "../Shell.jsx";
 import { useTitle } from "./DocPage.jsx";
@@ -208,42 +209,46 @@ export function Crumbs({ items }: { items: readonly { title: string; path?: stri
   );
 }
 
-/** A page for one object that belongs to a top-level object: every field it has, typed, and what must hold across them. */
-export function ObjectRefPage({ root, page }: { root: RootObject; page: ObjectPage }) {
-  useTitle(`${root.root}.${page.key}`);
+/** What a field's need and absence say, where they say anything. */
+function PageNotes({ page, top }: { page: ObjectPage; top?: boolean }) {
+  if (typeof page.need === "string" && !page.absent) return null;
+  return (
+    <ul className={`notes ${top ? "notes-top" : ""}`}>
+      {typeof page.need !== "string" && <li className="note-when"><Line text={t("docs.ref.required_when", { when: page.need.when })} /></li>}
+      {page.absent && (
+        <li>
+          <b>{t("docs.ref.absent")}</b> <Line text={page.absent} />
+        </li>
+      )}
+    </ul>
+  );
+}
+
+/** One object that belongs to a top-level object, as a section of its page: every field it has, typed, what must hold across them, and its examples beside it. */
+function ObjectSection({ page }: { page: ObjectPage }) {
   const { view } = pageView(page);
   const top = view.sections.flatMap((s) => s.nodes);
+  const anchor = pageAnchor(page);
   return (
-    <div className="ref" data-testid={`ref-${page.root}-${page.key}`}>
-      <article className="prose ref-main">
-        <header className="doc-head">
-          <Crumbs items={[{ title: t("docs.area.api"), path: "/api" }, { title: root.title, path: rootPath(root.root) }, { title: page.key }]} />
-          <h1><code>{page.key}</code></h1>
-          <p className="ref-type">
-            <TypeTag view={view} />
-            <NeedTag need={page.need} />
-          </p>
-          <p className="lede"><Line text={page.lede} /></p>
-        </header>
+    <section className="ref ref-section" id={anchor} data-testid={`ref-${page.root}-${page.key}`}>
+      <div className="prose ref-main">
+        <h3 className="ref-key">
+          <a href={`#${anchor}`} data-testid="ref-child"><code>{page.key}</code></a>
+        </h3>
+        <p className="ref-type">
+          <TypeTag view={view} />
+          <NeedTag need={page.need} />
+        </p>
+        <p className="lede"><Line text={page.lede} /></p>
         {page.about?.map((p, i) => (
           <p key={i}><Line text={p} /></p>
         ))}
-        {(typeof page.need !== "string" || page.absent) && (
-          <ul className="notes notes-top">
-            {typeof page.need !== "string" && <li className="note-when"><Line text={t("docs.ref.required_when", { when: page.need.when })} /></li>}
-            {page.absent && (
-              <li>
-                <b>{t("docs.ref.absent")}</b> <Line text={page.absent} />
-              </li>
-            )}
-          </ul>
-        )}
+        <PageNotes page={page} top />
         {page.ideas && (
           <p className="ideas">
             {t("docs.ref.ideas")} <Link to={page.ideas.path}>{page.ideas.title}</Link>
           </p>
         )}
-        <h2 id="attributes">{t("docs.ref.attributes")}</h2>
         {top.length > 3 && (
           <nav className="jump" aria-label={t("docs.ref.jump")}>
             {top.map((n) => (
@@ -256,7 +261,7 @@ export function ObjectRefPage({ root, page }: { root: RootObject; page: ObjectPa
         </div>
         {page.rules && (
           <>
-            <h2 id="what-must-hold">{t("docs.ref.rules")}</h2>
+            <h4>{t("docs.ref.rules")}</h4>
             <p className="muted">{t("docs.ref.rules_blurb")}</p>
             <ul className="holds">
               {page.rules.map((rule, i) => (
@@ -265,78 +270,96 @@ export function ObjectRefPage({ root, page }: { root: RootObject; page: ObjectPa
             </ul>
           </>
         )}
-        <Pager area="api" path={pagePath(page)} />
-      </article>
+      </div>
       <Examples examples={page.examples} width={52} />
-    </div>
+    </section>
   );
 }
 
-/** A top-level object's page: what it is, every field it has, and a link to the page of each object inside it. */
+/** A group's fields in the order the file is written, cut into runs: single values listed together, each object a section. */
+function runsOf(fields: readonly (Field | ObjectPage)[]): (Field[] | ObjectPage)[] {
+  const out: (Field[] | ObjectPage)[] = [];
+  for (const f of fields) {
+    const last = out.at(-1);
+    if (isPage(f)) out.push(f);
+    else if (Array.isArray(last)) last.push(f);
+    else out.push([f]);
+  }
+  return out;
+}
+
+/** A top-level object's page: what it is, and everything in it, down to the last field of the last object inside it. */
 export function RootRefPage({ root }: { root: RootObject }) {
   useTitle(t("docs.ref.object", { name: root.root }));
   const own = rootNodes(root);
   return (
-    <div className="ref" data-testid={`ref-${root.root}`}>
-      <article className="prose ref-main">
-        <header className="doc-head">
-          <Crumbs items={[{ title: t("docs.area.api"), path: "/api" }, { title: t("docs.ref.group.reference") }]} />
-          <h1>{t("docs.ref.object", { name: root.root })}</h1>
-          <p className="ref-type">
-            <span className="type"><span className="type-name">object</span><span className="type-fact"><code>{root.file}</code></span></span>
-          </p>
-          <p className="lede"><Line text={root.lede} /></p>
-        </header>
-        {root.about.map((p, i) => (
-          <p key={i}><Line text={p} /></p>
-        ))}
-        <h2 id="attributes">{t("docs.ref.attributes")}</h2>
-        {root.groups.map((group) => (
-          <section key={group.title} className="ref-group">
-            <h3>{group.title}</h3>
-            {group.note && <p className="muted"><Line text={group.note} /></p>}
-            <ul className="fields">
-              {group.fields.map((f) => {
-                if (!isPage(f)) return <FieldRow key={f.name} node={own.get(f)!} />;
-                const view = pageView(f).view;
-                return (
-                  <li key={f.key} className="field field-page" id={f.key.toLowerCase()}>
-                    <p className="field-head">
-                      <Link className="field-name" to={pagePath(f)} data-testid="ref-child"><code>{f.key}</code></Link>
-                      <span className="type"><span className="type-name">{view.label}</span>{view.sections.length === 0 && view.facts.map((x) => <span key={x} className="type-fact">{x}</span>)}</span>
-                      <NeedTag need={f.need} />
-                    </p>
-                    <p className="field-text"><Line text={f.lede} /></p>
-                    {(typeof f.need !== "string" || f.absent) && (
-                      <ul className="notes">
-                        {typeof f.need !== "string" && <li className="note-when"><Line text={t("docs.ref.required_when", { when: f.need.when })} /></li>}
-                        {f.absent && (
-                          <li>
-                            <b>{t("docs.ref.absent")}</b> <Line text={f.absent} />
-                          </li>
-                        )}
-                      </ul>
-                    )}
-                    <p className="field-more">
-                      <Link to={pagePath(f)}>{t("docs.ref.see")}</Link>
-                    </p>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))}
-        <h2 id="when-it-is-ready">{t("docs.ref.ready")}</h2>
-        <p><Line text={root.ready.intro} /></p>
-        <ul className="holds">
-          {root.ready.items.map((item, i) => (
-            <li key={i}><Line text={item} /></li>
+    <div className="ref-page" data-testid={`ref-${root.root}`}>
+      <div className="ref">
+        <article className="prose ref-main">
+          <header className="doc-head">
+            <Crumbs items={[{ title: t("docs.area.api"), path: "/api" }, { title: t("docs.ref.group.reference") }]} />
+            <h1>{t("docs.ref.object", { name: root.root })}</h1>
+            <p className="ref-type">
+              <span className="type"><span className="type-name">object</span><span className="type-fact"><code>{root.file}</code></span></span>
+            </p>
+            <p className="lede"><Line text={root.lede} /></p>
+          </header>
+          {root.about.map((p, i) => (
+            <p key={i}><Line text={p} /></p>
           ))}
-        </ul>
-        {root.ready.outro && <p><Line text={root.ready.outro} /></p>}
-        <Pager area="api" path={rootPath(root.root)} />
-      </article>
-      <Examples examples={[root.example]} width={52} />
+          <h2 id="attributes">{t("docs.ref.attributes")}</h2>
+          <dl className="contents" data-testid="ref-contents">
+            {root.groups.map((group) => (
+              <div key={group.title}>
+                <dt>{group.title}</dt>
+                <dd className="jump">
+                  {group.fields.map((f) => {
+                    const [name, anchor] = isPage(f) ? [f.key, pageAnchor(f)] : [f.name, own.get(f)!.anchor];
+                    return <a key={name} href={`#${anchor}`}><code>{name}</code></a>;
+                  })}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </article>
+        <Examples examples={[root.example]} width={52} />
+      </div>
+      {root.groups.map((group) => (
+        <Fragment key={group.title}>
+          <div className="prose ref-group-head">
+            <h2 id={`group-${slug(group.title)}`}>{group.title}</h2>
+            {group.note && <p className="muted"><Line text={group.note} /></p>}
+          </div>
+          {runsOf(group.fields).map((run) =>
+            Array.isArray(run) ? (
+              <div key={run[0]!.name} className="ref">
+                <div className="prose ref-main ref-group">
+                  <ul className="fields">
+                    {run.map((f) => (
+                      <FieldRow key={f.name} node={own.get(f)!} />
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              <ObjectSection key={run.key} page={run} />
+            ),
+          )}
+        </Fragment>
+      ))}
+      <div className="ref">
+        <div className="prose ref-main">
+          <h2 id="when-it-is-ready">{t("docs.ref.ready")}</h2>
+          <p><Line text={root.ready.intro} /></p>
+          <ul className="holds">
+            {root.ready.items.map((item, i) => (
+              <li key={i}><Line text={item} /></li>
+            ))}
+          </ul>
+          {root.ready.outro && <p><Line text={root.ready.outro} /></p>}
+          <Pager area="api" path={rootPath(root.root)} />
+        </div>
+      </div>
     </div>
   );
 }

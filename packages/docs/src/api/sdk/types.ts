@@ -86,10 +86,10 @@ export interface Member {
   /** When the engine refuses the call. Each stops the round and names what was wrong. */
   readonly refused?: readonly string[];
   readonly rules?: readonly Rule[];
-  /** What it holds, where that is defined on this page: a draw's methods, an event's builder. */
+  /** What it holds, defined in its section: a draw's methods, an event's builder. */
   readonly members?: readonly { readonly title: string; readonly name: string; readonly note?: string; readonly members: readonly Member[] }[];
   readonly examples?: readonly CodeExample[];
-  /** True where it has a page of its own under its object. */
+  /** True where it is written out in full, as a section of its object's page with its examples beside it. */
   readonly page?: boolean;
   /** A context's member that is a view's: where it is defined. */
   readonly from?: string;

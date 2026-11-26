@@ -15,7 +15,7 @@ function Mark() {
 }
 
 function SideItem({ item, path, onGo }: { item: NavItem; path: string; onGo(): void }) {
-  const open = item.children && (item.path === path || item.children.some((c) => c.path === path));
+  const open = item.children && item.path === path;
   return (
     <li>
       <Link to={item.path} aria-current={item.path === path ? "page" : undefined} aria-expanded={item.children ? Boolean(open) : undefined} onClick={onGo}>

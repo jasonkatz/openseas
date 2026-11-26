@@ -258,9 +258,9 @@ const cues = page({
   need: "required",
   type: CUES_MAP("A name for the cue: a lower-case letter, then letters and digits. Events play a cue by this name."),
   rules: [
-    "There is a cue for every name an entry of [`events`](/api/skin/events) lists.",
+    "There is a cue for every name an entry of [`events`](/api/skin#events) lists.",
     "There is a cue named `beat`. It is played on the puzzle's moment, alone, with no other cue over it.",
-    "Every cue stays inside its theme's [sound frame](/api/theme/sound): each tone is a step of the scale, no voice ends later than the frame's longest, and no cutoff is higher than the frame's.",
+    "Every cue stays inside its theme's [sound frame](/api/theme#sound): each tone is a step of the scale, no voice ends later than the frame's longest, and no cutoff is higher than the frame's.",
     "A cue has 1 to 16 voices.",
   ],
   examples: [cut("cues", ["pop", "good"]), { title: "A whoosh: one voice of air", value: { cues: { whoosh: { level: 0.9, cutoff: 2000, voices: [{ kind: "air", at: 0, attack: 0.05, release: 0.25, level: 0.6, from: 400, to: 1800, band: true }] } } } }],
@@ -361,7 +361,7 @@ const events = page({
         opt("points", ref("event field"), "The field its points rise from on the board.", { absent: "Its points are added without rising from anywhere.", must: "Name a `place` or `places` field of an event that carries `points`." }),
         opt("callout", int(1), "Its callout's rank, 1 the highest. One entry of the log shows at most one callout: the highest any of its events earned.", {
           absent: "It has no callout.",
-          must: "Have a text `event.<id>` in [`texts`](/api/skin/texts), and a rank no other event shares.",
+          must: "Have a text `event.<id>` in [`texts`](/api/skin#texts), and a rank no other event shares.",
         }),
       ],
       "event's dress",
@@ -374,9 +374,9 @@ const events = page({
   ),
   rules: [
     "There is an entry for every event the puzzle declares, and for `start`, `countdown` and `end`.",
-    "Every cue an entry names is in [`cues`](/api/skin/cues).",
+    "Every cue an entry names is in [`cues`](/api/skin#cues).",
     "Every field an entry names is a field of that event, of the type the key needs.",
-    "The beat is not an entry here. It plays on the puzzle's [moment](/api/puzzle/moment), with the cue named `beat`.",
+    "The beat is not an entry here. It plays on the puzzle's [moment](/api/puzzle#moment), with the cue named `beat`.",
   ],
   examples: [cut("events", ["clear", "loop", "blowup", "refill", "start"])],
 });
@@ -388,7 +388,7 @@ const texts = page({
   about: ["Everything a player reads about a puzzle is here: its name, how to play it, what each piece is called, each callout and each label."],
   ideas: { title: "The skin", path: "/domain/skins-and-themes#the-skin" },
   need: "required",
-  type: map("<key>", "One of the keys the puzzle's [`texts`](/api/puzzle/texts) declares.", str("the text")),
+  type: map("<key>", "One of the keys the puzzle's [`texts`](/api/puzzle#texts) declares.", str("the text")),
   rules: ["There is a text for every key the puzzle declares, and for no other.", "A text keeps its key's placeholders, each written in braces: `{count}`. It may leave one out, and may not use one the key does not declare.", "A text names nothing from another theme."],
   examples: [cut("texts", ["name", "how_to", "stage.full", "piece.prize", "event.loop", "gauge.prizes", "stat.longest"])],
 });

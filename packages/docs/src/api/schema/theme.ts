@@ -101,7 +101,7 @@ const cues = page({
   ideas: { title: "Read, and copied", path: "/domain/skins-and-themes#read-and-copied" },
   need: "required",
   type: CUES_MAP("A name for the cue. The theme brings one for each moment a host plays: `start`, `countdown`, `end` and `beat`."),
-  rules: ["There is a cue for each moment a host plays: `start`, `countdown`, `end` and `beat`.", "Every starting cue stays inside the theme's own [sound frame](/api/theme/sound).", "A cue here is written exactly as a skin's [cue](/api/skin/cues) is."],
+  rules: ["There is a cue for each moment a host plays: `start`, `countdown`, `end` and `beat`.", "Every starting cue stays inside the theme's own [sound frame](/api/theme#sound).", "A cue here is written exactly as a skin's [cue](/api/skin#cues) is."],
   examples: [{ title: "One starting cue", value: { cues: { good: SPACE_CUE } } }],
 });
 
@@ -109,7 +109,7 @@ const motion = page({
   key: "motion",
   title: "motion",
   lede: "The starting motion: what a new skin copies.",
-  about: ["Like the starting cues, this is copied when a skin is made and never read afterwards. It is written exactly as a skin's [motion](/api/skin/motion) is."],
+  about: ["Like the starting cues, this is copied when a skin is made and never read afterwards. It is written exactly as a skin's [motion](/api/skin#motion) is."],
   ideas: { title: "Read, and copied", path: "/domain/skins-and-themes#read-and-copied" },
   need: "required",
   type: MOTION,

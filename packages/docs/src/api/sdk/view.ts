@@ -77,7 +77,7 @@ const board: Member = {
             type: "TerrainId<P> | \"plain\"",
             description: "What the cell itself is, whatever stands on it.",
             values: [
-              { value: "TerrainId<P>", description: "The id of one of the puzzle's [`terrain`](/api/puzzle/terrain)." },
+              { value: "TerrainId<P>", description: "The id of one of the puzzle's [`terrain`](/api/puzzle#terrain)." },
               { value: "\"plain\"", description: "An ordinary cell. Every cell is plain in a puzzle that declares no terrain." },
             ],
           },
@@ -91,7 +91,7 @@ const board: Member = {
           params: [{ name: "place", type: "Cell<P>", description: "A cell on the board." }],
           returns: {
             type: "Cell<P>[]",
-            description: "The touching cells that are on the board. On a grid they are the four beside it, or all eight where the puzzle's [`board.touch`](/api/puzzle/board) is 8, listed clockwise from the one above. On rings they are the two around the ring and the ones in and out along the sector.",
+            description: "The touching cells that are on the board. On a grid they are the four beside it, or all eight where the puzzle's [`board.touch`](/api/puzzle#board) is 8, listed clockwise from the one above. On rings they are the two around the ring and the ones in and out along the sector.",
           },
           refused: ["The cell is not on the board."],
         },
@@ -127,7 +127,7 @@ const zoneMember: Member = {
   signature: "zone(id: ZoneId<P>, owner?: Seat | Side): readonly Piece<P>[]",
   description: "What a zone holds, in order.",
   about: [
-    "A zone is a named place beside the board: a hand, a deck, a tray, the next pair. The puzzle declares each under [`zones`](/api/puzzle/zones), and says whose it is and who sees it.",
+    "A zone is a named place beside the board: a hand, a deck, a tray, the next pair. The puzzle declares each under [`zones`](/api/puzzle#zones), and says whose it is and who sees it.",
     "This reads a zone. To name one as a place for a piece to go, use the function [`zone()`](/api/sdk#zone).",
   ],
   params: [
@@ -369,7 +369,7 @@ export const VIEW_ROOT: SdkRoot = {
     items: [
       "Reading a view changes nothing. Every member can be read at any time, any number of times.",
       "A view is of one moment. It does not follow the round: a hook is handed a fresh one each time it is asked.",
-      "What a seat cannot see, its view does not hold. That is kept by the engine, from who the puzzle says sees each [zone](/api/puzzle/zones), and no rules file writes code to hide anything.",
+      "What a seat cannot see, its view does not hold. That is kept by the engine, from who the puzzle says sees each [zone](/api/puzzle#zones), and no rules file writes code to hide anything.",
       "The rules' state is in every view, whole. A secret is never kept in the state.",
     ],
   },
@@ -397,14 +397,14 @@ const draw: Member = {
   signature: "draw(id: DrawId<P>): Draw",
   description: "One of the puzzle's draws: a source of luck.",
   about: [
-    "All luck in a round comes from a draw. The puzzle declares each under [`deal.draws`](/api/puzzle/deal#draws), with what it decides and how.",
+    "All luck in a round comes from a draw. The puzzle declares each under [`deal.draws`](/api/puzzle#deal-draws), with what it decides and how.",
     "Every draw has a stream of its own, made from the round's seed and the draw's id. Nothing a draw gives depends on another draw, so a move that changes what one draw is asked for never changes what the others give.",
     "Each call takes the next value from the stream. The same seed, settings and log always ask the same draws in the same order, so they always get the same values.",
   ],
   params: [{ name: "id", type: "DrawId<P>", description: "The id of one of the puzzle's draws." }],
   returns: { type: "Draw", description: "The draw. Its four members are below. Calling `draw` again with the same id gives the same stream, carried on from where it was." },
   rules: [
-    must("Ask a draw the way the puzzle declares it [`by`](/api/puzzle/deal#draws): `even` for an even roll, `chance` or `pick` for a weighted roll, `next` for a bag, `pick` for a pick."),
+    must("Ask a draw the way the puzzle declares it [`by`](/api/puzzle#deal-draws): `even` for an even roll, `chance` or `pick` for a weighted roll, `next` for a bag, `pick` for a pick."),
     never("Keep a `Draw` in the state, or ask one from a question. A view has no draws."),
   ],
   refused: ["The puzzle declares no such draw.", "The draw belongs to a layer the round's stage has not reached."],
@@ -453,7 +453,7 @@ const draw: Member = {
           signature: "next(): number",
           description: "The next item of a bag.",
           about: ["A bag is a shuffled set dealt out in order, then shuffled again. Every run of the set's length holds each item once, so no item stays away for long."],
-          returns: { type: "number", description: "The item's number, counted from 0, among those the draw [`gives`](/api/puzzle/deal#draws)." },
+          returns: { type: "number", description: "The item's number, counted from 0, among those the draw [`gives`](/api/puzzle#deal-draws)." },
           refused: ["The draw is not declared `by` a bag."],
         },
       ],
@@ -478,7 +478,7 @@ const emit: Member = {
   signature: "emit<E extends EventId<P>>(id: E, fields: EventFields<P, E>, changes?: (e: Changes<P>) => void): void",
   description: "Reports an event. It is the one way the rules change a round.",
   about: [
-    "An event is something the rules say happened. The puzzle declares each under [`events`](/api/puzzle/events): its fields, the board changes it can carry, and what it closes or reveals.",
+    "An event is something the rules say happened. The puzzle declares each under [`events`](/api/puzzle#events): its fields, the board changes it can carry, and what it closes or reveals.",
     "The engine applies an event as it is reported. The lines after an `emit` read the board, the zones and `ctx.step` as that event left them.",
     "Everything else follows from events. The loop pays the payouts that name an event, keeps the streak, counts a cascade's steps, closes a phase, meets an ending and grades a task, all from what was reported. A board plays from events and from nothing else.",
   ],
@@ -507,7 +507,7 @@ const emit: Member = {
   refused: [
     "The puzzle declares no such event.",
     "A field is missing, is of the wrong type, or names a place that is not on the board.",
-    "A board change is made that the event is not declared to carry in its [`changes`](/api/puzzle/events).",
+    "A board change is made that the event is not declared to carry in its [`changes`](/api/puzzle#events).",
     "The round has ended and the hook is not `onEnd`.",
   ],
   members: [
@@ -646,7 +646,7 @@ const emit: Member = {
           about: ["A secret only ever comes out on an event. Peeking is how the rules read a hidden card at the moment the event shows it."],
           params: [{ name: "piece", type: "PieceId", description: "The id of a piece in a place this event reveals." }],
           returns: { type: "Piece<P>", description: "The piece, with its `piece`, `kind` and `state`. It is the one member of the builder that does not return `e`." },
-          rules: [only("An event the puzzle declares to reveal the piece's place, in its [`reveals`](/api/puzzle/events).")],
+          rules: [only("An event the puzzle declares to reveal the piece's place, in its [`reveals`](/api/puzzle#events).")],
           refused: ["The event is not declared to reveal the place the piece is in."],
         },
         {
@@ -666,7 +666,7 @@ const emit: Member = {
           kind: "method",
           signature: "pay(payout: PayoutId<P>, to: Seat | Side): this",
           description: "Pays a declared payout to a seat or a side.",
-          about: ["Most payouts need no call: the loop pays every payout whose [`on`](/api/puzzle/payouts) names the event, to the seat that moved. `pay` is for a payout that goes to someone else, or that only the rules know is due."],
+          about: ["Most payouts need no call: the loop pays every payout whose [`on`](/api/puzzle#payouts) names the event, to the seat that moved. `pay` is for a payout that goes to someone else, or that only the rules know is due."],
           params: [
             { name: "payout", type: "PayoutId<P>", description: "The id of one of the puzzle's payouts." },
             {
@@ -677,7 +677,7 @@ const emit: Member = {
                 { value: "Seat", description: "A seat's account." },
                 { value: "Side", description: "A side's account, which its seats share." },
               ],
-              rules: [must("Be a seat where [`points.to`](/api/puzzle/points) is `seat`, and a side where it is `side`.")],
+              rules: [must("Be a seat where [`points.to`](/api/puzzle#points) is `seat`, and a side where it is `side`.")],
             },
           ],
           returns: { type: "this", description: "The builder, to chain." },
@@ -755,8 +755,8 @@ export const CONTEXT_ROOT: SdkRoot = {
   title: "The context",
   lede: "What a hook that starts with `on` is handed: the whole table, the puzzle's draws, and `emit`.",
   about: [
-    "A context is given to every hook that starts with `on`. It has what a [view](/api/view) has, for the whole table and not one seat, and adds the two things that change a round: [`draw`](/api/context/draw) and [`emit`](/api/context/emit).",
-    "A context sees the table, and still not what is hidden. A piece nobody sees has an `id` and nothing else even here, and is read only by [peeking](/api/context/emit#e-peek) on an event that reveals it.",
+    "A context is given to every hook that starts with `on`. It has what a [view](/api/view) has, for the whole table and not one seat, and adds the two things that change a round: [`draw`](/api/context#draw) and [`emit`](/api/context#emit).",
+    "A context sees the table, and still not what is hidden. A piece nobody sees has an `id` and nothing else even here, and is read only by [peeking](/api/context#e-peek) on an event that reveals it.",
     "A context has no `seat`, no `allowed` and no `try`. Those belong to a seat's view.",
   ],
   groups: [
@@ -769,7 +769,7 @@ export const CONTEXT_ROOT: SdkRoot = {
           name: "step",
           kind: "property",
           signature: "readonly step: number",
-          description: "The cascade step the loop has counted for the move being played. It is 0 until an event marked [`step`](/api/puzzle/events) is reported, and grows by one for each asking of `onCascade` that reports one.",
+          description: "The cascade step the loop has counted for the move being played. It is 0 until an event marked [`step`](/api/puzzle#events) is reported, and grows by one for each asking of `onCascade` that reports one.",
         },
         draw,
         emit,
@@ -777,7 +777,7 @@ export const CONTEXT_ROOT: SdkRoot = {
     },
     {
       title: "Shared with a view",
-      note: "These are a view's, read for the whole table. Each is defined on the view's page.",
+      note: "These are a view's, read for the whole table. Each is defined on the [view](/api/view).",
       members: [
         inherited("state", "The rules' own state, as the last `on` hook left it.", "readonly state: Readonly<S>"),
         inherited("settings", "This round's value for every setting, by id.", "readonly settings: Settings<P>"),

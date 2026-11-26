@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { check } from "../src/api/schema/check.js";
-import { ALIASES, PUZZLE, ROOTS, SKIN, isPage, pageView, pagesOf, rootNodes, type Field, type ObjectPage, type RootObject, type Type } from "../src/api/schema/index.js";
+import { ALIASES, PUZZLE, ROOTS, SKIN, isPage, pageAnchor, pageView, pagesOf, rootNodes, type Field, type ObjectPage, type RootObject, type Type } from "../src/api/schema/index.js";
 import { PATHS } from "../src/api/schema/puzzle.js";
 import { PATHS_SKIN } from "../src/api/schema/skin.js";
 
@@ -55,12 +55,12 @@ describe("the reference", () => {
     });
   }
 
-  it("gives every object that belongs to a top-level object a page of its own", () => {
+  it("gives every object that belongs to a top-level object a section of its own", () => {
     for (const root of ROOTS) {
       for (const group of root.groups) {
         for (const f of group.fields) {
           if (isPage(f)) continue;
-          // What stays on the top-level page is a single value, never an object.
+          // What is listed without a section is a single value, never an object.
           expect(["string", "integer", "number", "boolean", "enum", "ref", "alias", "literal"], `${root.root}.${f.name}`).toContain(f.type.kind);
         }
       }
@@ -128,10 +128,11 @@ describe("the reference", () => {
     expect(check(PATHS_SKIN, typeOf(SKIN), "paths.skin")).toEqual([]);
   });
 
-  it("gives every field on a page an anchor of its own", () => {
-    for (const page of everyPage) {
-      const anchors = pageView(page).all.map((n) => n.anchor);
-      expect(new Set(anchors).size, page.key).toBe(anchors.length);
+  it("gives every field of a top-level object's page an anchor of its own, however deep", () => {
+    for (const root of ROOTS) {
+      const anchors = [...[...rootNodes(root).values()].map((n) => n.anchor), ...pagesOf(root).flatMap((p) => [pageAnchor(p), ...pageView(p).all.map((n) => n.anchor)])];
+      expect(anchors.filter((a, i) => anchors.indexOf(a) !== i), root.root).toEqual([]);
+      for (const page of pagesOf(root)) for (const node of pageView(page).all) expect(node.anchor.startsWith(`${pageAnchor(page)}-`), node.anchor).toBe(true);
     }
   });
 });

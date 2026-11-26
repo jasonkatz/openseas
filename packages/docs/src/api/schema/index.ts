@@ -11,39 +11,39 @@ export { PUZZLE, SKIN, THEME };
 export const ROOTS: readonly RootObject[] = [PUZZLE, SKIN, THEME];
 export const rootOf = (root: string): RootObject | undefined => ROOTS.find((r) => r.root === root);
 
-/** The pages that belong to a top-level object, in the order its file is written. */
+/** The objects that belong to a top-level object, in the order its file is written. Each is a section of its page. */
 export const pagesOf = (root: RootObject): ObjectPage[] => root.groups.flatMap((g) => g.fields.filter(isPage));
-export const pageOf = (root: string, key: string): ObjectPage | undefined => {
-  const r = rootOf(root);
-  return r ? pagesOf(r).find((p) => p.key === key) : undefined;
-};
 
 export const TYPES_PATH = "/api/types";
 export const rootPath = (root: Root): string => `/api/${root}`;
-export const pagePath = (page: ObjectPage): string => `/api/${page.root}/${page.key}`;
+/** The anchor of an object's section on its top-level object's page. Every field inside it starts with it. */
+export const pageAnchor = (page: ObjectPage): string => page.key.toLowerCase();
+export const pagePath = (page: ObjectPage): string => `${rootPath(page.root)}#${pageAnchor(page)}`;
+/** Where one field of an object's section is. */
+export const nodePath = (page: ObjectPage, node: Node): string => `${rootPath(page.root)}#${node.anchor}`;
 
 /** Where the part a field names by id is declared. */
 const REF_PATHS: Record<RefTarget, string> = {
-  setting: "/api/puzzle/settings",
-  move: "/api/puzzle/moves",
-  control: "/api/puzzle/controls",
-  event: "/api/puzzle/events",
-  phase: "/api/puzzle/round#phases",
-  payout: "/api/puzzle/payouts",
-  layer: "/api/puzzle/layers",
-  piece: "/api/puzzle/pieces",
-  zone: "/api/puzzle/zones",
-  gauge: "/api/puzzle/gauges",
-  multiplier: "/api/puzzle/multipliers",
-  task: "/api/puzzle/tasks",
-  draw: "/api/puzzle/deal#draws",
-  check: "/api/puzzle/deal#checks",
-  "stand-in": "/api/puzzle/opponents#standins",
+  setting: "/api/puzzle#settings",
+  move: "/api/puzzle#moves",
+  control: "/api/puzzle#controls",
+  event: "/api/puzzle#events",
+  phase: "/api/puzzle#round-phases",
+  payout: "/api/puzzle#payouts",
+  layer: "/api/puzzle#layers",
+  piece: "/api/puzzle#pieces",
+  zone: "/api/puzzle#zones",
+  gauge: "/api/puzzle#gauges",
+  multiplier: "/api/puzzle#multipliers",
+  task: "/api/puzzle#tasks",
+  draw: "/api/puzzle#deal-draws",
+  check: "/api/puzzle#deal-checks",
+  "stand-in": "/api/puzzle#opponents-standins",
   puzzle: "/api/puzzle",
   theme: "/api/theme",
-  cue: "/api/skin/cues",
-  colour: "/api/theme/palette",
-  "event field": "/api/puzzle/events#fields",
+  cue: "/api/skin#cues",
+  colour: "/api/theme#palette",
+  "event field": "/api/puzzle#events-fields",
 };
 export const refPath = (to: RefTarget): string => REF_PATHS[to];
 const refLabel = (to: RefTarget): string => (to === "cue" ? "cue name" : to === "event field" ? "field name" : t("docs.ref.id_of", { part: to }));
@@ -253,7 +253,7 @@ export function pageView(page: ObjectPage): PageView {
   let hit = cache.get(page);
   if (!hit) {
     const next = slugger();
-    const view = viewOf(page.type, "", { slug: next });
+    const view = viewOf(page.type, "", { slug: (text) => `${pageAnchor(page)}-${next(text)}` });
     const all: Node[] = [];
     collect(view, all);
     hit = { view, all };
@@ -264,7 +264,7 @@ export function pageView(page: ObjectPage): PageView {
 
 export const needLabel = (need: Need): "required" | "optional" | "conditional" => (typeof need === "string" ? need : "conditional");
 
-/** A top-level object's own fields: those with no page of their own. */
+/** A top-level object's own fields: those that are a single value, with no section of their own. */
 export function rootNodes(root: RootObject): Map<Field, Node> {
   const next = slugger();
   const out = new Map<Field, Node>();

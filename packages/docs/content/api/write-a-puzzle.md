@@ -28,7 +28,7 @@ The board's size and the round's length are written as the ids of settings, not 
 
 ## 2. Declare the numbers
 
-Every number that tunes the puzzle is a [setting](/api/puzzle/settings), with a default, bounds and a description. A tuning panel is built from these, and every host holds a round to these bounds.
+Every number that tunes the puzzle is a [setting](/api/puzzle#settings), with a default, bounds and a description. A tuning panel is built from these, and every host holds a round to these bounds.
 
 ```json
 {

@@ -311,7 +311,7 @@ const onTick: Member = {
   params: [ctx, { name: "tick", type: "Tick", description: "Which tick this is, and its time. See [`Tick`](/api/sdk#tick)." }],
   returns: NEXT_STATE,
   rules: [
-    only("A puzzle whose [`round.tempo.kind`](/api/puzzle/round#tempo-kind) is `ticking`. In any other puzzle it is never asked."),
+    only("A puzzle whose [`round.tempo.kind`](/api/puzzle#round-tempo-kind) is `ticking`. In any other puzzle it is never asked."),
     never("Read the time any other way. `tick.ms` is the only clock a rules file has."),
     PURE,
   ],
@@ -332,7 +332,7 @@ const onSignal: Member = {
   after: ["The signal runs `onCascade`, `onMoveEnd` and the close, as a move does."],
   params: [ctx, { name: "signal", type: "Signal<P>", description: "The signal: its id in `signal`, the seat it is for, and its value. See [`Signal`](/api/sdk#signal)." }],
   returns: NEXT_STATE,
-  rules: [only("Signals the puzzle declares under [`signals.in`](/api/puzzle/signals). No other can arrive."), PURE],
+  rules: [only("Signals the puzzle declares under [`signals.in`](/api/puzzle#signals). No other can arrive."), PURE],
   examples: [
     {
       title: "Remember a value",
@@ -362,7 +362,7 @@ const onTaskNeeded: Member = {
   after: ["If it reported the task's dealing event, the task is open.", "If it reported nothing, there is no room yet, and it is asked again at the next close."],
   params: [ctx],
   returns: NEXT_STATE,
-  rules: [only("A puzzle that declares [`tasks`](/api/puzzle/tasks)."), must("Report nothing when there is no room for a task. The loop asks again."), PURE],
+  rules: [only("A puzzle that declares [`tasks`](/api/puzzle#tasks)."), must("Report nothing when there is no room for a task. The loop asks again."), PURE],
 };
 
 const phaseHook = (name: "onOpen" | "onClose"): Member => {
@@ -390,7 +390,7 @@ const phaseHook = (name: "onOpen" | "onClose"): Member => {
     after: opens ? ["The first phase inside it opens, if it has any.", "The loop works out who is awaited."] : ["The phase's tally is banked, where it keeps one.", "The next phase opens, or the same one again where it repeats."],
     params: [{ ...ctx, description: `${ctx.description} Each function is given it.` }],
     returns: NEXT_STATE,
-    rules: [only("Ids of phases the puzzle declares under [`round.phases`](/api/puzzle/round#phases). Any other key does not compile."), PURE],
+    rules: [only("Ids of phases the puzzle declares under [`round.phases`](/api/puzzle#round-phases). Any other key does not compile."), PURE],
     examples: [
       opens
         ? {
@@ -441,7 +441,7 @@ const onTurn: Member = {
   after: ["If it reported nothing, the seat is awaited: a player's seat waits for its player, and any other is played at once.", "If it reported an event, the turn has passed: `whoseTurn` is asked again."],
   params: [ctx, { name: "seat", type: "Seat", description: "The seat whose turn has come." }],
   returns: NEXT_STATE,
-  rules: [only("A phase whose [`acts`](/api/puzzle/round#phases-acts) is `in-turn`."), PURE],
+  rules: [only("A phase whose [`acts`](/api/puzzle#round-phases-acts) is `in-turn`."), PURE],
   examples: [
     {
       title: "Pass a seat with no cards",
@@ -468,7 +468,7 @@ const onEnd: Member = {
   asked: "Once a round, when the first ending is met.",
   before: ["An ending the rules reported has closed the open phases first, and banked their tallies.", "No further move, tick or signal will be played."],
   after: ["Its events are paid and banked.", "The sides are placed, by `placing` where the puzzle places by its rules.", "`score` is read for each seat."],
-  params: [ctx, { name: "reason", type: "EndingId<P>", description: "The id of the ending that was met, one of [`round.ends`](/api/puzzle/round#ends)." }],
+  params: [ctx, { name: "reason", type: "EndingId<P>", description: "The id of the ending that was met, one of [`round.ends`](/api/puzzle#round-ends)." }],
   returns: NEXT_STATE,
   rules: [never("Report an event that ends the round or closes a phase. The round has ended."), PURE],
   examples: [
@@ -508,7 +508,7 @@ const whoseTurn: Member = {
       { value: "null", description: "Nobody does. The phase closes." },
     ],
   },
-  rules: [only("A phase whose [`acts`](/api/puzzle/round#phases-acts) is `in-turn`."), never("Name a seat that sits out of the phase, or is out of the round."), ASK_ONLY, SAME_ANSWER],
+  rules: [only("A phase whose [`acts`](/api/puzzle#round-phases-acts) is `in-turn`."), never("Name a seat that sits out of the phase, or is out of the round."), ASK_ONLY, SAME_ANSWER],
   refused: ["The seat answered is not in the round, or is sitting out."],
   examples: [
     {
@@ -546,7 +546,7 @@ const pickMove: Member = {
   after: ["The move goes to `canMove` and then `onMove`, as a player's does.", "A move `canMove` refuses is the rules' mistake. The loop stops the round and names the seat."],
   params: [
     view("the seat being played"),
-    { name: "standIn", type: "StandInId<P>", description: "The id of the stand-in that holds the seat, one of [`opponents.standIns`](/api/puzzle/opponents#standins). Its dials are settings, read from `view.settings`." },
+    { name: "standIn", type: "StandInId<P>", description: "The id of the stand-in that holds the seat, one of [`opponents.standIns`](/api/puzzle#opponents-standins). Its dials are settings, read from `view.settings`." },
   ],
   returns: { type: "Move<P>", description: "The move the seat makes. It must be one `canMove` allows: a stand-in may not pass by answering nothing." },
   rules: [
@@ -663,7 +663,7 @@ const hint: Member = {
       { value: "null", description: "There is nothing to suggest." },
     ],
   },
-  rules: [only("A puzzle whose [`teaching.hint`](/api/puzzle/teaching) is true."), must("Answer a move `view.allowed` passes, or `null`."), ASK_ONLY],
+  rules: [only("A puzzle whose [`teaching.hint`](/api/puzzle#teaching) is true."), must("Answer a move `view.allowed` passes, or `null`."), ASK_ONLY],
   examples: [
     {
       title: "The move that pays most now",
@@ -696,7 +696,7 @@ const pointsFor: Member = {
   stages: ["Close"],
   asked: "Once for each event a payout pays on, as the loop pays it.",
   before: ["The payouts that name the event are added up, and every multiplier that scales them is applied."],
-  after: ["The answer is paid to the event's account, and fills the event's `points` field.", "Then it is banked as [`points`](/api/puzzle/points) says."],
+  after: ["The answer is paid to the event's account, and fills the event's `points` field.", "Then it is banked as [`points`](/api/puzzle#points) says."],
   params: [
     { name: "event", type: "Event<P>", description: "The event being paid: its id in `event`, and its fields. See [`Event`](/api/sdk#event)." },
     { name: "paid", type: "number", description: "What the payouts and multipliers would pay for it, a whole number." },
@@ -724,7 +724,7 @@ const placing: Member = {
   signature: "placing(ended: Ended<P>): Side[][]",
   description: "Puts the sides in order, where the puzzle places by its rules.",
   need: { when: "the puzzle's `placing.by` is `rules`" },
-  absent: "The loop places by points, or by the last side standing, as [`placing.by`](/api/puzzle/placing#by) says.",
+  absent: "The loop places by points, or by the last side standing, as [`placing.by`](/api/puzzle#placing-by) says.",
   given: "values",
   stages: ["End"],
   asked: "Once a round, after `onEnd`.",
@@ -739,7 +739,7 @@ const placing: Member = {
       { value: "[[0, 1]]", description: "The two sides tie for first." },
     ],
   },
-  rules: [only("A puzzle whose [`placing.by`](/api/puzzle/placing#by) is `rules`. With any other value it is never asked."), must("Place every side of the round exactly once.")],
+  rules: [only("A puzzle whose [`placing.by`](/api/puzzle#placing-by) is `rules`. With any other value it is never asked."), must("Place every side of the round exactly once.")],
   refused: ["A side is missing from the answer, or is in it twice."],
   examples: [
     {
@@ -794,7 +794,7 @@ const checkSettings: Member = {
   page: true,
   signature: "checkSettings(settings: Settings<P>): string | null",
   description: "Says what is wrong with a set of settings, before a round starts on them.",
-  about: ["The puzzle's bounds and [`relations`](/api/puzzle/relations) are held without it. It is for what they cannot say: a hand-drawn map with no way out, a board too small for its pieces."],
+  about: ["The puzzle's bounds and [`relations`](/api/puzzle#relations) are held without it. It is for what they cannot say: a hand-drawn map with no way out, a board too small for its pieces."],
   need: "optional",
   absent: "Only the puzzle's bounds and relations are held.",
   given: "values",
@@ -847,8 +847,8 @@ export const HOOKS_ROOT: SdkRoot = {
   holds: {
     title: "What holds for every hook",
     items: [
-      "A hook is pure. It never reads a clock, never asks for a random number, and never reaches a file, the network or anything global. All luck comes from a [draw](/api/context/draw).",
-      "A hook that starts with `on` changes the round only by reporting events with [`emit`](/api/context/emit). It returns the next state, or nothing to keep the state as it is.",
+      "A hook is pure. It never reads a clock, never asks for a random number, and never reaches a file, the network or anything global. All luck comes from a [draw](/api/context#draw).",
+      "A hook that starts with `on` changes the round only by reporting events with [`emit`](/api/context#emit). It returns the next state, or nothing to keep the state as it is.",
       "A question changes nothing, and gives the same answer for the same view however often it is asked. So a board, a stand-in or a hint may ask one at any time.",
       "Every id a hook names must be declared in the puzzle: a draw, an event, a zone, a phase, a move, a payout. A wrong id does not compile, and at run time the engine refuses one and names it.",
       "Every part the puzzle declares must be used by its rules. A host will not run a puzzle that declares a draw, a zone or an event its rules never touch.",

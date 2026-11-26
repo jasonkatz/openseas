@@ -7,8 +7,8 @@ import { API_PAGES, apiContent } from "../src/api/pages.js";
 import { GLOSSARY } from "../src/domain/glossary.js";
 import { domainContent } from "../src/domain/guide.js";
 import { DOMAIN_PAGES, GLOSSARY_SLUG } from "../src/domain/pages.js";
-import { ALIASES, ROOTS, TYPES_PATH, pagePath, pageView, pagesOf, refPath, rootNodes, rootPath, type RefTarget } from "../src/api/schema/index.js";
-import { FUNCTIONS, ID_TYPES, SDK_ROOTS, SDK_TYPES_PATH, TYPE_GROUPS, innerAnchor, memberPath, membersOf, sdkRootPath, typeAnchor } from "../src/api/sdk/index.js";
+import { ALIASES, ROOTS, TYPES_PATH, pageAnchor, pagePath, pageView, pagesOf, refPath, rootNodes, rootPath, type RefTarget } from "../src/api/schema/index.js";
+import { FUNCTIONS, ID_TYPES, SDK_ROOTS, SDK_TYPES_PATH, TYPE_GROUPS, innerAnchor, memberAnchor, membersOf, sdkRootPath, typeAnchor } from "../src/api/sdk/index.js";
 
 const REF_TARGETS: readonly RefTarget[] = ["setting", "move", "control", "event", "phase", "payout", "layer", "piece", "zone", "gauge", "multiplier", "task", "draw", "check", "stand-in", "puzzle", "theme", "cue", "colour", "event field"];
 
@@ -93,16 +93,14 @@ describe("the API section", () => {
     for (const page of API_PAGES) anchors.set(page.slug === "" ? "/api" : `/api/${page.slug}`, new Set(apiContent(page.slug)!.headings.map((h) => h.id)));
     anchors.set("/guides", new Set());
     for (const root of ROOTS) {
-      anchors.set(rootPath(root.root), new Set([...pagesOf(root).map((p) => p.key.toLowerCase()), ...[...rootNodes(root).values()].map((n) => n.anchor)]));
-      for (const page of pagesOf(root)) anchors.set(pagePath(page), new Set(pageView(page).all.map((n) => n.anchor)));
+      // One page an object: its own fields, a section for each object inside it, and every field of each.
+      anchors.set(rootPath(root.root), new Set([...[...rootNodes(root).values()].map((n) => n.anchor), ...pagesOf(root).flatMap((p) => [pageAnchor(p), ...pageView(p).all.map((n) => n.anchor)])]));
     }
     for (const root of SDK_ROOTS) {
-      anchors.set(sdkRootPath(root.root), new Set(membersOf(root).map((m) => m.name.toLowerCase())));
-      for (const m of membersOf(root)) {
-        if (!m.page) continue;
-        const inner = (m.members ?? []).flatMap((g) => g.members.map((x) => innerAnchor(g.name, x.name)));
-        anchors.set(memberPath(root.root, m), new Set([...inner, ...(m.params ?? []).map((x) => innerAnchor("param", x.name)), "parameters", "returns", "what-must-hold", "refused-when", "when-it-is-asked"]));
-      }
+      const ids = membersOf(root).flatMap((m) => [memberAnchor(m), ...(m.members ?? []).flatMap((g) => g.members.map((x) => innerAnchor(g.name, x.name)))]);
+      // Every hook and member is a section of one page, so no two may share an anchor.
+      expect(new Set(ids).size, root.root).toBe(ids.length);
+      anchors.set(sdkRootPath(root.root), new Set(ids));
     }
     anchors.set(SDK_TYPES_PATH, new Set([...TYPE_GROUPS.flatMap((g) => g.types.map((d) => typeAnchor(d.name))), ...FUNCTIONS.map((f) => typeAnchor(f.name)), "ids", "functions", "a-generated-type", "how-a-field-reaches-the-rules", "how-a-setting-reaches-the-rules", "the-whole-surface"]));
     anchors.set(TYPES_PATH, new Set(ALIASES.map((a) => a.name.replace(/\s+/g, "-"))));
@@ -123,7 +121,7 @@ describe("the API section", () => {
     for (const text of sentences(ROOTS)) for (const m of text.matchAll(/\]\(([^)]+)\)/g)) check(m[1]!, "the reference", "/api");
     for (const text of sentences(SDK_ROOTS)) for (const m of text.matchAll(/\]\(([^)]+)\)/g)) check(m[1]!, "the rules SDK", "/api");
     for (const text of sentences([FUNCTIONS, TYPE_GROUPS, ID_TYPES])) for (const m of text.matchAll(/\]\(([^)]+)\)/g)) check(m[1]!, "the SDK's types", SDK_TYPES_PATH);
-    for (const page of ROOTS.flatMap(pagesOf)) if (page.ideas) check(page.ideas.path, pagePath(page), pagePath(page));
+    for (const page of ROOTS.flatMap(pagesOf)) if (page.ideas) check(page.ideas.path, pagePath(page), rootPath(page.root));
     for (const to of REF_TARGETS) check(refPath(to), `id of ${to}`, "/api");
     for (const page of DOMAIN_PAGES) for (const m of page.lede.matchAll(/\]\(([^)]+)\)/g)) check(m[1]!, `/domain/${page.slug}`, `/domain/${page.slug}`);
   });
