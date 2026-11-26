@@ -196,18 +196,22 @@ Something the rules report happened during a round, carrying what a player needs
 _Avoid_: report, effect
 
 **Points**:
-What one event adds, each point belonging to a payout. They are paid into an account, and settle as
+What one event adds, each point belonging to a payout. They are paid into an account, and banked as
 the puzzle says.
 
 **Account**:
 Where points are kept: one for each seat, or one for each side.
-_Avoid_: pot, bank, total
+_Avoid_: pot, total
 
 **Tally**:
 The points paid while a phase is open, for each account, signed. It joins the account when the phase
-closes, where the puzzle's points settle by that phase, and the floor at zero is then on the account's
-total or on the tally alone.
+closes, where the puzzle banks by that phase.
 _Avoid_: subtotal, running score
+
+**Bank**:
+Points are banked when they join an account: as each is paid, or when a named phase closes. The floor
+at zero is on the account's total or on the tally alone.
+_Avoid_: settle (a board settles), commit
 
 **Payout**:
 A named way a puzzle pays points, such as a path or a loop, paid on an event and grown from what that

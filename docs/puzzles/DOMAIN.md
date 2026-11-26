@@ -267,25 +267,25 @@ declares only its own events.
 paid into an **account**. A puzzle says whose its accounts are: each seat's, or each side's, as
 partners share one. An event says which seat or side it pays, and unsaid it is the seat that moved.
 
-A puzzle also says how points **settle**, by two dials (ADR 0090):
+Points are **banked** when they join an account. A puzzle says how, by two dials (ADR 0090):
 
 | Dial | Says | Values |
 |---|---|---|
-| Settles | When points join an account | As each event is paid, or when a named phase closes |
+| Banks | When points are banked | As each event is paid, or when a named phase closes |
 | Floor | What stops at zero | The account's total, or the tally alone |
 
 A **tally** is the points paid while a phase is open, for each account, signed. Left unsaid, points
-settle as they are paid and the total stops at zero, so a penalty never takes an account below it.
+are banked as they are paid and the total stops at zero, so a penalty never takes an account below it.
 
-| Puzzle | Settles | Stops at zero |
+| Puzzle | Banks | Stops at zero |
 |---|---|---|
 | Most | As each event is paid | The total |
 | Space Battle | When a `turn` closes | The total, once the turn's net is added |
 | Pact | When a `hand` closes | The hand's tally: a hand adds its count or nothing |
 
-Every payout still arrives on its own event, whenever it settles. A tally that has not settled is
+Every payout still arrives on its own event, whenever it is banked. A tally not yet banked is
 dropped when a round ends by `left` or by its log cap. An ending the rules report closes the open
-phases first, and settles them.
+phases first, and banks their tallies.
 
 The **score** is read for each seat. It is that seat's account, or its side's where accounts are
 sides', unless the puzzle reads it another way ([Between sides](#between-sides)). It never goes below
@@ -714,7 +714,7 @@ too, and a puzzle promoted into a world keeps its version running.
 
 | Part | Rises when | Then |
 |---|---|---|
-| **Major** | A change can make a stored round replay differently from the same seed, settings and log: the rules, the deal, the board, zones and who sees them, pieces, moves, events, tempo, phases, how points settle, endings or the log cap | The minor goes back to 0 |
+| **Major** | A change can make a stored round replay differently from the same seed, settings and log: the rules, the deal, the board, zones and who sees them, pieces, moves, events, tempo, phases, how points are banked, endings or the log cap | The minor goes back to 0 |
 | **Minor** | Any other number in the puzzle changes: a setting's default or bounds, a relation, tier starts, the ladder, the pace window | |
 
 Wording raises nothing: a setting's line or the mechanic. Skins raise nothing either, since a drawing,
@@ -862,7 +862,7 @@ Both are questions asked of the rules, so neither changes a round ([Hooks](#hook
 The **rules** are a puzzle's code, and the only part of it that is code. They are written as **hooks**
 on the **loop** every round runs (ADR 0088). The loop is the same for every puzzle, and it keeps
 everything this guide gives one meaning: the log, time, seats and who holds them, who is awaited,
-phases, tasks, points and how they settle, the streak, the endings, the placing and what each seat may
+phases, tasks, points and how they are banked, the streak, the endings, the placing and what each seat may
 see (ADR 0090). The rules hold only what is the puzzle's own.
 
 ### The loop
@@ -875,7 +875,7 @@ see (ADR 0090). The rules hold only what is the puzzle's own.
 | Move | The move is made. Where seats act together, every seat's move is made at once | `onMove` |
 | Cascade | What the move sets off, a step at a time, until a step reports nothing. The loop counts the steps | `onCascade` |
 | Move end | Asked once, when the cascade has run dry. What it reports may set the cascade off again, on the same count | `onMoveEnd` |
-| Close | Points are paid and settled, the streak is kept, tasks are graded and dealt, phases close and open, and the endings are checked | `pointsFor`, `onTaskNeeded`, `onClose`, `onOpen` |
+| Close | Points are paid and banked, the streak is kept, tasks are graded and dealt, phases close and open, and the endings are checked | `pointsFor`, `onTaskNeeded`, `onClose`, `onOpen` |
 | End | An ending is met. The sides are placed, and the score is read for each seat | `onEnd`, `placing`, `score` |
 
 `start` runs Start. `play` runs Check to Close for one entry, after every tick that falls due before
@@ -1160,7 +1160,7 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
     "logLimit": "the fixed cap on the log"
   },
   "opponents": "absent when solo, or { sides: [least, most], seatsPerSide: [least, most], ghosts: true or false, standIns: [{ id, line, dials: [declared as settings are], presets: { <name>: a value for each dial } }]: its own, beside the four, absent: the stand-in that plays a lapsed seat, left: absent | out, seatSettings: [declared as settings are] }",
-  "points": "absent when paid to the seat as earned, or { to: seat | side, settles: paid | a phase id, floor: total | tally }",
+  "points": "absent when paid to the seat as earned, or { to: seat | side, banks: paid | a phase id, floor: total | tally }",
   "placing": "between sides: { by: points | last-standing | rules }",
   "board": { "shape": "grid | rings", "width": "grid", "height": "grid", "touch": "grid: 4 | 8", "rim": "grid: true or false",
              "rings": "rings", "sectors": "rings", "shared": "between sides: true, or one board a seat", "seenBy": "everyone | seat | side | nobody: its pieces, everyone when absent" },

@@ -80,10 +80,10 @@ approved the one design made from them: whatever the engine promises, the engine
    draw into its place with `deal`, so the hook that deals a hand never learns what is in it. A hook
    reads a hidden piece only with `peek`, and only while reporting an event the document says reveals
    that place. A round with a hidden place is run by its host.
-9. **Points go to an account,** a seat's or a side's, and settle by two dials. `settles` says when:
+9. **Points go to an account,** a seat's or a side's, and are banked by two dials. `banks` says when:
    as each event is paid, or when a named phase closes, until which they sit in that phase's tally.
-   `floor` says what stops at zero: the total, or the tally alone. Left out, points settle as paid and
-   the total is floored, which is ADR 0088's decision 8. An unsettled tally is dropped when a round
+   `floor` says what stops at zero: the total, or the tally alone. Left out, points are banked as paid and
+   the total is floored, which is ADR 0088's decision 8. A tally not yet banked is dropped when a round
    ends by `left` or by its log cap. Chips, bags and tricks stay the rules' own public state.
 10. **Every ending has an id, which is its reason.** At End the engine works out the **placing**:
     every side in order, ties sharing the better place, by points, by the last side standing, or by
@@ -119,9 +119,8 @@ approved the one design made from them: whatever the engine promises, the engine
   ending, `absent`, `left`, `seatSettings`, dials and presets on a stand-in, `points`, `placing`,
   `each` and `seenBy` on a zone, `step`, `closes` and `reveals` on an event, fields on a signal and
   `each` on a gauge. `secrets` and a tempo of turns leave it. The glossary gains holder, seat entry,
-  absent, seat setting, wait, acting, phase, account, tally, placing, reason, view and preset. Points
-  settle and a board settles: the guide uses the one word for both, and the glossary keeps it for the
-  board.
+  absent, seat setting, wait, acting, phase, account, tally, placing, reason, view and preset. bank and banked. Points
+  are banked, and settle stays the board's word alone.
 - This moves no puzzle and adds no code, as ADR 0088 did. Each engine in `engine` keeps its reducer
   until it is moved by a change of its own, held to ADR 0088's decision 12.
 - In the game, a puzzle with a hidden place is played on the server and not simulated on the client.
@@ -135,7 +134,7 @@ approved the one design made from them: whatever the engine promises, the engine
   major (ADR 0079).
 - The order to build in, each step moving one puzzle and proving one part: the groundwork with Swap
   still passing, then Pouring for seats and the wait, Freefall for phases and tallies, Space Battle for
-  acting together and settlement, Pact for places and sight, Showdown, which then needs nothing new,
+  acting together and banking by phase, Pact for places and sight, Showdown, which then needs nothing new,
   and Swordfighting for ticking between sides.
 - Left to the building: jumping between sibling phases, whose place is reserved as a parent phase
   whose order is `rules`; dealing unseen pieces again inside `try`, so the four types can play where
