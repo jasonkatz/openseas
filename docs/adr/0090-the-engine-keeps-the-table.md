@@ -119,8 +119,8 @@ approved the one design made from them: whatever the engine promises, the engine
   ending, `absent`, `left`, `seatSettings`, dials and presets on a stand-in, `points`, `placing`,
   `each` and `seenBy` on a zone, `step`, `closes` and `reveals` on an event, fields on a signal and
   `each` on a gauge. `secrets` and a tempo of turns leave it. The glossary gains holder, seat entry,
-  absent, seat setting, wait, acting, phase, account, tally, placing, reason, view and preset. bank and banked. Points
-  are banked, and settle stays the board's word alone.
+  absent, seat setting, wait, acting, phase, account, tally, bank, placing, reason, view and preset.
+  Points are banked, and settle stays the board's word alone.
 - This moves no puzzle and adds no code, as ADR 0088 did. Each engine in `engine` keeps its reducer
   until it is moved by a change of its own, held to ADR 0088's decision 12.
 - In the game, a puzzle with a hidden place is played on the server and not simulated on the client.
