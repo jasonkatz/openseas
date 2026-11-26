@@ -93,3 +93,4 @@ that supersedes it.
 | [0085](./0085-drinkings-successor-starts-as-a-prototype.md) | Drinking's successor starts as a prototype: Pouring, with its rivals in the engine |
 | [0087](./0087-spades-successor-starts-as-a-prototype.md) | Spades' successor starts as a prototype: Pact, dealt only in the studio, with a partner and two rivals the engine plays, a hand never scoring below zero |
 | [0088](./0088-a-puzzles-rules-are-hooks-on-one-round-loop.md) | A puzzle's rules are hooks on one round loop: three required, a default for every other, and the engine plays the seats no player holds |
+| [0090](./0090-the-engine-keeps-the-table.md) | The engine keeps the table: holders, the wait, phases, places and sight, accounts and the placing are declared in the document and kept by the engine, on ADR 0088's loop |

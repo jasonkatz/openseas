@@ -6,7 +6,7 @@
   "verb": "trace",
   "round": {
     "tempo": {"kind": "still"},
-    "ends": [{"by": "clock", "setting": "roundSeconds"}],
+    "ends": [{"id": "time", "by": "clock", "setting": "roundSeconds"}],
     "logLimit": 600
   },
   "board": {"shape": "grid", "width": "width", "height": "height", "touch": 8, "rim": false},
@@ -236,8 +236,7 @@
       {"id": "path", "line": "a path can be drawn", "draws": ["debris"], "tries": 50,
        "fallback": "lays a path of pathMin pieces of one kind, which can always be drawn", "during": "reshuffle"}
     ],
-    "bounds": [{"setting": "maxPrizes", "caps": "prize"}],
-    "secrets": []
+    "bounds": [{"setting": "maxPrizes", "caps": "prize"}]
   },
   "layers": [
     {
