@@ -334,20 +334,22 @@ jobs:
           script: |
             const marker = "<!-- openseas-preview -->";
             const { CLIENT_URL, CLIENT_RESULT, STUDIO_URL, STUDIO_RESULT, DOCS_URL, DOCS_RESULT, SERVER_URL, SHA, ENVIRONMENT, PR, RUN_URL } = process.env;
+            // Each preview is its label linked to its URL; no raw URLs in the comment.
             const server = SERVER_URL
-              ? `[${SERVER_URL}](${SERVER_URL}/health) in Railway environment \`${ENVIRONMENT}\`, with its own empty database`
-              : "the production server (no `RAILWAY_API_TOKEN` for this run), so anything that needs the server will fail from the previews";
+              ? `[Server](${SERVER_URL}/health) in Railway environment \`${ENVIRONMENT}\`, with its own empty database`
+              : "Server: the production server (no `RAILWAY_API_TOKEN` for this run), so anything that needs the server will fail from the previews";
             // A job with no URL either skipped (configuration missing, with a warning) or failed (its log says why).
             const skipped = "not deployed (Vercel settings missing for this run; see its job's warning)";
-            const line = (url, result) => (url ? url : result === "failure" ? `the preview job failed; see [its log](${RUN_URL})` : skipped);
+            const line = (label, url, result) =>
+              url ? `[${label}](${url})` : `${label}: ${result === "failure" ? `the preview job failed; see [its log](${RUN_URL})` : skipped}`;
             const body = [
               marker,
               `**Preview** for commit \`${SHA.slice(0, 7)}\``,
               "",
-              `- Game: ${line(CLIENT_URL, CLIENT_RESULT)}`,
-              `- Studio: ${line(STUDIO_URL, STUDIO_RESULT)}`,
-              `- Guides: ${line(DOCS_URL, DOCS_RESULT)}`,
-              `- Server: ${server}`,
+              `- ${line("Game", CLIENT_URL, CLIENT_RESULT)}`,
+              `- ${line("Studio", STUDIO_URL, STUDIO_RESULT)}`,
+              `- ${line("Docs", DOCS_URL, DOCS_RESULT)}`,
+              `- ${server}`,
               "",
               SERVER_URL ? "Torn down when this pull request closes." : "",
             ].join("\n");
