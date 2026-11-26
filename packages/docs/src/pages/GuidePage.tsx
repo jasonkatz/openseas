@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { PROTOTYPE_PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
 import { content, t } from "../content.js";
 import { Figure } from "../Figure.jsx";
-import { GUIDES, GUIDE_ORDER, LEVELS, type Level, type Stage } from "../guides/index.js";
+import { GUIDES, LEVELS, type Level, type Stage } from "../guides/index.js";
 import { Rich } from "../Rich.jsx";
 import { Link } from "../router.jsx";
+import { Pager } from "../Shell.jsx";
+import { guidePath } from "../site.js";
+import { useTitle } from "./DocPage.jsx";
 
 const SECTIONS = ["theme", "rules", "controls", "scoring", "opening", "ladder", "mistakes"] as const;
 
@@ -20,13 +23,7 @@ export function GuidePage({ id }: { id: PuzzleId }) {
   const title = t(`${id}.title`);
   const prototype = (PROTOTYPE_PUZZLE_IDS as readonly string[]).includes(id);
   const [level, setLevel] = useState<Level>(levelFromHash);
-  const at = GUIDE_ORDER.indexOf(id);
-  const prev = GUIDE_ORDER[at - 1];
-  const next = GUIDE_ORDER[at + 1];
-
-  useEffect(() => {
-    document.title = `${title} · ${t("docs.brand")}`;
-  }, [title]);
+  useTitle(title);
 
   const pick = (l: Level): void => {
     setLevel(l);
@@ -39,9 +36,9 @@ export function GuidePage({ id }: { id: PuzzleId }) {
   const sections = SECTIONS.filter((s) => s !== "opening" || opening.length > 0);
 
   return (
-    <main className="page guide" data-testid={`guide-page-${id}`}>
+    <div className="guide" data-testid={`guide-page-${id}`}>
       <nav className="crumbs">
-        <Link to="/" className="back" data-testid="back-home">
+        <Link to="/guides" className="back" data-testid="back-home">
           ‹ {t("docs.all_guides")}
         </Link>
       </nav>
@@ -175,25 +172,8 @@ export function GuidePage({ id }: { id: PuzzleId }) {
         </ul>
       </section>
 
-      <nav className="pager">
-        {prev ? (
-          <Link to={`/${prev}`} className="pager-link">
-            <span className="muted">‹ {t("docs.previous")}</span>
-            {t(`${prev}.title`)}
-          </Link>
-        ) : (
-          <span />
-        )}
-        {next ? (
-          <Link to={`/${next}`} className="pager-link pager-next">
-            <span className="muted">{t("docs.next")} ›</span>
-            {t(`${next}.title`)}
-          </Link>
-        ) : (
-          <span />
-        )}
-      </nav>
-    </main>
+      <Pager area="guides" path={guidePath(id)} />
+    </div>
   );
 }
 

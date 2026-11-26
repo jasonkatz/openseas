@@ -1,8 +1,16 @@
-# Puzzle guides
+# The docs site
 
-The docs site at docs.openseas.online (ADR 0038): one page per puzzle that takes a player from a first round to expert
-play. A static Vite and React app with no server and no boards of its own. Its pictures are
-captured from the real boards on the studio's `/play` pages (ADR 0042).
+The docs site at docs.openseas.online (ADR 0038, ADR 0091). A static Vite and React app with no server and no
+boards of its own. It has three areas.
+
+| Area | Address | What it holds | Written in |
+|---|---|---|---|
+| Domain | `/domain` | What a puzzle is, apart from any world, a page for each idea, and the glossary | `docs/puzzles/DOMAIN.md` and `docs/puzzles/CONTEXT.md`, read at build time |
+| API | `/api` | The puzzle, skin and theme documents key by key, and the rules SDK | `content/api/*.md` |
+| Puzzle guides | `/guides` | One page per puzzle that takes a player from a first round to expert play | `src/guides/<id>.ts`, with pictures captured from the real boards on the studio's `/play` pages (ADR 0042) |
+
+The site stands on its own: a reader needs nothing from this repository. No page in Domain or API names an
+ADR or another file of the repo, and a test holds that.
 
 ```
 pnpm --filter @openseas/docs dev        # the site, on :5175
@@ -11,6 +19,37 @@ pnpm --filter @openseas/docs capture cooling   # one puzzle's
 pnpm --filter @openseas/docs test       # every guide's shape, and its media on disk
 pnpm --filter @openseas/docs test:smoke # Playwright: every page renders
 ```
+
+## The domain pages
+
+The domain guide stays one file, `docs/puzzles/DOMAIN.md`, and it is the only place its prose is written.
+`src/domain/pages.ts` cuts it into pages: each page names the guide's `##` sections it shows, in order, with a
+one-line lede and sometimes a figure. A link inside the guide to another of its headings becomes a link to the
+page that heading is on.
+
+- A new `##` section in the guide must be given to a page. `test/domain.test.ts` fails on a section no page
+  shows, on one shown twice, and on a link that leads nowhere.
+- The glossary page is built from `docs/puzzles/CONTEXT.md`: each `**Term**:` line is an entry, under its heading.
+
+## The API pages
+
+Each page is a Markdown file in `content/api/`, listed in `src/api/pages.ts`. Plain Markdown, with three additions.
+
+| Written | Shows |
+|---|---|
+| A fence opened with `json title=swap.puzzle.json` | A code block with its file name. Add `tall` to let a long one scroll |
+| A quote that starts `[!NOTE]` or `[!PREVIEW]` | A callout. A plain quote is an example |
+| `<!-- figure: name -->` | One of the figures in `src/figures/` |
+
+- **Every key is covered.** `test/api.test.ts` reads the shapes in the domain guide and fails when a key of the
+  puzzle, skin or theme document is on no API page, and when a hook has no entry on the hooks page.
+- **Every example is real.** A `json` fence must parse. The whole Paths documents are read from
+  `docs/puzzles/examples/`, not typed again.
+- **The rules SDK is a design.** The engine that runs it is not built. The pages say what is settled, and
+  `content/api/rules.md` lists what is not. When the engine lands, its own types replace the sketch on the
+  context page.
+
+Both areas keep the guides' voice: plain words, short sentences, sentence case, no dashes as punctuation.
 
 ## What a guide is made of
 

@@ -3,12 +3,14 @@ import { t } from "../content.js";
 import { mediaUrl } from "../Figure.jsx";
 import { GUIDES } from "../guides/index.js";
 import { Link } from "../router.jsx";
+import { guidePath } from "../site.js";
+import { useTitle } from "./DocPage.jsx";
 
 function Card({ id }: { id: PuzzleId }) {
   const guide = GUIDES[id];
   return (
     <li>
-      <Link to={`/${id}`} className="card" data-testid={`guide-${id}`}>
+      <Link to={guidePath(id)} className="card" data-testid={`guide-${id}`}>
         <span className="card-thumb">
           <img src={mediaUrl(id, guide.hero.name, "webp")} alt="" loading="lazy" decoding="async" />
         </span>
@@ -36,16 +38,17 @@ function Shelf({ heading, blurb, ids }: { heading: string; blurb: string; ids: r
 }
 
 /** The list of guides: the game's own puzzles, then the prototypes. */
-export function Home() {
+export function Guides() {
+  useTitle(t("docs.title"));
   return (
-    <main className="page home">
-      <header className="masthead">
-        <p className="eyebrow">{t("docs.brand")}</p>
+    <div className="guides-home" data-testid="guides-home">
+      <header className="doc-head">
+        <p className="eyebrow">{t("docs.area.guides")}</p>
         <h1>{t("docs.title")}</h1>
         <p className="lede">{t("docs.lede")}</p>
       </header>
       <Shelf heading={t("docs.core_heading")} blurb={t("docs.core_blurb")} ids={CORE_PUZZLE_IDS} />
       <Shelf heading={t("docs.prototype_heading")} blurb={t("docs.prototype_blurb")} ids={PROTOTYPE_PUZZLE_IDS} />
-    </main>
+    </div>
   );
 }
