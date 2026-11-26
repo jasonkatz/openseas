@@ -1,7 +1,6 @@
 # Puzzle domain guide
 
-The source of truth for what a puzzle is. Its words are defined in the [glossary](./CONTEXT.md); this
-guide says how they fit together. Where the code differs from this guide, the guide is the target,
+The source of truth for what a puzzle is: its words, and how they fit together. Where the code differs from this guide, the guide is the target,
 and a change to either is made in step with the other.
 
 ## What a puzzle is
@@ -52,7 +51,7 @@ not the puzzle's at all: the clock for a wait is the host's or a role's ([Sides]
 
 ### Acting
 
-**Acting** says who may move (ADR 0090). It is apart from tempo, and a puzzle of either tempo may act
+**Acting** says who may move. It is apart from tempo, and a puzzle of either tempo may act
 in any way.
 
 | Acting | Who may move | Example |
@@ -267,7 +266,7 @@ declares only its own events.
 paid into an **account**. A puzzle says whose its accounts are: each seat's, or each side's, as
 partners share one. An event says which seat or side it pays, and unsaid it is the seat that moved.
 
-Points are **banked** when they join an account. A puzzle says how, by two dials (ADR 0090):
+Points are **banked** when they join an account. A puzzle says how, by two dials:
 
 | Dial | Says | Values |
 |---|---|---|
@@ -349,8 +348,8 @@ A payout's **growth** says how its points rise with what it counts:
 A penalty is a payout whose points are taken away. A score still never goes below zero.
 
 An event's points are split by payout, so a round can always be broken down: what each payout paid,
-and what share of the score each one made. The puzzle bar's rule that no single mechanic is the whole
-round is read from that split.
+and what share of the score each one made. Whether any single mechanic is the whole round is read
+from that split.
 
 A layer brings the payouts that exist only while it is on.
 
@@ -420,7 +419,7 @@ A task's grade can build the streak, and a payout can pay on a task ending with 
 
 ### Difficulty
 
-Difficulty holds for a whole round, and the stage sets it (ADR 0072). Every task in a round is dealt
+Difficulty holds for a whole round, and the stage sets it. Every task in a round is dealt
 from the same settings, from the first second to the last: no quicker feed, no growing target, no par
 that climbs with clean play. A rule that answers play, such as heat that rises with moves and falls
 with points, is not a ramp.
@@ -442,9 +441,6 @@ A seat's score is its account, unless the rules read it from the reason the roun
 the seat's points, its side's and the time played, as a lead over the other side is
 ([The rules](#the-rules)). The puzzle declares whether its rounds are judged by their outcome or by
 their score ([Versus](#versus)). No score is scaled by the opponent's standing.
-
-The puzzle bar's own rules for scoring, such as how long a round runs and how big a share one payout
-may take, are kept in the `puzzles` skill. This guide gives the words they are checked with.
 
 ## The board
 
@@ -613,7 +609,7 @@ seat, by its side or by nobody ([Zones](#zones)). A piece in a place a seat cann
 from that seat: another seat's cards, or where Scanner's contacts lie. The moves of a phase acting
 together are seen by their own seat until they resolve.
 
-The loop keeps sight, so no puzzle writes code to hide anything (ADR 0090):
+The loop keeps sight, so no puzzle writes code to hide anything:
 
 - It builds each seat's **view** of the round, and cuts each seat's copy of every event. A piece a
   seat may not see reaches it with an id and no kind.
@@ -774,7 +770,7 @@ another is part of the rules, not a signal.
 ### Holders
 
 Every seat has a **holder**: a player, a stand-in or nobody. Who holds a seat is the host's business
-and never the rules', and it can change during a round (ADR 0090).
+and never the rules', and it can change during a round.
 
 The host writes each change into the log as a **seat entry**. A seat entry says one of three things:
 
@@ -860,10 +856,10 @@ Both are questions asked of the rules, so neither changes a round ([Hooks](#hook
 ## The rules
 
 The **rules** are a puzzle's code, and the only part of it that is code. They are written as **hooks**
-on the **loop** every round runs (ADR 0088). The loop is the same for every puzzle, and it keeps
+on the **loop** every round runs. The loop is the same for every puzzle, and it keeps
 everything this guide gives one meaning: the log, time, seats and who holds them, who is awaited,
 phases, tasks, points and how they are banked, the streak, the endings, the placing and what each seat may
-see (ADR 0090). The rules hold only what is the puzzle's own.
+see. The rules hold only what is the puzzle's own.
 
 ### The loop
 
@@ -984,7 +980,7 @@ written by its author.
 ## Motion
 
 **Motion** is how what happens on the board plays out on a screen. The puzzle says what changes, the
-skin says how it plays, and the host holds where motion meets play (ADR 0073). Motion never reaches the
+skin says how it plays, and the host holds where motion meets play. Motion never reaches the
 rules, so no skin can change a round.
 
 ### Board changes
@@ -1051,7 +1047,7 @@ Motion the player makes, and motion while nothing happens, such as a path being 
 a fuse that flickers or a gauge rolling up, is the skin's too. It is read from the round's state and
 never holds a board.
 
-A new skin's motion starts as a copy of its theme's, as its cues do. The space theme's motion is in `docs/BRAND.md` section 6: a travel of 120ms, a clear of 160ms, ease-out, and a pulse of
+A new skin's motion starts as a copy of its theme's, as its cues do. The space theme's motion is a travel of 120ms, a clear of 160ms, ease-out, and a pulse of
 420ms in `amber`.
 
 ## The skin
@@ -1087,7 +1083,7 @@ Every puzzle declares these text keys, and may declare more:
 
 ## Themes
 
-A **theme** dresses every puzzle in one look, such as space (ADR 0077). It is a document of its own,
+A **theme** dresses every puzzle in one look, such as space. It is a document of its own,
 beside the puzzle and the skin, and holds what its skins share:
 
 - **Palette.** Every colour, a name and a value. Every theme fills the seven **fixed colours**:
@@ -1131,10 +1127,10 @@ one palette: a light look is a theme of its own.
 The studio edits a theme, its palette, type, sound frame, starting cues and motion, and host texts, in
 a draft, as it edits a skin.
 
-> Space is the first theme, and the default. Its document is made from the brand book (`docs/BRAND.md`):
+> Space is the first theme, and the default. In its document,
 > `cream` fills `text`, `amber` fills `yours`, and its eight piece colours run from `sand` to `slate`.
 > Its type is Atkinson Hyperlegible, its sound frame is G major pentatonic from G2 to G5 with no cue over
-> 400ms and no cutoff over 2.4kHz, and its starting cues are those in `boards/data/cues.json`.
+> 400ms and no cutoff over 2.4kHz, and it brings a starting cue for each moment a host plays.
 
 ## The documents
 
@@ -1272,8 +1268,8 @@ played.
 
 ### Example
 
-Paths, which the space theme calls Salvage, is written out in full in two files:
-[the puzzle](./examples/paths.puzzle.json) and [its skin in the space theme](./examples/paths.skin.json).
+Paths, which the space theme calls Salvage, is written out in full in two documents: the puzzle, and
+its skin in the space theme.
 An excerpt of the puzzle:
 
 ```json
