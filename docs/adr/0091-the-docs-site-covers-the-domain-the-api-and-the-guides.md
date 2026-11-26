@@ -28,10 +28,16 @@ The owner asked for one site that covers all three, reads well from first princi
    shows. A link in the guide to one of its own headings becomes a link to the page that heading is on. A test
    fails when a section is on no page or on two, and when a link leads nowhere. The glossary page is built
    from `docs/puzzles/CONTEXT.md`.
-3. **The API area is written for the site, in Markdown.** `packages/docs/content/api/` holds a page for each of
-   the three documents, key by key, a worked puzzle from an empty folder, the whole Paths documents read from
-   `docs/puzzles/examples/`, and three pages on the rules SDK: writing rules, every hook, and the context and
-   view. A test reads the shapes in the domain guide and fails when a key is on no API page.
+3. **The API area is written for the site, and its reference is typed data.** `packages/docs/src/api/schema/`
+   holds the puzzle, skin and theme objects as data: every field with its type down to a primitive value,
+   whether it is required, what leaving it out means, every value an enum takes with what the value means, and
+   what must hold between fields. The site draws an object browser from it. Each top-level object has a page
+   at `/api/<object>`, and every object that belongs to it has a page under that, at `/api/<object>/<key>`.
+   Anything nested more deeply is defined on its parent's page. The types that fields share are on one page,
+   `/api/types`. `packages/docs/content/api/` holds the rest in Markdown: the overview, a worked puzzle from an
+   empty folder, the whole Paths documents read from `docs/puzzles/examples/`, and three pages on the rules
+   SDK. Tests read the shapes in the domain guide and fail when a key is not in the reference, and hold the
+   Paths puzzle, its skin and every example on a page to the types the reference gives.
 4. **The rules SDK is documented as a design, and says so.** The engine of ADR 0088 and ADR 0090 is not built.
    Its pages carry a notice, give the settled parts, and list what is open. Where the ADRs name a thing and
    give it no signature, the page gives one, so the pages are also the first whole sketch of the SDK's
@@ -53,8 +59,11 @@ The owner asked for one site that covers all three, reads well from first princi
   cannot drift from it.
 - A new section of the domain guide, or a new key in a document's shape, fails the site's tests until it has
   a page or a row. That is one more step in a change to the guide, and it is the step that keeps the site whole.
-- The API pages restate the shapes that the domain guide's last sections hold. The test on keys keeps the two
-  in step. The prose around the keys is written twice, once for each reader.
+- The reference restates the shapes that the domain guide's last sections hold, and says more than they do:
+  a type for every value and the combinations that are refused. The test on keys keeps the two in step. Where
+  the guide gives a key and no type, the reference's type is a proposal until the engine reads the document.
+- A sentence that describes a part of the puzzle is its `description`. The guide wrote that key as `line`
+  when ADR 0088 and ADR 0090 were written, and they keep the word they were written in.
 - The rules SDK pages say more than the ADRs do in places. Until the engine exists they are a proposal for
   those places, and the page on writing rules lists the edges that are open.
 - The docs package gains one build-time dependency. The engine stays pure and the site still has no server.

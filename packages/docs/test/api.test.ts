@@ -7,7 +7,10 @@ import { API_PAGES, apiContent } from "../src/api/pages.js";
 import { GLOSSARY } from "../src/domain/glossary.js";
 import { domainContent } from "../src/domain/guide.js";
 import { DOMAIN_PAGES, GLOSSARY_SLUG } from "../src/domain/pages.js";
+import { ALIASES, ROOTS, TYPES_PATH, pagePath, pageView, pagesOf, refPath, rootNodes, rootPath, type RefTarget } from "../src/api/schema/index.js";
 import { HOOKS } from "../src/md/highlight.js";
+
+const REF_TARGETS: readonly RefTarget[] = ["setting", "move", "control", "event", "phase", "payout", "layer", "piece", "zone", "gauge", "multiplier", "task", "draw", "check", "stand-in", "puzzle", "theme", "cue", "colour", "event field"];
 
 const GUIDE = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "docs", "puzzles", "DOMAIN.md"), "utf8");
 
@@ -39,23 +42,15 @@ function shapeOf(heading: string): unknown {
   return JSON.parse(block![1]!);
 }
 
-/** Every key a shape names. A key in angle brackets stands for a name the author chooses, and is skipped. */
-function keysOf(shape: unknown, out = new Set<string>()): Set<string> {
-  if (Array.isArray(shape)) for (const item of shape) keysOf(item, out);
-  else if (shape && typeof shape === "object") {
-    for (const [key, value] of Object.entries(shape)) {
-      if (!key.includes("<") && !key.includes("|")) out.add(key);
-      keysOf(value, out);
-    }
+/** Every sentence the reference is written in: each string of the typed data, however deep. */
+function sentences(value: unknown, out: string[] = [], seen = new Set<unknown>()): string[] {
+  if (typeof value === "string") out.push(value);
+  else if (typeof value === "function") sentences((value as () => unknown)(), out, seen);
+  else if (value && typeof value === "object" && !seen.has(value)) {
+    seen.add(value);
+    for (const [key, v] of Object.entries(value)) if (key !== "examples" && key !== "example") sentences(v, out, seen);
   }
   return out;
-}
-
-/** What a page writes as code in its prose and tables: the keys it documents. */
-function codeOf(slug: string): Set<string> {
-  const words = new Set<string>();
-  for (const span of collect<Tokens.Codespan>(slug, "codespan")) for (const word of span.text.match(/[A-Za-z_]+/g) ?? []) words.add(word);
-  return words;
 }
 
 describe("the API section", () => {
@@ -66,14 +61,6 @@ describe("the API section", () => {
       expect(apiContent(page.slug)!.headings.length, page.slug).toBeGreaterThan(1);
     }
   });
-
-  for (const [slug, heading] of [["puzzle", "The puzzle"], ["skin", "The skin"], ["theme", "The theme"]] as const) {
-    it(`documents every key the guide's shape gives ${heading.toLowerCase()} document`, () => {
-      const documented = codeOf(slug);
-      const missing = [...keysOf(shapeOf(heading))].filter((key) => !documented.has(key));
-      expect(missing).toEqual([]);
-    });
-  }
 
   it("has a section for every hook the guide lists", () => {
     const table = GUIDE.slice(GUIDE.indexOf("### Hooks\n"), GUIDE.indexOf("### What a hook reports through"));
@@ -117,6 +104,11 @@ describe("the API section", () => {
     }
     for (const page of API_PAGES) anchors.set(page.slug === "" ? "/api" : `/api/${page.slug}`, new Set(apiContent(page.slug)!.headings.map((h) => h.id)));
     anchors.set("/guides", new Set());
+    for (const root of ROOTS) {
+      anchors.set(rootPath(root.root), new Set([...pagesOf(root).map((p) => p.key.toLowerCase()), ...[...rootNodes(root).values()].map((n) => n.anchor)]));
+      for (const page of pagesOf(root)) anchors.set(pagePath(page), new Set(pageView(page).all.map((n) => n.anchor)));
+    }
+    anchors.set(TYPES_PATH, new Set(ALIASES.map((a) => a.name.replace(/\s+/g, "-"))));
 
     const check = (href: string, from: string, own: string): void => {
       if (/^https?:/.test(href)) return;
@@ -130,6 +122,10 @@ describe("the API section", () => {
       for (const link of collect<Tokens.Link>(page.slug, "link")) check(link.href, own, own);
       for (const m of page.lede.matchAll(/\]\(([^)]+)\)/g)) check(m[1]!, own, own);
     }
+    // The reference: what its sentences link to, where the ideas behind a page are, and where an id is declared.
+    for (const text of sentences(ROOTS)) for (const m of text.matchAll(/\]\(([^)]+)\)/g)) check(m[1]!, "the reference", "/api");
+    for (const page of ROOTS.flatMap(pagesOf)) if (page.ideas) check(page.ideas.path, pagePath(page), pagePath(page));
+    for (const to of REF_TARGETS) check(refPath(to), `id of ${to}`, "/api");
     for (const page of DOMAIN_PAGES) for (const m of page.lede.matchAll(/\]\(([^)]+)\)/g)) check(m[1]!, `/domain/${page.slug}`, `/domain/${page.slug}`);
   });
 
@@ -138,5 +134,6 @@ describe("the API section", () => {
       if (page.slug === "paths") continue;
       expect(page.source, page.slug).not.toMatch(/\bADR\b|DOMAIN\.md|CONTEXT\.md|docs\/|packages\//);
     }
+    for (const text of sentences(ROOTS)) expect(text).not.toMatch(/\bADR\b|DOMAIN\.md|CONTEXT\.md|docs\/|packages\//);
   });
 });

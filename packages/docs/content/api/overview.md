@@ -24,31 +24,26 @@ The split between the files is strict, and it is what makes a puzzle safe to cha
 
 ## How to read the reference
 
-Every table in the reference has the same three columns.
+Each of the three documents is one JSON object, and the reference is laid out the way the object is. The [puzzle object](/api/puzzle), the [skin object](/api/skin) and the [theme object](/api/theme) each have a page that lists every key. Every object inside one has a page of its own under it, such as [`round`](/api/puzzle/round) under the puzzle. Whatever is nested deeper is defined on its parent's page.
 
-| Column | Says |
+Every field says four things.
+
+| Part | Says |
 |---|---|
-| Key | The key as it is written in the document |
-| Type | What its value is |
-| Holds | What the value means, and what leaving it out means |
+| Name | The key as it is written, with its path from the page's object, such as `tempo.kind` |
+| Type | What its value is, down to a primitive value. A list always says what it is a list of. A named type links to [Types](/api/types) |
+| Required, optional or conditional | Whether the key is always written, may be left out, or is written in one case and refused in every other |
+| Description | What the value means. Then what leaving it out means, what it may only sit beside, what it may never sit beside, and what it must agree with |
 
-A few types come up on every page.
+Where a value is one of a fixed set, every possible value is listed and explained. Each page ends with what must hold across its fields: the combinations a host refuses.
 
-| Type | Is |
-|---|---|
-| id | A short neutral word, lower case, such as `paths`, `loop` or `prize_floor`. It never carries a word from a theme: the skin names everything a player sees |
-| line | One plain sentence. It is shown to whoever tunes or reads the puzzle, never to a player |
-| setting | The id of one of the puzzle's [settings](/api/puzzle#settings) |
-| number or setting | A number written in place, or the id of the setting that holds it. A board's size, a zone's capacity and a gauge's most are all written this way |
-| typed fields | An object of names, each given a field type such as `place` or `number`. Moves, events and signals carry these |
-
-A key the reference marks as absent in some case is left out of the document in that case. It is never written as `null`.
+A key that is left out is left out of the file. It is never written as `null`.
 
 ## Where to start
 
 - New to all of this: read [What a puzzle is](/domain) first. It takes five minutes and gives every word used here.
 - To see every part working together: follow [Write a puzzle](/api/write-a-puzzle), which builds a small one from an empty file.
-- To look something up: go to the page for the file you are editing.
+- To look something up: go to the object you are editing, or search for a key by name.
 - To see a whole puzzle as shipped: [Paths, in full](/api/paths) shows both of its documents.
 
 > [!PREVIEW]

@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { t } from "./content.js";
 import { Link, useRoute } from "./router.jsx";
 import { Search } from "./Search.jsx";
-import { AREAS, areaOf, areaPath, navOf, neighbours, type Area } from "./site.js";
+import { AREAS, areaOf, areaPath, navOf, neighbours, type Area, type NavItem } from "./site.js";
 
 /** The site's mark: a ring with a dot, a line drawing on the pieces' 24 unit square. */
 function Mark() {
@@ -14,6 +14,27 @@ function Mark() {
   );
 }
 
+function SideItem({ item, path, onGo }: { item: NavItem; path: string; onGo(): void }) {
+  const open = item.children && (item.path === path || item.children.some((c) => c.path === path));
+  return (
+    <li>
+      <Link to={item.path} aria-current={item.path === path ? "page" : undefined} aria-expanded={item.children ? Boolean(open) : undefined} onClick={onGo}>
+        {item.code ? <code>{item.title}</code> : item.title}
+        {item.children && (
+          <svg className="side-fold" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+        )}
+      </Link>
+      {open && (
+        <ul className="side-sub">
+          {item.children!.map((child) => (
+            <SideItem key={child.path} item={child} path={path} onGo={onGo} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
 function SideNav({ area, path, onGo }: { area: Area; path: string; onGo(): void }) {
   return (
     <nav className="side-nav" aria-label={t(`docs.area.${area}`)} data-testid="side-nav">
@@ -22,11 +43,7 @@ function SideNav({ area, path, onGo }: { area: Area; path: string; onGo(): void 
           <h2>{group.title}</h2>
           <ul>
             {group.items.map((item) => (
-              <li key={item.path}>
-                <Link to={item.path} aria-current={item.path === path ? "page" : undefined} onClick={onGo}>
-                  {item.title}
-                </Link>
-              </li>
+              <SideItem key={item.path} item={item} path={path} onGo={onGo} />
             ))}
           </ul>
         </section>

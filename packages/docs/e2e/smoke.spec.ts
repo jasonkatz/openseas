@@ -4,9 +4,6 @@ import { PUZZLE_IDS } from "@openseas/engine";
 const API_PAGES = [
   { slug: "", title: "The API" },
   { slug: "write-a-puzzle", title: "Write a puzzle" },
-  { slug: "puzzle", title: "The puzzle document" },
-  { slug: "skin", title: "The skin document" },
-  { slug: "theme", title: "The theme document" },
   { slug: "paths", title: "Paths, in full" },
   { slug: "rules", title: "Writing rules" },
   { slug: "hooks", title: "Hooks" },
@@ -70,6 +67,52 @@ for (const p of API_PAGES) {
     expect(await fits(page)).toBe(true);
   });
 }
+
+// The reference is listed here for the same reason: the three objects, and how many pages each has.
+const OBJECTS = [
+  { root: "puzzle", pages: 28 },
+  { root: "skin", pages: 5 },
+  { root: "theme", pages: 6 },
+];
+
+for (const o of OBJECTS) {
+  test(`the ${o.root} object lists its fields, and every object under it has a page`, async ({ page }) => {
+    await page.goto(`/api/${o.root}`);
+    await expect(page.getByTestId(`ref-${o.root}`)).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(o.root);
+    expect(await fits(page)).toBe(true);
+    const links = await page.getByTestId("ref-child").evaluateAll((as) => as.map((a) => a.getAttribute("href")!));
+    expect(links.length).toBe(o.pages);
+    for (const href of links) {
+      await page.goto(href);
+      const key = href.split("/").pop()!;
+      await expect(page.getByTestId(`ref-${o.root}-${key}`)).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name: key, exact: true })).toBeVisible();
+      await expect(page.getByTestId("ref-fields")).toContainText(/\w{4}/);
+      await expect(page.locator(".ref-side .code").first()).toBeAttached();
+      expect(await fits(page), href).toBe(true);
+    }
+  });
+}
+
+test("an object's page names every value an enum takes, and opens at a field", async ({ page }) => {
+  await page.goto("/api/puzzle/round#tempo-kind");
+  const field = page.locator("#tempo-kind");
+  await expect(field).toBeInViewport();
+  for (const value of ["still", "ticking"]) await expect(field.locator(".values")).toContainText(value);
+  await page.goto("/api/types");
+  await expect(page.getByTestId("ref-types")).toBeVisible();
+  expect(await fits(page)).toBe(true);
+});
+
+test("the search finds a field of the reference", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("open-search").click();
+  await page.getByTestId("search").getByRole("searchbox").fill("logLimit");
+  await expect(page.getByTestId("search-hit").first()).toContainText("logLimit");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/api\/puzzle\/round#loglimit$/);
+});
 
 test("the glossary narrows as it is typed into", async ({ page }) => {
   await page.goto("/domain/glossary");

@@ -10,7 +10,7 @@ Start with who the puzzle is and how a round runs. Swap is still: nothing happen
 {
   "id": "swap",
   "version": "0.1",
-  "history": [{ "version": "0.1", "line": "First version" }],
+  "history": [{ "version": "0.1", "description": "First version" }],
   "mechanic": "Swap two touching pieces to line up three or more of a kind",
   "verb": "swap",
   "round": {
@@ -28,18 +28,18 @@ The board's size and the round's length are written as the ids of settings, not 
 
 ## 2. Declare the numbers
 
-Every number that tunes the puzzle is a setting, with a default, bounds and one plain line. A tuning panel is built from these lines, and every host holds a round to these bounds.
+Every number that tunes the puzzle is a [setting](/api/puzzle/settings), with a default, bounds and a description. A tuning panel is built from these, and every host holds a round to these bounds.
 
 ```json
 {
   "settings": [
-    { "id": "width", "type": "whole", "default": 6, "min": 4, "max": 9, "line": "columns on the board", "group": "board", "unit": "cells" },
-    { "id": "height", "type": "whole", "default": 7, "min": 4, "max": 10, "line": "rows on the board", "group": "board", "unit": "cells" },
-    { "id": "kinds", "type": "whole", "default": 5, "min": 3, "max": 6, "line": "kinds dealt; fewer makes lines easier to find", "group": "board" },
-    { "id": "moves", "type": "whole", "default": 20, "min": 1, "max": 200, "line": "swaps in a round", "group": "tempo", "unit": "moves" },
-    { "id": "groupPoints", "type": "whole", "default": 1, "min": 0, "max": 100, "line": "points a cleared group earns, times its size squared", "group": "scoring", "unit": "points" },
-    { "id": "cascadePercent", "type": "list", "default": [100, 200, 300], "min": 100, "max": 1000, "line": "what each step of a cascade multiplies by; the last entry holds", "group": "scoring", "entries": { "least": 1, "most": 8 } },
-    { "id": "streakPercent", "type": "list", "default": [100, 110, 120, 130, 140, 150], "min": 100, "max": 1000, "line": "what the streak multiplies by, an entry for each scoring swap in a row", "group": "scoring", "entries": { "least": 1, "most": 16 } }
+    { "id": "width", "type": "whole", "default": 6, "min": 4, "max": 9, "description": "columns on the board", "group": "board", "unit": "cells" },
+    { "id": "height", "type": "whole", "default": 7, "min": 4, "max": 10, "description": "rows on the board", "group": "board", "unit": "cells" },
+    { "id": "kinds", "type": "whole", "default": 5, "min": 3, "max": 6, "description": "kinds dealt; fewer makes lines easier to find", "group": "board" },
+    { "id": "moves", "type": "whole", "default": 20, "min": 1, "max": 200, "description": "swaps in a round", "group": "tempo", "unit": "moves" },
+    { "id": "groupPoints", "type": "whole", "default": 1, "min": 0, "max": 100, "description": "points a cleared group earns, times its size squared", "group": "scoring", "unit": "points" },
+    { "id": "cascadePercent", "type": "list", "default": [100, 200, 300], "min": 100, "max": 1000, "description": "what each step of a cascade multiplies by; the last entry holds", "group": "scoring", "entries": { "least": 1, "most": 8 } },
+    { "id": "streakPercent", "type": "list", "default": [100, 110, 120, 130, 140, 150], "min": 100, "max": 1000, "description": "what the streak multiplies by, an entry for each scoring swap in a row", "group": "scoring", "entries": { "least": 1, "most": 16 } }
   ],
   "relations": [
     { "is": "ascending", "a": "cascadePercent" },
@@ -59,12 +59,12 @@ All the luck in a round is declared as draws. Swap has two: the board it opens o
   "pieces": [{ "id": "kind", "family": "kinds" }],
   "deal": {
     "draws": [
-      { "id": "fill", "line": "the kind of every piece on a fresh board", "gives": "kind", "by": "even", "when": "start", "reads": ["kinds"] },
-      { "id": "rise", "line": "the kind of each piece that rises in", "gives": "kind", "by": "even", "when": "refill", "reads": ["kinds"] }
+      { "id": "fill", "description": "the kind of every piece on a fresh board", "gives": "kind", "by": "even", "when": "start", "reads": ["kinds"] },
+      { "id": "rise", "description": "the kind of each piece that rises in", "gives": "kind", "by": "even", "when": "refill", "reads": ["kinds"] }
     ],
     "checks": [
       {
-        "id": "playable", "line": "no line stands and at least one swap makes one", "draws": ["fill"], "tries": 50,
+        "id": "playable", "description": "no line stands and at least one swap makes one", "draws": ["fill"], "tries": 50,
         "fallback": "lays two of a kind in a row with a third one step away, so one swap always makes a line",
         "during": "reshuffle"
       }
@@ -83,14 +83,14 @@ A move is what a player does. An event is what the rules report happened. A boar
 ```json
 {
   "moves": [
-    { "id": "swap", "line": "swap two pieces side by side", "gesture": "drag", "fields": { "a": "place", "b": "place" } }
+    { "id": "swap", "description": "swap two pieces side by side", "gesture": "drag", "fields": { "a": "place", "b": "place" } }
   ],
   "events": [
-    { "id": "fill", "line": "a fresh board was dealt", "fields": {}, "changes": ["arrive"] },
-    { "id": "swap", "line": "two pieces traded places", "fields": { "a": "place", "b": "place" }, "changes": ["travel"] },
-    { "id": "clear", "line": "a group of three or more cleared", "fields": { "pieces": "places", "size": "number", "points": "points" }, "changes": ["leave"], "step": true },
-    { "id": "rise", "line": "pieces rose and new ones came in from below", "fields": {}, "changes": ["travel", "arrive"] },
-    { "id": "reshuffle", "line": "no swap was left, so the board was dealt again", "fields": {}, "changes": ["leave", "arrive"] }
+    { "id": "fill", "description": "a fresh board was dealt", "fields": {}, "changes": ["arrive"] },
+    { "id": "swap", "description": "two pieces traded places", "fields": { "a": "place", "b": "place" }, "changes": ["travel"] },
+    { "id": "clear", "description": "a group of three or more cleared", "fields": { "pieces": "places", "size": "number", "points": "points" }, "changes": ["leave"], "step": true },
+    { "id": "rise", "description": "pieces rose and new ones came in from below", "fields": {}, "changes": ["travel", "arrive"] },
+    { "id": "reshuffle", "description": "no swap was left, so the board was dealt again", "fields": {}, "changes": ["leave", "arrive"] }
   ],
   "moment": { "event": "clear", "when": "size > 3", "size": "size", "most": 7 }
 }
@@ -105,11 +105,11 @@ The rules never add a point. The document says what each event is worth, and the
 ```json
 {
   "payouts": [
-    { "id": "group", "line": "a group pays its size squared", "on": ["clear"], "counts": "pieces", "growth": "superlinear", "reads": ["groupPoints"] }
+    { "id": "group", "description": "a group pays its size squared", "on": ["clear"], "counts": "pieces", "growth": "superlinear", "reads": ["groupPoints"] }
   ],
   "multipliers": [
-    { "id": "cascade", "line": "later steps of a cascade pay more", "scales": ["group"], "on": "clear", "by": { "table": "cascadePercent", "index": "step" } },
-    { "id": "streak", "line": "scoring swaps in a row pay more", "scales": ["group"], "on": "clear", "by": { "table": "streakPercent", "index": "streak" } }
+    { "id": "cascade", "description": "later steps of a cascade pay more", "scales": ["group"], "on": "clear", "by": { "table": "cascadePercent", "index": "step" } },
+    { "id": "streak", "description": "scoring swaps in a row pay more", "scales": ["group"], "on": "clear", "by": { "table": "streakPercent", "index": "streak" } }
   ],
   "streak": { "builds": { "event": "clear" }, "grace": 1, "breaksOn": [] }
 }
@@ -157,8 +157,8 @@ The rest is short. Swap is solo, so it has no `opponents`, `points` or `placing`
   "controls": [],
   "signals": { "in": [], "out": [] },
   "tasks": [],
-  "gauges": [{ "id": "streak", "line": "scoring swaps in a row" }],
-  "stats": [{ "id": "best_streak", "line": "the longest streak" }],
+  "gauges": [{ "id": "streak", "description": "scoring swaps in a row" }],
+  "stats": [{ "id": "best_streak", "description": "the longest streak" }],
   "texts": [
     { "key": "name" },
     { "key": "how_to" },
@@ -284,7 +284,7 @@ A skin gives every piece a drawing and every key a text. This is the start of on
 }
 ```
 
-Its cues and motion start as a copy of the theme's. The [skin reference](/api/skin) has the rest.
+Its cues and motion start as a copy of the theme's. The [skin object](/api/skin) has the rest.
 
 ## 10. Know it works
 

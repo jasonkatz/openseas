@@ -1,0 +1,25 @@
+{
+  "fixed": {
+    "ground": "#0b1220",
+    "raised": "#141d30",
+    "line": "#27344f",
+    "text": "#ece3cf",
+    "dim": "#8f99ad",
+    "yours": "#e2a94b",
+    "danger": "#e5604e"
+  },
+  "pieces": {
+    "sand": "#d8c690",
+    "sky": "#7fb0d8",
+    "moss": "#8ebd88",
+    "lilac": "#a99ad4",
+    "rose": "#d897b2",
+    "teal": "#6dbcb1",
+    "rust": "#c27f66",
+    "slate": "#7f8ba3"
+  },
+  "names": {
+    "text": "cream",
+    "yours": "amber"
+  }
+}

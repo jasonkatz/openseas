@@ -1,9 +1,6 @@
 import type { Token } from "marked";
 import overview from "../../content/api/overview.md?raw";
 import write from "../../content/api/write-a-puzzle.md?raw";
-import puzzle from "../../content/api/puzzle.md?raw";
-import skin from "../../content/api/skin.md?raw";
-import theme from "../../content/api/theme.md?raw";
 import rules from "../../content/api/rules.md?raw";
 import hooks from "../../content/api/hooks.md?raw";
 import context from "../../content/api/context.md?raw";
@@ -12,9 +9,9 @@ import pathsSkin from "../../../../docs/puzzles/examples/paths.skin.json?raw";
 import { lex, withIds, type Heading } from "../md/parse.js";
 
 /**
- * The API section: one Markdown file a page, in `content/api/`. A page's title and lede are here,
- * with the order the section is read in. `test/api.test.ts` holds the reference to the shapes the
- * domain guide gives for the three documents, so a key added to one cannot be missed here.
+ * The API section's pages of prose: one Markdown file a page, in `content/api/`. A page's title
+ * and lede are here, with the order the section is read in. The reference to the three objects is
+ * not prose: it is data, in `schema/`, and `site.ts` lists its pages between these groups.
  */
 export interface ApiPage {
   readonly slug: string;
@@ -34,10 +31,10 @@ const fence = (title: string, json: string): string => `\`\`\`json title=${title
 const paths = [
   "Paths is a whole puzzle: a player draws a path through touching pieces of one kind to clear them, and a closed path takes every prize on the board. The space theme calls it Salvage. Both of its documents are below, exactly as they are kept.",
   "## The puzzle",
-  "Six layers, a ladder of four stages, six payouts and two multipliers. Read it beside the [puzzle reference](/api/puzzle).",
+  "Six layers, a ladder of four stages, six payouts and two multipliers. Read it beside the [puzzle object](/api/puzzle).",
   fence("paths.puzzle.json", pathsPuzzle),
   "## Its skin in the space theme",
-  "A drawing for each of the eight kinds and the three other pieces, its cues, its motion and its words. Read it beside the [skin reference](/api/skin).",
+  "A drawing for each of the eight kinds and the three other pieces, its cues, its motion and its words. Read it beside the [skin object](/api/skin).",
   fence("paths.skin.json", pathsSkin),
 ].join("\n\n");
 
@@ -50,13 +47,8 @@ export const API_GROUPS: readonly ApiGroup[] = [
     ],
   },
   {
-    title: "Documents",
-    pages: [
-      { slug: "puzzle", title: "The puzzle document", lede: "Every key of `<id>.puzzle.json`: the round, the board, the pieces, the deal, what goes in, what comes out and what pays.", source: puzzle },
-      { slug: "skin", title: "The skin document", lede: "Every key of `<id>.skin.json`: drawings, cues, motion, what each event shows, and the words.", source: skin },
-      { slug: "theme", title: "The theme document", lede: "Every key of `<theme>.theme.json`: the palette, type, the sound frame and what a new skin starts from.", source: theme },
-      { slug: "paths", title: "Paths, in full", lede: "A shipped puzzle and its skin, whole, to read beside the reference.", source: paths },
-    ],
+    title: "Examples",
+    pages: [{ slug: "paths", title: "Paths, in full", lede: "A whole puzzle and its skin, to read beside the reference.", source: paths }],
   },
   {
     title: "Rules SDK",

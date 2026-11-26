@@ -6,7 +6,7 @@ boards of its own. It has three areas.
 | Area | Address | What it holds | Written in |
 |---|---|---|---|
 | Domain | `/domain` | What a puzzle is, apart from any world, a page for each idea, and the glossary | `docs/puzzles/DOMAIN.md` and `docs/puzzles/CONTEXT.md`, read at build time |
-| API | `/api` | The puzzle, skin and theme documents key by key, and the rules SDK | `content/api/*.md` |
+| API | `/api` | The puzzle, skin and theme objects field by field, and the rules SDK | `src/api/schema/*.ts` for the reference, `content/api/*.md` for the rest |
 | Puzzle guides | `/guides` | One page per puzzle that takes a player from a first round to expert play | `src/guides/<id>.ts`, with pictures captured from the real boards on the studio's `/play` pages (ADR 0042) |
 
 The site stands on its own: a reader needs nothing from this repository. No page in Domain or API names an
@@ -31,9 +31,34 @@ page that heading is on.
   shows, on one shown twice, and on a link that leads nowhere.
 - The glossary page is built from `docs/puzzles/CONTEXT.md`: each `**Term**:` line is an entry, under its heading.
 
-## The API pages
+## The API reference
 
-Each page is a Markdown file in `content/api/`, listed in `src/api/pages.ts`. Plain Markdown, with three additions.
+The puzzle, skin and theme objects are typed data in `src/api/schema/` (`puzzle.ts`, `skin.ts`, `theme.ts`), and
+`src/pages/Reference.tsx` draws them: fields on the left, examples beside them.
+
+| Address | Shows |
+|---|---|
+| `/api/<object>` | A top-level object: its own fields, and a link to each object that belongs to it |
+| `/api/<object>/<key>` | One object that belongs to it, with everything nested inside defined on the same page |
+| `/api/types` | The primitive values and the named types fields share |
+
+- **A field** is `req`, `opt` or `when` (required in one case, refused in every other), with a type built from
+  `src/api/schema/types.ts` and one description. An optional field says what leaving it out means (`absent`).
+  What must hold between fields goes in its `only`, `never` and `must`, or in the page's `rules`.
+- **An enum** lists every value with a sentence on what the value means. A value that is one of several forms
+  is `variants` (told apart by a field) or `or` (told apart by its type).
+- **A page** is an object directly under a top-level object. Add it with `page({...})` and place it in a group
+  of the root. Nothing nested more deeply gets a page.
+- **Every key is covered.** `test/reference.test.ts` reads the shapes in the domain guide and fails when a key
+  is not in the reference, when an enum value has no explanation, and when a field is not typed down to a
+  primitive value.
+- **Every example is real.** Each example on a page, and the whole Paths puzzle and skin in
+  `docs/puzzles/examples/`, are checked against the reference's own types (`src/api/schema/check.ts`).
+
+## The other API pages
+
+The overview, the walkthrough, Paths in full and the rules SDK are Markdown files in `content/api/`, listed in
+`src/api/pages.ts`. Plain Markdown, with three additions.
 
 | Written | Shows |
 |---|---|
@@ -41,10 +66,9 @@ Each page is a Markdown file in `content/api/`, listed in `src/api/pages.ts`. Pl
 | A quote that starts `[!NOTE]` or `[!PREVIEW]` | A callout. A plain quote is an example |
 | `<!-- figure: name -->` | One of the figures in `src/figures/` |
 
-- **Every key is covered.** `test/api.test.ts` reads the shapes in the domain guide and fails when a key of the
-  puzzle, skin or theme document is on no API page, and when a hook has no entry on the hooks page.
-- **Every example is real.** A `json` fence must parse. The whole Paths documents are read from
-  `docs/puzzles/examples/`, not typed again.
+- **Every hook is covered.** `test/api.test.ts` fails when a hook the guide lists has no entry on the hooks
+  page, and when a link on any page, or in the reference, leads nowhere.
+- **A `json` fence must parse.** The whole Paths documents are read from `docs/puzzles/examples/`, not typed again.
 - **The rules SDK is a design.** The engine that runs it is not built. The pages say what is settled, and
   `content/api/rules.md` lists what is not. When the engine lands, its own types replace the sketch on the
   context page.

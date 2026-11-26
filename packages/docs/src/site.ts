@@ -1,5 +1,6 @@
 import { CORE_PUZZLE_IDS, PROTOTYPE_PUZZLE_IDS, PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
 import { API_GROUPS, apiContent, apiPath } from "./api/pages.js";
+import { ALIASES, ROOTS, TYPES_PATH, isPage, pagePath, pageView, pagesOf, rootNodes, rootPath } from "./api/schema/index.js";
 import { t } from "./content.js";
 import { GLOSSARY } from "./domain/glossary.js";
 import { domainContent } from "./domain/guide.js";
@@ -21,6 +22,10 @@ export function areaOf(path: string): Area | null {
 export interface NavItem {
   readonly path: string;
   readonly title: string;
+  /** Written as code: the key of an object in a file. */
+  readonly code?: boolean | undefined;
+  /** The pages under it, listed while the reader is on it or on one of them. */
+  readonly children?: readonly NavItem[] | undefined;
 }
 export interface NavGroup {
   readonly title: string;
@@ -30,7 +35,10 @@ export interface NavGroup {
 /** An area's pages, grouped, in reading order: its side list and its previous and next links. */
 export function navOf(area: Area): NavGroup[] {
   if (area === "domain") return DOMAIN_GROUPS.map((g) => ({ title: g.title, items: g.pages.map((p) => ({ path: domainPath(p.slug), title: p.title })) }));
-  if (area === "api") return API_GROUPS.map((g) => ({ title: g.title, items: g.pages.map((p) => ({ path: apiPath(p.slug), title: p.title })) }));
+  if (area === "api") {
+    const [start, ...rest] = API_GROUPS.map((g) => ({ title: g.title, items: g.pages.map((p): NavItem => ({ path: apiPath(p.slug), title: p.title })) }));
+    return [start!, referenceNav(), ...rest];
+  }
   const items = (ids: readonly PuzzleId[]): NavItem[] => ids.map((id) => ({ path: guidePath(id), title: t(`${id}.title`) }));
   return [
     { title: t("docs.guides_heading"), items: [{ path: "/guides", title: t("docs.all_guides") }] },
@@ -39,8 +47,19 @@ export function navOf(area: Area): NavGroup[] {
   ];
 }
 
+/** The reference: the three top-level objects, each with a page for every object inside it, and the types they share. */
+function referenceNav(): NavGroup {
+  return {
+    title: t("docs.ref.group.reference"),
+    items: [
+      ...ROOTS.map((root): NavItem => ({ path: rootPath(root.root), title: root.title, children: pagesOf(root).map((p) => ({ path: pagePath(p), title: p.key, code: true })) })),
+      { path: TYPES_PATH, title: t("docs.ref.types_title") },
+    ],
+  };
+}
+
 export function neighbours(area: Area, path: string): { prev?: NavItem | undefined; next?: NavItem | undefined } {
-  const all = navOf(area).flatMap((g) => g.items);
+  const all = navOf(area).flatMap((g) => g.items.flatMap((i) => [i, ...(i.children ?? [])]));
   const at = all.findIndex((i) => i.path === path);
   return at < 0 ? {} : { prev: all[at - 1], next: all[at + 1] };
 }
@@ -50,7 +69,7 @@ export interface Hit {
   readonly title: string;
   readonly path: string;
   readonly area: Area;
-  readonly kind: "page" | "section" | "term" | "guide";
+  readonly kind: "page" | "section" | "term" | "guide" | "field" | "type";
   /** The page it is on, or a line about it. */
   readonly sub: string;
 }
@@ -85,12 +104,26 @@ export function searchIndex(): Hit[] {
       if (h) out.push({ title: h.text, path: `${path}#${h.id}`, area: "api", kind: "section", sub: firstLine(content.tokens, i + 1) || page.title });
     });
   }
+  for (const root of ROOTS) {
+    out.push({ title: t("docs.ref.object", { name: root.root }), path: rootPath(root.root), area: "api", kind: "page", sub: root.lede });
+    for (const group of root.groups) {
+      for (const f of group.fields) if (!isPage(f)) out.push({ title: `${root.root}.${f.name}`, path: `${rootPath(root.root)}#${rootNodes(root).get(f)!.anchor}`, area: "api", kind: "field", sub: clean(f.description) });
+    }
+    for (const page of pagesOf(root)) {
+      out.push({ title: `${root.root}.${page.key}`, path: pagePath(page), area: "api", kind: "page", sub: clean(page.lede) });
+      for (const node of pageView(page).all) out.push({ title: `${page.key}.${node.path}`, path: `${pagePath(page)}#${node.anchor}`, area: "api", kind: "field", sub: clean(node.field.description) });
+    }
+  }
+  for (const a of ALIASES) out.push({ title: a.name, path: `${TYPES_PATH}#${a.name.replace(/\s+/g, "-")}`, area: "api", kind: "type", sub: clean(a.description) });
   for (const id of PUZZLE_IDS) out.push({ title: t(`${id}.title`), path: guidePath(id), area: "guides", kind: "guide", sub: GUIDES[id].tagline });
   index = out;
   return out;
 }
 
-const KIND_RANK: Record<Hit["kind"], number> = { page: 0, guide: 0, term: 1, section: 2 };
+/** A line of inline Markdown as plain words, for a search result. */
+const clean = (text: string): string => text.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*`]/g, "");
+
+const KIND_RANK: Record<Hit["kind"], number> = { page: 0, guide: 0, term: 1, type: 1, section: 2, field: 3 };
 
 /** The best matches for what was typed: a title that starts with it first, then one that holds it, then one whose line does. */
 export function search(query: string, limit = 12): Hit[] {

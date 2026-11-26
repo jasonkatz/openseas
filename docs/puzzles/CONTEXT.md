@@ -171,7 +171,7 @@ does.
 _Avoid_: action, button (that is how a control looks)
 
 **Setting**:
-A named number a puzzle is tuned by, with its bounds and a line saying what it does.
+A named number a puzzle is tuned by, with its bounds and a description of what it does.
 _Avoid_: config, knob, parameter, number
 
 **Relation**:

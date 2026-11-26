@@ -53,7 +53,7 @@ TypeScript, pnpm monorepo, Node 22. Packages: `engine`, `protocol` (Zod schemas)
 `boards` (the PixiJS boards, each painting its pieces in code from drawings in `boards/data/pieces`, each puzzle's own cues in `boards/data/cues/<puzzle>.json` and the game's in `boards/data/cues.json`, the round runner and server connection both front ends share, ADR 0019, ADR 0062, ADR 0065),
 `server` (ws, Drizzle, Better Auth), `client` (the game: Vite, React, the three.js world, ADR 0020), `studio` (the puzzle studio at studio.openseas.online, once the harness, built step by step, ADR 0042: a page a puzzle with its board and a tuning panel built from
 `content` and the wire schema, each puzzle alone at `/play/<id>`, every round local, and the voyage bench for ships and crews, ADR 0027), `studio-server` (the studio's own small service: tester links by id,
-the owner's GitHub sign-in, the owner's drafts, Save for their numbers, words and look as a draft pull request, and the chat's agent on a draft's worktree, ADR 0043, ADR 0045 to 0047, ADR 0049, ADR 0055, ADR 0057, ADR 0059, ADR 0060 and ADR 0065; the studio works without it), `bots` (the bot runner: bots that play any prototype engine and print its ladder table, `pnpm --filter @openseas/bots ladder <puzzle>`, a tool never deployed, ADR 0067), `docs` (the docs site at docs.openseas.online: a static site in three areas, the puzzle domain cut into pages from `docs/puzzles/DOMAIN.md`, the API of the puzzle, skin and theme documents and the rules SDK in `packages/docs/content/api`, and one guide per puzzle, its
+the owner's GitHub sign-in, the owner's drafts, Save for their numbers, words and look as a draft pull request, and the chat's agent on a draft's worktree, ADR 0043, ADR 0045 to 0047, ADR 0049, ADR 0055, ADR 0057, ADR 0059, ADR 0060 and ADR 0065; the studio works without it), `bots` (the bot runner: bots that play any prototype engine and print its ladder table, `pnpm --filter @openseas/bots ladder <puzzle>`, a tool never deployed, ADR 0067), `docs` (the docs site at docs.openseas.online: a static site in three areas, the puzzle domain cut into pages from `docs/puzzles/DOMAIN.md`, the API of the puzzle, skin and theme documents as a typed reference in `packages/docs/src/api/schema` and the rules SDK in `packages/docs/content/api`, and one guide per puzzle, its
 pictures captured from the real boards in the studio, ADR 0038, ADR 0091).
 Postgres. Railway for server, the studio's service and database, Vercel for the game, the studio and the guides as three projects.
 Vitest with property-based determinism tests on engines, Playwright smoke on all three front ends.
@@ -90,8 +90,8 @@ Vitest with property-based determinism tests on engines, Playwright smoke on all
 - A pull request saved from the studio is a draft holding numbers and the chat agent's edits (ADR 0049). Whoever
   takes it on finishes it by the `puzzles` skill's "Changing a puzzle" before marking it ready.
 - A change to `docs/puzzles/DOMAIN.md` is also a change to the docs site: a new section is given a page in
-  `packages/docs/src/domain/pages.ts`, and a key added to a document's shape gets its row on the API page for
-  that document. The site's tests fail without them.
+  `packages/docs/src/domain/pages.ts`, and a key added to a document's shape gets its typed field in the reference,
+  `packages/docs/src/api/schema/`. The site's tests fail without them.
 - Every puzzle has a guide in `docs`. A change to a puzzle's rules, scoring or controls re-reads its
   guide in the same PR; a change to how its board looks re-runs its capture
   (`pnpm --filter @openseas/docs capture <id>`). A guide types no tuned number: it reads `content`.

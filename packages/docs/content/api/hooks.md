@@ -260,7 +260,7 @@ Asked once when an ending is met, and told which. What it reports can still pay,
 placing(result: Result<P>): Side[][]
 ```
 
-The sides in order, best first, with tied sides sharing a place. Asked only where the document says [`placing.by`](/api/puzzle#placing) is `rules`. Left out, the loop places by points or by the last side standing.
+The sides in order, best first, with tied sides sharing a place. Asked only where the document says [`placing.by`](/api/puzzle/placing#by) is `rules`. Left out, the loop places by points or by the last side standing.
 
 ### `score`
 
