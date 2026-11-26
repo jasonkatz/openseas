@@ -20,7 +20,7 @@
  * rest and rolls the rest over to the arm. A cluster of n into a berth worth v scores v * n * n
  * (`squareClusters`; off, v * n).
  *
- * A round is four legs. Each leg has a quota and its own berth values, mirrored about the middle
+ * A round is five legs. Each leg has a quota and its own berth values, mirrored about the middle
  * (`bays.<leg>` lists them from the middle lane outward). Points go to whoever dropped the pod
  * that set them off. With `rival` on, a rival drops after every drop of the player's, from the
  * same PRNG, picking the drop worth most at once `rivalSkill` percent of the time and a lane at
@@ -37,7 +37,7 @@
  */
 import type { PrngState } from "../prng.js";
 
-/** The four legs of a round, in order. */
+/** The five legs of a round, in order. */
 export const FREEFALL_LEGS = ["first", "second", "third", "fourth", "fifth"] as const;
 export type FreefallLeg = (typeof FREEFALL_LEGS)[number];
 

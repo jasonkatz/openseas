@@ -19,7 +19,7 @@ _Avoid_: engine, logic
 **Loop**:
 The stages every round runs, the same for every puzzle: start, then wait, check, move, cascade, move
 end and close for each entry, then end. It keeps what every puzzle shares, such as the log, seats,
-tasks and points.
+the wait, phases, tasks, points and what each seat sees.
 _Avoid_: lifecycle, state machine
 
 **Hook**:
@@ -70,9 +70,14 @@ A setting that caps what one draw can give, so no round is made by one windfall.
 _Avoid_: limit, cap (a cap is a payout's)
 
 **Secret**:
-Part of the deal a player does not see, such as where contacts lie, revealed only by events. Until
-then it says who may see it: nobody, its seat or its side. A round with one is run by its host.
+A piece in a place a seat cannot see, such as another seat's cards or where contacts lie. It comes out
+only on an event. A round with one is run by its host.
 _Avoid_: hidden state, fog (that is how a skin shows one)
+
+**View**:
+What one seat may see of a round: the rules' own state, and every piece in a place that seat sees.
+Every question is asked with one.
+_Avoid_: perspective, projection
 
 **Stock**:
 A fixed amount of deal a round works through, such as five slabs.
@@ -81,10 +86,30 @@ A fixed amount of deal a round works through, such as five slabs.
 A condition that ends a round, such as a clock, a move budget, a stock running out, a fail or an
 outcome. A puzzle has one or more, and the first one met ends the round.
 
+**Reason**:
+An ending's id: what a round is said to have ended by. `left` is the host's, met when the last player
+leaves.
+_Avoid_: cause, status
+
 **Tempo**:
-How a puzzle's time moves: still (nothing happens between moves), ticking (the rules move on by
-themselves between moves) or turns (moves are planned, then resolved together).
+How a puzzle's time moves: still (nothing happens between moves) or ticking (the rules move on by
+themselves between moves).
 _Avoid_: pace, clock, speed
+
+**Acting**:
+Who may move: anyone, the seats in turn, every seat together, or nobody. It belongs to a phase, or to
+a round with none.
+_Avoid_: turn mode, turns (a tempo is never turns)
+
+**Phase**:
+A named stretch of a round, shared by every seat, such as a hand, a leg or a turn. A puzzle declares
+its phases as a tree, and the loop opens and closes them.
+_Avoid_: stage (a stage is a ladder's), state, step, task (a task is one seat's work)
+
+**Wait**:
+Who a round is waiting for: anyone, one seat, every seat, a control or nobody. The loop works it out
+after every entry.
+_Avoid_: turn, to act, cursor
 
 **Tick**:
 One step of time in a ticking puzzle.
@@ -160,8 +185,8 @@ never a move.
 _Avoid_: injected move, external input
 
 **Log**:
-The ordered record of a round's moves and signals, each stamped with its time, closed by a final
-time mark. A round is replayed from its seed, settings and log, on the version it was dealt on.
+The ordered record of a round's moves, signals and seat entries, each stamped with its time, closed by
+a final time mark. A round is replayed from its seed, settings and log, on the version it was dealt on.
 _Avoid_: move list, history
 
 ## What comes out
@@ -171,8 +196,18 @@ Something the rules report happened during a round, carrying what a player needs
 _Avoid_: report, effect
 
 **Points**:
-What one event adds to the score, each point belonging to a payout. They go to the seat that earned
-them, and stop at zero as they are added.
+What one event adds, each point belonging to a payout. They are paid into an account, and settle as
+the puzzle says.
+
+**Account**:
+Where points are kept: one for each seat, or one for each side.
+_Avoid_: pot, bank, total
+
+**Tally**:
+The points paid while a phase is open, for each account, signed. It joins the account when the phase
+closes, where the puzzle's points settle by that phase, and the floor at zero is then on the account's
+total or on the tally alone.
+_Avoid_: subtotal, running score
 
 **Payout**:
 A named way a puzzle pays points, such as a path or a loop, paid on an event and grown from what that
@@ -192,8 +227,9 @@ is a step, and every event in a cascade belongs to the move that started it.
 _Avoid_: chain (a streak is not a cascade), combo
 
 **Score**:
-The sum of a round's points. It never goes below zero. Between sides it is the points of the
-player's side, unless the rules read it from every side's points, the time played and the outcome.
+What a round is judged on, read for each seat. It is the seat's account and never goes below zero,
+unless the rules read it from the reason, the placing, the seat's points, its side's and the time
+played.
 
 **Multiplier**:
 A percent that scales named payouts on an event: a setting, or an entry in a table indexed by the
@@ -252,8 +288,13 @@ rising line. It may have a most, and a point past which it means danger.
 _Avoid_: meter, counter, indicator
 
 **Outcome**:
-Who won a round played between sides.
+How a round played between sides came out: its reason and its placing.
 _Avoid_: result
+
+**Placing**:
+The sides of a round in order when it ends, ties sharing the better place. It is read from the points,
+from the last side standing, or from the rules.
+_Avoid_: standing (a standing is across rounds), rank, result
 
 **Signal out**:
 A value the puzzle gives to whatever is outside it, such as an outcome or its pace.
@@ -331,8 +372,9 @@ Terrain drawn by hand for a whole board. A puzzle with maps has a list of them, 
 _Avoid_: level, layout
 
 **Zone**:
-A named place beside the board that holds a fixed number of pieces, such as the next piece or a tray.
-A player either only watches a zone or takes pieces from it.
+A named place beside the board that holds a fixed number of pieces, such as the next piece, a tray or
+a hand of cards. A player either only watches a zone or takes pieces from it. It says whose it is, the
+round's, each seat's or each side's, and who sees what it holds.
 _Avoid_: queue, tray, preview area
 
 **Place**:
@@ -340,7 +382,7 @@ A cell on a board, or a numbered spot in a zone: what a move or an event points 
 _Avoid_: position, location
 
 **Piece**:
-A thing on the board that the rules know by its id: a number unique within the round, kept from the
+A thing on the board or in a zone, a card included, that the rules know by its id: a number unique within the round, kept from the
 moment the piece is dealt until it leaves.
 _Avoid_: tile, sprite, token
 
@@ -387,6 +429,25 @@ _Avoid_: team
 **Seat**:
 A place on a side for one player. Every move is made by a seat, and a solo puzzle has one.
 
+**Holder**:
+Who is in a seat: a player, a stand-in or nobody. It is the host's to say and can change during a
+round.
+_Avoid_: owner, occupant, controller
+
+**Seat entry**:
+An entry the host writes into the log about a seat: who holds it now, that its time for a wait has
+lapsed, or that its player has left.
+_Avoid_: join, leave, timeout (as moves)
+
+**Absent**:
+The stand-in a puzzle between sides names to play a seat whose player is not there: for one wait when
+the seat lapses, or for the rest of the round when its player leaves.
+_Avoid_: fallback, default move, AFK
+
+**Seat setting**:
+A setting for one seat, whoever holds it, such as a ship's turrets. The host or a role sets it.
+_Avoid_: handicap, loadout
+
 **Opponent**:
 Whoever holds a seat on another side: a player or a stand-in.
 
@@ -403,8 +464,14 @@ same deal).
 _Avoid_: difficulty, level
 
 **Dials**:
-A stand-in's delay, the time it takes over a move, and its slip, the share of its moves made at random.
+The numbers a stand-in is tuned by. The four types take delay, the time it takes over a move, and
+slip, the share of its moves made at random. A puzzle's own stand-in declares its own, and the loop
+keeps every stand-in's delay.
 _Avoid_: difficulty, accuracy
+
+**Preset**:
+A named value for every dial of a puzzle's own stand-in.
+_Avoid_: difficulty, level
 
 ## Dressing
 

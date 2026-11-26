@@ -7,7 +7,7 @@ and a change to either is made in step with the other.
 ## What a puzzle is
 
 A **puzzle** is a set of rules played in rounds. A **round** starts from a seed and settings, takes in
-moves and signals, reports events as it goes, and ends with a score that is judged as a tier. The
+moves, signals and seat entries, reports events as it goes, and ends with a score that is judged as a tier. The
 same seed, settings and log always make the same round.
 
 A puzzle holds nothing from any world: no setting, no story, no picture, no sound. Three things sit
@@ -17,7 +17,7 @@ around it, and each owns what the puzzle does not.
 |---|---|---|
 | **Puzzle** | Rules, round, board, pieces, deal, layers and ladder, evaluation, settings, moves, events and the board changes they carry, its moment, gauges, stats, signals, text keys | Name a world thing, draw, sound, hold a text's content, or decide where anything sits on a screen |
 | **Skin** | The drawings, cues, texts and motion that dress one puzzle | Set or change a number, or change a round |
-| **Host** | Runs rounds, replays logs, keeps each player's standing and place on a ladder, owns the tier scale, holds the ceiling on motion, keeps a round's secrets, measures each stand-in | Change a puzzle's rules or tier starts |
+| **Host** | Runs rounds, replays logs, keeps each player's standing and place on a ladder, owns the tier scale, holds the ceiling on motion, says who holds each seat and keeps the clock for a wait, runs a round that hides anything, measures each stand-in | Change a puzzle's rules or tier starts |
 | **Theme** | A palette and type its skins name, the cues and motion a new skin starts from, its host texts, and a skin for each puzzle | Change a puzzle, or set a number a skin plays |
 | **Role** | What a puzzle does in a world: wires its signals, decides whether a round counts, turns tiers and outcomes into rewards | Move a tier |
 
@@ -46,34 +46,88 @@ Every puzzle has one **tempo**: how its time moves.
 |---|---|---|
 | Still | Nothing happens | Paths (Salvage): the board waits for the next path |
 | Ticking | The rules move on by themselves, one tick at a time | Overload: taps come back over time |
-| Turns | Nothing, until a turn's moves are resolved together | Space Battle: each side plans a turn, then both resolve |
 
-A tick's length and a turn's length are fixed by the puzzle. They are never settings.
+A tick's length is fixed by the puzzle. It is never a setting. How long a seat may take over a move is
+not the puzzle's at all: the clock for a wait is the host's or a role's ([Sides](#sides)).
+
+### Acting
+
+**Acting** says who may move (ADR 0090). It is apart from tempo, and a puzzle of either tempo may act
+in any way.
+
+| Acting | Who may move | Example |
+|---|---|---|
+| Anyone | Any seat, at any time | Swordfighting: every board plays at once |
+| In turn | One seat at a time | Pact: a bid, then a card, each in its turn |
+| Together | Every seat owes one move. They are held back, unseen, and resolved as one | Space Battle: each side plans a turn, then both resolve |
+| Nobody | The round moves on by itself | Showdown: the cards are shown |
+
+A round with no phases acts in one way throughout, and a solo puzzle says nothing: anyone acts.
+
+### Phases
+
+A **phase** is a named stretch of a round, shared by every seat: a hand, a leg, a street, a turn. A
+puzzle declares its phases as a tree, in the order they run. Each has:
+
+| Field | Holds |
+|---|---|
+| id | A neutral word |
+| line | One plain sentence on what it is |
+| acts | How its seats act |
+| moves | The moves it takes |
+| repeat | How many times it runs, a number or a setting. Absent when once |
+| next | The control that starts the next repeat, such as `deal`. Absent when it starts by itself |
+| tally | True when it keeps a tally of the points paid while it is open ([Points and score](#points-and-score)) |
+| phases | The phases inside it, in order |
+
+The loop opens and closes phases, in the declared order. The rules never set one.
+
+- A phase closes on an event the puzzle names, when no seat is left to await, or when its repeats are
+  used up. So a board learns of every change of phase the way it learns everything.
+- An event may close any open phase, and closing one closes those inside it. A hand of Showdown ends
+  that way when all but one seat fold.
+- A phase where no seat can act runs straight through, as the last cards are turned when every seat
+  is all in.
+- A move the open phase does not list is refused before the rules are asked.
+
+A phase is not a task. A task is one seat's graded work, and several can be open. A phase is the whole
+table's time. A solo puzzle declares none.
+
+> Pact's phases: `hand`, repeated `hands` times and started by `deal`, keeping a tally. Inside it,
+> `bids` and then `tricks`, both in turn.
 
 ### Playing
 
-Each **entry** is a move or a signal in, stamped with its time: `play(round, entry)` returns the next
-round and the events the entry caused, in the order they happened.
+Each **entry** is a move, a signal in or a seat entry ([Holders](#holders)), stamped with its time:
+`play(round, entry)` returns the next round and the events the entry caused, in the order they
+happened.
 
 ### Endings
 
-A puzzle declares one or more **endings**, and the first one met ends the round.
+A puzzle declares one or more **endings**, and the first one met ends the round. Each has an id, which
+is its **reason**: what the host, the board and the score are told the round ended by.
 
 | Ending | Met when | Sized or named by |
 |---|---|---|
 | Clock | A length of time has passed | A setting |
-| Move budget | A number of moves has been made | A setting |
-| Stock | The round's fixed amount of deal has been worked through, such as five slabs | A setting |
+| Move budget | A number of moves has been made. Between sides it counts turns for each seat, passed and lapsed turns included | A setting |
+| Stock | The round's fixed amount of deal has been worked through, such as five slabs, or a phase has run its repeats, such as five legs | A setting, or a phase |
 | Fail | The rules report a state the round cannot go on from | An event |
-| Outcome | One side has won | An event |
+| Outcome | The round is decided between its sides | An event |
 
 No ending is required. A puzzle without a clock lets a player take their time between moves.
 
+One ending is the host's, the same for every puzzle: `left`, met when the last player leaves a round.
+No puzzle declares a move that ends a round.
+
+> Space Battle's reasons: `boarded`, `crippled`, `boarded_by`, `crippled_by`, and `broke_off`, the
+> stock ending that counts its turns.
+
 ### The log
 
-The **log** is the ordered record of a round's moves and signals, each stamped with its time, closed by
-a final time mark. A host replays a round from its seed, settings and log, on the version it was
-dealt on ([Versions](#versions)), and gets the same round every time. The end of a round is never written into the log: it follows from the endings.
+The **log** is the ordered record of a round's moves, signals and seat entries, each stamped with its
+time, closed by a final time mark. A move names the seat that made it. A host replays a round from its seed, settings and log, on the version it was
+dealt on ([Versions](#versions)), and gets the same round every time. The end of a round is never written into the log: it follows from the endings. A stand-in's moves are never in it either.
 
 Every puzzle declares a fixed cap on the length of its log. It guards the host against a runaway
 round and is never a setting.
@@ -183,19 +237,22 @@ that layer is on.
 ### Signals in
 
 A **signal in** is a value from outside the puzzle that steers what it does. It is never a move, but
-the log keeps it, so a replay sees it. Each declares an id, a type (number, flag or outcome) and when
-it flows (on change, sampled, or at the end).
+the log keeps it, so a replay sees it. Each declares an id, what it carries (a number, a flag, an
+outcome, or typed fields of its own, as a move's), whether it is for one seat, and when it flows (on
+change, sampled, or at the end).
 
 > Swap (Cooling) takes `level`, a number on change: how many rows of the board are overheated. While
-> a role wires it, the puzzle stops moving the line itself.
+> a role wires it, the puzzle stops moving the line itself. Space Battle takes `supply` for one seat,
+> with five fields.
 
 ## What comes out
 
 ### Events
 
 An **event** is something the rules report happened. A puzzle declares each with an id, one line, and
-its typed fields: place, places, piece, player, number or points, and the board changes it can carry
-([Motion](#motion)). Every number a player sees counted on the board arrives on an event, so nothing
+its typed fields: place, places, piece, seat, side, number or points, and the board changes it can
+carry ([Motion](#motion)). It also says, where it does, that it is a step of a cascade, the phase it
+closes, and the zones it reveals. Every number a player sees counted on the board arrives on an event, so nothing
 outside the rules works out a score, and every change to the board arrives on one too.
 
 > Paths' `loop`: "a closed path took every prize", carrying the path's places, the places inside it,
@@ -206,11 +263,36 @@ declares only its own events.
 
 ### Points and score
 
-**Points** are what one event adds, each point belonging to a payout ([Scoring](#scoring)). They go to
-the seat that earned them and stop at zero as they are added, so a penalty never takes a seat's points
-below it. The **score** is the sum of a round's points, and it never goes below zero. Between sides it
-is the points of the player's side, unless the puzzle reads it another way
-([Between sides](#between-sides)).
+**Points** are what one event adds, each point belonging to a payout ([Scoring](#scoring)). They are
+paid into an **account**. A puzzle says whose its accounts are: each seat's, or each side's, as
+partners share one. An event says which seat or side it pays, and unsaid it is the seat that moved.
+
+A puzzle also says how points **settle**, by two dials (ADR 0090):
+
+| Dial | Says | Values |
+|---|---|---|
+| Settles | When points join an account | As each event is paid, or when a named phase closes |
+| Floor | What stops at zero | The account's total, or the tally alone |
+
+A **tally** is the points paid while a phase is open, for each account, signed. Left unsaid, points
+settle as they are paid and the total stops at zero, so a penalty never takes an account below it.
+
+| Puzzle | Settles | Stops at zero |
+|---|---|---|
+| Most | As each event is paid | The total |
+| Space Battle | When a `turn` closes | The total, once the turn's net is added |
+| Pact | When a `hand` closes | The hand's tally: a hand adds its count or nothing |
+
+Every payout still arrives on its own event, whenever it settles. A tally that has not settled is
+dropped when a round ends by `left` or by its log cap. An ending the rules report closes the open
+phases first, and settles them.
+
+The **score** is read for each seat. It is that seat's account, or its side's where accounts are
+sides', unless the puzzle reads it another way ([Between sides](#between-sides)). It never goes below
+zero.
+
+Other counts a puzzle keeps, such as chips, bags or tricks taken, are not points. They are the rules'
+own, shown as gauges.
 
 ### Stats
 
@@ -220,8 +302,8 @@ A **stat** is a count the rules keep about a round, shown when it ends: the long
 
 A **gauge** is a number a player watches while the round is played, besides the score: taps left, a
 rising line, cuts left, a crate's countdown. A puzzle declares each gauge with an id, one line, its
-most where it has one (a number or a setting), and the point past which it means danger, such as heat
-past half or pings past par. `read(round)` gives every gauge's value.
+most where it has one (a number or a setting), the point past which it means danger, such as heat
+past half or pings past par, and whether there is one for the round, for each seat or for each side. `read(round)` gives every gauge's value.
 
 > Paths watches `prizes`, the prizes on the board out of at most `maxPrizes`, and `streak`, the long
 > paths in a row.
@@ -229,8 +311,9 @@ past half or pings past par. `read(round)` gives every gauge's value.
 ### Signals out
 
 A **signal out** is a value the puzzle gives to whatever is outside it. The two common ones are the
-**outcome** of a round played between sides, sent at the end, and the puzzle's **pace**, sampled when a
-role asks for it.
+**outcome** of a round played between sides, sent at the end with its reason and its placing
+([Between sides](#between-sides)), and the puzzle's **pace**, sampled when a role asks for it. A signal
+out declares what it carries as a signal in does, and may be for one seat.
 
 > A duty station reads its puzzle's pace at every ship's turn. A boarding fight reads its puzzle's
 > outcome once.
@@ -289,6 +372,7 @@ A **cascade** is everything one move sets off, such as clears that cause more
 clears, or prizes that reach the floor once the pieces under them go. Each link of it is a **step**.
 Every event in a cascade belongs to the move that started it, so a multiplier that holds for that move,
 such as the streak, holds for the whole cascade. A table indexed by step makes later links pay more.
+An event says whether it counts as a step, so one puzzle counts every wave and another only its breaks.
 
 ### The streak
 
@@ -343,11 +427,21 @@ with points, is not a ramp.
 
 ### Between sides
 
-A round played between sides keeps points for each seat, and a side's points are its seats' together.
-Its score is the points of the player's side, unless its rules read the score from every side's points,
-the time played and the outcome, as a lead over the other side is ([The rules](#the-rules)). The puzzle
-declares whether its rounds are judged by their outcome or by their score ([Versus](#versus)). No score
-is scaled by the opponent's standing.
+A round played between sides keeps an account for each seat or for each side, as the puzzle says.
+
+When it ends, every side has a **placing**: the sides in order, ties sharing the better place. Won,
+lost, drawn and a place among several are all read from it. A puzzle says how its sides are placed:
+
+| Placed by | The order is | Example |
+|---|---|---|
+| Points | Each side's points, most first | Pouring |
+| Last standing | The order the sides went out, last first | Swordfighting |
+| Rules | The rules' answer, `placing` | Showdown, by chips |
+
+A seat's score is its account, unless the rules read it from the reason the round ended, the placing,
+the seat's points, its side's and the time played, as a lead over the other side is
+([The rules](#the-rules)). The puzzle declares whether its rounds are judged by their outcome or by
+their score ([Versus](#versus)). No score is scaled by the opponent's standing.
 
 The puzzle bar's own rules for scoring, such as how long a round runs and how big a share one payout
 may take, are kept in the `puzzles` skill. This guide gives the words they are checked with.
@@ -401,8 +495,13 @@ the same shape.
 A **zone** is a named place beside the board that holds a fixed number of pieces. A player either only
 watches a zone or takes pieces from it.
 
+A zone says whose it is: the round's, each seat's or each side's. It also says who sees what it holds:
+everyone, its seat, its side or nobody ([Sight](#sight)). Unsaid, there is one for the round and
+everyone sees it.
+
 > The next pair in Engines is a watched zone of one. Plating's tray is a zone of three that each move
-> takes a plate from.
+> takes a plate from. A hand of Pact is a zone of thirteen for each seat, seen by its seat. Showdown's
+> deck is a zone nobody sees.
 
 ### Places
 
@@ -410,8 +509,8 @@ A **place** is a cell on a board or a numbered spot in a zone. Moves and events 
 
 ## Pieces
 
-A **piece** is anything on the board the rules know about: something a player can join, move, clear
-or has to work around. The rules know each piece by its id, a number unique within the round from the
+A **piece** is anything on the board or in a zone that the rules know about: something a player can
+join, move, clear, hold or has to work around. A card is a piece. The rules know each piece by its id, a number unique within the round from the
 moment it is dealt until it leaves. How it looks and what it is called belong
 to the skin.
 
@@ -424,7 +523,8 @@ Three more ideas describe a puzzle's pieces.
   as the debris in Paths: a path joins pieces of one kind, and any kind works the same way. Those
   pieces are one **family**, and each member is a **kind**. The puzzle does not list its kinds one by
   one. A setting says how many are dealt, and the kinds are numbered from 1. The skin needs a drawing
-  for every kind that setting allows.
+  for every kind that setting allows. A piece may belong to more than one family at once, as a card
+  is a rank and a suit.
 - **States.** A piece can change while it is on the board. Its **state** is either one of a few named
   forms, such as a rod that is cold or hot, or a number it shows, such as the moves a fuse has left.
   Each named state has a drawing of its own. A number is drawn by repeating one mark on the piece,
@@ -481,6 +581,10 @@ luckier than another.
 > Swordfighting's pairs are a shared stream: every board in a fight is dealt the same pairs, in the
 > same order.
 
+Each seat a stand-in holds has a stream of its own for its choices, and a hint, a question or a move
+tried on a copy of the round draws from a throwaway one. None of them shifts the deal, so a seat
+changing hands never changes what is dealt.
+
 ### Checks
 
 A **check** is a test a deal must pass before a player sees it: a move can be made, or the task can be
@@ -502,16 +606,30 @@ puzzle names the draw each bound caps.
 
 > Cutting's `maxBlockPercent` keeps any block to 45 percent of its slab.
 
-### Secrets
+### Sight
 
-A **secret** is part of the deal a player does not see: where Scanner's contacts lie, or a side's
-orders before a turn resolves. A puzzle declares each secret with the draw or the moves it hides and
-the events that reveal it. A secret only ever comes out on an event. Until then it says who may see
-it: nobody, the seat it belongs to, or that seat's side.
+A puzzle says who sees each of its places. A zone, or a board's cells, is seen by everyone, by its
+seat, by its side or by nobody ([Zones](#zones)). A piece in a place a seat cannot see is a **secret**
+from that seat: another seat's cards, or where Scanner's contacts lie. The moves of a phase acting
+together are seen by their own seat until they resolve.
 
-A round with a secret is run by its host, who keeps the seed and plays every entry. A player's board
-gets the round without the secret and plays from events, so a move that can reveal something waits on
-the host. Nothing a player is shown is ever false.
+The loop keeps sight, so no puzzle writes code to hide anything (ADR 0090):
+
+- It builds each seat's **view** of the round, and cuts each seat's copy of every event. A piece a
+  seat may not see reaches it with an id and no kind.
+- Every question is asked with one seat's view. A stand-in or a hint has nowhere to read a card its
+  seat cannot see.
+- **The rules' own state is public.** It is part of every seat's view, so anything a seat must not see
+  is a piece in a place, with no exception.
+- A hidden piece is dealt straight from its draw into its place. The hook that deals a hand never
+  learns what is in it.
+- A secret only ever comes out on an event. A piece becomes seen by travelling to a place more seats
+  see, or by being shown where it lies. The rules read a hidden piece only while reporting an event
+  the puzzle says reveals its place.
+
+A round that hides anything is run by its host, who keeps the seed and plays every entry. A player's
+board gets its own seat's view and plays from that seat's events, so a move that can reveal something
+waits on the host. Nothing a player is shown is ever false.
 
 ## Depth
 
@@ -578,6 +696,8 @@ A puzzle played between sides declares how its rounds are judged: by their outco
 
 Judged by its outcome, a round is weighted by the opponent's standing: beating a stronger opponent
 earns more. Its performance is the opponent's standing, one tier up for a win or one down for a loss.
+A drawn round is a shared place, and moves a player neither up nor down. A round against several
+opponents is judged against each, and the results are averaged.
 
 > Beating a Sharp opponent is a Masterful round. Losing to a Steady stand-in is a Green one.
 
@@ -594,7 +714,7 @@ too, and a puzzle promoted into a world keeps its version running.
 
 | Part | Rises when | Then |
 |---|---|---|
-| **Major** | A change can make a stored round replay differently from the same seed, settings and log: the rules, the deal, the board, pieces, moves, events, tempo, endings or the log cap | The minor goes back to 0 |
+| **Major** | A change can make a stored round replay differently from the same seed, settings and log: the rules, the deal, the board, zones and who sees them, pieces, moves, events, tempo, phases, how points settle, endings or the log cap | The minor goes back to 0 |
 | **Minor** | Any other number in the puzzle changes: a setting's default or bounds, a relation, tier starts, the ladder, the pace window | |
 
 Wording raises nothing: a setting's line or the mechanic. Skins raise nothing either, since a drawing,
@@ -641,13 +761,50 @@ above does not rest on anyone noticing. Raising the major records them again.
 ## Sides
 
 A puzzle played between sides declares how many **sides** a round has and how many **seats** each holds,
-as a least and a most. An **opponent** is whoever holds a seat on another side. A **stand-in** is an
-opponent the rules play themselves, in a seat no player holds.
+each as a least and a most. An **opponent** is whoever holds a seat on another side. A **stand-in** is
+an opponent the rules play themselves, in a seat no player holds.
 
 Every move is made by a seat. A solo puzzle has one side of one seat, and declares neither.
 
 Opponents, and everything they do to each other, are inside the puzzle. An attack from one board to
 another is part of the rules, not a signal.
+
+> Pouring is one to four sides of one seat. Pact is two sides of two.
+
+### Holders
+
+Every seat has a **holder**: a player, a stand-in or nobody. Who holds a seat is the host's business
+and never the rules', and it can change during a round (ADR 0090).
+
+The host writes each change into the log as a **seat entry**. A seat entry says one of three things:
+
+| Seat entry | Says |
+|---|---|
+| Held | The seat is now held by this player, or by this stand-in |
+| Lapsed | The seat's time for this wait has run out |
+| Left | The seat's player has left the round |
+
+- A move for a seat no player held at that time is refused.
+- A hand-over is two seat entries and no rule code, as when a captain drops and the helm passes.
+- A pause needs nothing: time in the log is the round's own, and a host that pauses stops moving it.
+
+A puzzle between sides names its **absent** stand-in: the one that plays a seat whose player is not
+there. It plays a lapsed seat for that one wait, through the same rules as any seat, so a seat that
+runs out of time never makes a move the rules refuse. The clock for a wait is the host's or a role's.
+A board may still send what is in hand at its own deadline.
+
+When a player leaves and others stay, the puzzle says what the seat becomes: the absent stand-in's, or
+out of the round. When the last player leaves, the round ends with the reason `left`
+([Endings](#endings)).
+
+> Space Battle's absent stand-in holds its course. Showdown's checks, or folds.
+
+### Seat settings
+
+A **seat setting** is a setting for one seat, whoever holds it. It is declared as a setting is, and
+the host or a role sets it for a round.
+
+> Swordfighting's blade. In Space Battle, a ship's turrets, tokens and starting damage.
 
 ### Stand-ins
 
@@ -660,17 +817,22 @@ Stand-ins come in four **types**, the same for every puzzle:
 | Planner | The move whose best few moves after it are worth the most |
 | Ghost | A player's own round, replayed from its log on the same deal and version |
 
-Each takes two **dials**: its **delay**, the time it takes over a move, and its **slip**, the share of
-its moves made at random instead. A stand-in is a type and its dials. A host or a role picks the
-stand-in for a seat.
+Each of the four takes two **dials**: its **delay**, the time it takes over a move, and its **slip**, the
+share of its moves made at random instead. A stand-in is a type and its dials. A host or a role picks
+the stand-in for a seat.
 
-A puzzle between sides takes every type when its rules can list the moves a round allows and say what
-each is worth now. A ghost also needs boards the other side cannot touch, since a replayed move must
-still be one the rules allow; a puzzle says whether it takes ghosts. A puzzle may add stand-ins of
-its own, beside the four.
+A puzzle between sides takes every type when its rules can list the moves a round allows. What a move
+is worth to a seat is the points it pays that seat now, unless the rules say otherwise in `worth`. A
+ghost also needs boards the other side cannot touch, since a replayed move must still be one the rules
+allow; a puzzle says whether it takes ghosts.
+
+A puzzle may add stand-ins of its own, beside the four. Each declares its own dials, as settings are
+declared, and may name **presets**: a value for every dial under one name, such as `shark`. Delay is
+kept by the loop for every stand-in, the puzzle's own included, since the order within a tick depends
+on it. Slip belongs to the four types.
 
 The four types choose from everything on the board, so they play only where a seat sees all of it. A
-puzzle with a secret a seat cannot see, such as another seat's cards, brings stand-ins of its own.
+puzzle with a place a seat cannot see, such as another seat's cards, brings stand-ins of its own.
 
 A stand-in plays through the same rules as a player: its move must be one the rules allow, and it does
 what a player's would. Its moves are never entries in the log. A replay works them out again, and the
@@ -680,12 +842,13 @@ A stand-in's standing is measured, never set by hand: the host starts it where i
 other stand-ins and moves it with its results against players, as it moves a player's.
 
 > A raider tier aboard a ship is a stand-in: a junker is greedy with a long delay and a large slip; the
-> fiercest is a planner with a short delay and none.
+> fiercest is a planner with a short delay and none. Space Battle's own `raider` has two dials,
+> aggression and accuracy.
 
 ## What a player sees
 
-A player sees everything the rules know about the board, except a declared secret
-([Secrets](#secrets)). What the deal brings next may still be luck.
+A player sees everything the rules know, except a piece in a place their seat cannot see
+([Sight](#sight)). What the deal brings next may still be luck.
 
 A puzzle may offer **teaching**, and declares whether it does:
 
@@ -698,25 +861,27 @@ Both are questions asked of the rules, so neither changes a round ([Hooks](#hook
 
 The **rules** are a puzzle's code, and the only part of it that is code. They are written as **hooks**
 on the **loop** every round runs (ADR 0088). The loop is the same for every puzzle, and it keeps
-everything this guide gives one meaning: the log, time, seats, tasks, points, the streak, the endings
-and what each seat may see. The rules hold only what is the puzzle's own.
+everything this guide gives one meaning: the log, time, seats and who holds them, who is awaited,
+phases, tasks, points and how they settle, the streak, the endings, the placing and what each seat may
+see (ADR 0090). The rules hold only what is the puzzle's own.
 
 ### The loop
 
 | Stage | What happens | Hooks asked |
 |---|---|---|
-| Start | The round is made from its seed and settings | `onStart` |
-| Wait | The round waits for an entry or a tick. A seat no player holds does not wait: it is played | `whoseTurn`, `pickMove` |
-| Check | A move the rules do not allow changes nothing, and its reason goes back to the board | `canMove` |
-| Move | The move is made. In a puzzle of turns, every seat's move for the turn is made together | `onMove` |
+| Start | The round is made from its seed and settings, and its first phase opens | `onStart`, `onOpen` |
+| Wait | The loop works out who is awaited. A seat no player holds does not wait: it is played | `whoseTurn`, `onTurn`, `pickMove` |
+| Check | A move from a seat that is not awaited or not held, or one the open phase does not take, is refused. Only then are the rules asked, and a move they do not allow changes nothing. Its reason goes back to the board | `canMove` |
+| Move | The move is made. Where seats act together, every seat's move is made at once | `onMove` |
 | Cascade | What the move sets off, a step at a time, until a step reports nothing. The loop counts the steps | `onCascade` |
 | Move end | Asked once, when the cascade has run dry. What it reports may set the cascade off again, on the same count | `onMoveEnd` |
-| Close | Points are paid, the streak is kept, tasks are graded and dealt, and the endings are checked | `pointsFor`, `onTaskNeeded` |
-| End | An ending is met, and the score and the outcome are read | `score` |
+| Close | Points are paid and settled, the streak is kept, tasks are graded and dealt, phases close and open, and the endings are checked | `pointsFor`, `onTaskNeeded`, `onClose`, `onOpen` |
+| End | An ending is met. The sides are placed, and the score is read for each seat | `onEnd`, `placing`, `score` |
 
 `start` runs Start. `play` runs Check to Close for one entry, after every tick that falls due before
 it, and Wait to Close runs again until an ending is met. A tick goes to `onTick` and a signal in to
-`onSignal`, where a move goes to `canMove` and `onMove`.
+`onSignal`, where a move goes to `canMove` and `onMove`. Every entry and every tick runs Cascade, Move
+end and Close, as a move does.
 
 ### Hooks
 
@@ -728,45 +893,93 @@ way only: it reports events, and reads the board as each event leaves it. Every 
 | Hook | Asked | When the rules leave it out |
 |---|---|---|
 | `onStart` | Once, at Start: deal the board | Required |
-| `canMove` | May this seat make this move now, and if not, why | Required |
+| `canMove` | May this seat make this move now, and if not, why. The loop has already checked the seat and the phase | Required |
 | `onMove` | What a move that passed the check does | Required |
 | `onCascade` | Again and again after a move, until it reports nothing: one step of what follows by itself | Nothing follows |
 | `onMoveEnd` | Once a move, when the cascade has run dry: what the end of the move brings | Nothing |
 | `onTick` | Once for every tick, in order | Nothing happens between moves |
 | `onSignal` | A signal in arrives | It changes nothing |
 | `onTaskNeeded` | Fewer tasks are open than the puzzle declares: deal one, or say there is no room yet | The puzzle has no tasks |
-| `whoseTurn` | Which seat no player holds moves next | Only players move |
-| `pickMove` | What that seat plays | One of the four stand-in types plays, where the rules answer `listMoves` |
+| `onOpen` | A phase opens: deal the hand | Nothing |
+| `onClose` | A phase closes: count the hand | Nothing |
+| `onTurn` | A seat's turn comes. It may report an event and pass the turn | The seat is awaited |
+| `onEnd` | An ending is met, and which. What it reports can pay | Nothing |
+| `whoseTurn` | In a phase in turn: which seat moves next, a player's included, or nobody | The next seat clockwise that is not sitting out |
+| `pickMove` | What a seat no player holds plays | One of the four stand-in types plays, where the rules answer `listMoves` |
 | `listMoves` | Which moves a seat can make now | None of the four types plays, and nothing can tell that a seat has no move left |
+| `worth` | What a move is worth to a seat | The points it pays that seat now |
 | `pointsFor` | What an event is worth | The puzzle's payouts and multipliers pay |
-| `score` | The round's score, read from every side's points, the time played and the outcome | The points of the player's side |
+| `placing` | The sides in order, where the puzzle places by its rules | The loop places by points, or by the last side standing |
+| `score` | A seat's score, read from the reason the round ended, the placing, its points, its side's and the time played | The seat's account |
 | `hint` | A move worth making | The puzzle offers no hint |
 | `checkSettings` | Before a round starts: what is wrong with these settings or this map | Only bounds and relations are held |
 
 A puzzle may add questions of its own for whatever else a board, a stand-in or a hint needs to ask,
 such as a preview. A question can be asked at any time, and the round is the same afterwards.
 
+`canMove` and `onMove` may be written as one function for each move, and `onOpen` and `onClose` as one
+for each phase.
+
 A hook added to this list later comes with a default, so no puzzle already written has to change.
+
+### What a hook reports through
+
+A hook that starts with `on` reports events, and on an event it may do four more things. Each is
+refused when it names something the puzzle does not declare.
+
+| On an event | Does | Refused when |
+|---|---|---|
+| Deal | Puts a piece from a draw straight into a place, unseen by the hook | The draw or the place is not declared |
+| Peek | Reads a piece the table cannot see | The event is not declared to reveal that place |
+| Sit out | A seat sits out of a phase, or is out of the round | The seat or the phase is not there |
+| Pay | Pays a declared payout to a seat or a side | The account is not in the round |
+
+A question may **try** a move: play it on a copy of the round and read what came of it. The copy draws
+from a throwaway stream, so trying never shows the luck to come and never shifts the deal. `pickMove`,
+`hint`, a preview and the four stand-in types all try moves this one way.
 
 ### What the loop keeps
 
-- **Seats.** Every seat runs the same loop. A seat a player holds waits for that player's move. For a
-  seat no player holds, `whoseTurn` and `pickMove` are asked and the answer is played at once, through
-  the same `canMove` and `onMove`.
-- **Turns.** In a puzzle of turns each seat's move is held back until every seat has one, and `onMove`
-  is asked once with all of them. `canMove` is asked a seat at a time, and a stand-in plans before it
-  can see a player's plan.
+- **Seats.** Every seat runs the same loop. A seat a player holds waits for that player's move. A seat
+  no player holds is played at once when it is awaited, through the same `canMove` and `onMove`.
+- **The wait.** After Start and after every Close the loop works out the **wait**: who the round is
+  waiting for. It is anyone, one seat, every seat, a control, or nobody. A board, a host and a test
+  all read the same one.
+  - Anyone: any seat that is not out may move. It is what a phase where anyone acts waits for.
+  - A seat: a phase in turn asks `whoseTurn`, then `onTurn`, which may pass.
+  - Every seat: where seats act together each seat's move is held back, seen only by its seat, until
+    every seat has one. `onMove` is then asked once with all of them. `canMove` is asked a seat at a
+    time, and a stand-in plans before it can see a player's plan.
+  - A control: a phase that repeats on a control waits for any seat a player holds to use it.
+  - Nobody: a phase nobody acts in, or with no seat left to await, runs by itself and closes.
+- **Sitting out.** The rules say on an event that a seat sits out of a phase, as a folded hand does, or
+  is out of the round. The loop never waits for it.
+- **A stalled round.** A round that waits on nobody, with no phase left to open and no ending met, is
+  the rules' mistake. The loop stops it and names the seat and the phase.
 - **Ticks.** Within one tick the order is fixed: `onTick`, then each seat no player holds whose time
   to move has come, lowest seat first, then a player's move stamped at that tick. How often such a
   seat moves is its delay, which the loop keeps.
 - **Tasks.** The loop keeps which tasks are open, grades each one, pays on the grade and meets the
   stock ending. The rules deal a task in `onTaskNeeded` and say on an event when one is done, wherever
   that happens, a cascade included.
-- **What a seat sees.** A question about a move, which is `canMove`, `listMoves`, `pickMove`, `hint`
-  or one of the puzzle's own, is asked with only what its seat may see ([Secrets](#secrets)). The
-  hooks that start with `on`, `pointsFor` and `score` see the whole round.
+- **What a seat sees.** Every question is asked with only what its seat may see ([Sight](#sight)): its
+  view. The hooks that start with `on` see the table, and read a hidden piece only by peeking.
 - **A board with no move left** has no hook of its own. The rules report it from `onMoveEnd`: the
   round fails, the task ends, or the seat is out.
+
+### What every puzzle is tested by
+
+Because the puzzle document says what the table is, every puzzle is tested from it, with no test
+written by its author.
+
+| Test | What it does | What it catches |
+|---|---|---|
+| Finish | Plays many rounds with careless stand-ins in every seat | A round that never ends, and a wait where the awaited seat has no move |
+| Sealed | Deals again what one seat cannot see, then plays on with that seat's own moves | Anything that seat is shown that differs before a revealing event |
+| Hand-over | Changes holders and lapses seats at random entries | A round that stalls or replays differently after a hand-over |
+| Leaving | Ends every round at a random entry | A score the payouts cannot make, or a side with no place |
+| Board, for each seat | Draws the board from one seat's own events | A board that differs from that seat's view |
+| Declared is used | Looks for every declared phase, zone, ending, payout, draw and dial in play | A declared part the rules never use |
 
 ## Motion
 
@@ -938,15 +1151,21 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
   "mechanic": "one line, plain English",
   "verb": "the id of the move the puzzle is built around",
   "round": {
-    "tempo": { "kind": "still | ticking | turns", "tickMs": "ticking only", "turnSeconds": "turns only" },
-    "ends": [{ "by": "clock | budget | stock | fail | outcome", "setting": "what sizes it", "event": "what names it" }],
+    "tempo": { "kind": "still | ticking", "tickMs": "ticking only" },
+    "acts": "anyone | in-turn | together: for a round with no phases, anyone when absent",
+    "phases": [{ "id": "", "line": "", "acts": "anyone | in-turn | together | nobody", "moves": ["move ids"],
+                 "repeat": "a number or a setting", "next": "the control that starts the next repeat",
+                 "tally": "true or false", "phases": ["the phases inside it, in order"] }],
+    "ends": [{ "id": "its reason", "by": "clock | budget | stock | fail | outcome", "setting": "what sizes it", "event": "what names it", "phase": "stock: the phase it counts" }],
     "logLimit": "the fixed cap on the log"
   },
-  "opponents": "absent when solo, or { sides, seatsPerSide: [least, most], ghosts: true or false, standIns: [{ id, line }]: its own, beside the four }",
+  "opponents": "absent when solo, or { sides: [least, most], seatsPerSide: [least, most], ghosts: true or false, standIns: [{ id, line, dials: [declared as settings are], presets: { <name>: a value for each dial } }]: its own, beside the four, absent: the stand-in that plays a lapsed seat, left: absent | out, seatSettings: [declared as settings are] }",
+  "points": "absent when paid to the seat as earned, or { to: seat | side, settles: paid | a phase id, floor: total | tally }",
+  "placing": "between sides: { by: points | last-standing | rules }",
   "board": { "shape": "grid | rings", "width": "grid", "height": "grid", "touch": "grid: 4 | 8", "rim": "grid: true or false",
-             "rings": "rings", "sectors": "rings", "shared": "between sides: true, or one board a seat" },
+             "rings": "rings", "sectors": "rings", "shared": "between sides: true, or one board a seat", "seenBy": "everyone | seat | side | nobody: its pieces, everyone when absent" },
   "terrain": [{ "id": "", "states": "names, if it has any" }],
-  "zones": [{ "id": "", "holds": "how many pieces", "player": "watches | takes" }],
+  "zones": [{ "id": "", "holds": "how many pieces", "player": "watches | takes", "each": "round | seat | side", "seenBy": "everyone | seat | side | nobody" }],
   "settings": [{ "id": "", "type": "whole | percent | permille | list | flag | maps", "default": "", "min": "", "max": "", "line": "", "group": "board | deal | tempo | scoring",
                  "unit": "seconds | ticks | moves | cells | pieces | points", "entries": "list: { least, most } or { count }, and { min, max } each",
                  "map": "maps: { board, check }", "role": "true when a role may set it" }],
@@ -955,20 +1174,20 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
     "draws": [{ "id": "", "line": "", "gives": "kind | piece | place | map | task | number", "by": "even | weighted | bag | pick",
                 "when": "start | refill | task | tick | every: a setting", "reads": ["setting ids"], "shared": "between sides: true, or a stream a seat" }],
     "checks": [{ "id": "", "line": "", "draws": ["draw ids"], "tries": "a number", "fallback": "one line: what is dealt, and why it passes", "during": "the event that says the board was dealt again, if it holds during play" }],
-    "bounds": [{ "setting": "", "caps": "a draw id" }],
-    "secrets": [{ "id": "", "line": "", "hides": "a draw id, or turn orders", "seenBy": "nobody | seat | side", "revealedBy": ["event ids"] }]
+    "bounds": [{ "setting": "", "caps": "a draw id" }]
   },
   "layers": [{ "id": "", "rule": "one line", "brings": { "pieces": [], "events": [], "settings": [], "zones": [], "gauges": [], "controls": [],
              "payouts": [], "multipliers": [], "tasks": [], "draws": [] } }],
   "ladder": [{ "stage": "", "adds": ["layer ids"], "advance": { "measure": "best-round | average-of-last | wins-over-stand-in | rounds-played", "threshold": "in the measure's unit" } }],
   "evaluation": { "tierStarts": "judged by score: { steady, sharp, masterful, legendary }", "by": "between sides: outcome | score", "paceWindowSeconds": "" },
-  "signals": { "in": [{ "id": "", "type": "number | flag | outcome", "when": "on-change | sampled | at-end" }], "out": [] },
-  "pieces": [{ "id": "", "footprint": "one cell, or the cells it covers", "family": "the setting that counts its kinds", "of": "the piece it is based on", "states": "names, or { count }" }],
+  "signals": { "in": [{ "id": "", "type": "number | flag | outcome", "fields": { "<name>": "in place of a type: typed as a move's" }, "seat": "true when it is for one seat", "when": "on-change | sampled | at-end" }], "out": ["the same"] },
+  "pieces": [{ "id": "", "footprint": "one cell, or the cells it covers", "family": "the setting that counts its kinds, or one for each family it belongs to", "of": "the piece it is based on", "states": "names, or { count }" }],
   "moves": [{ "id": "", "line": "", "gesture": "tap | long-press | draw | drag | swipe | slice | turn | hold", "inHand": "true when built in hand",
               "fields": { "<name>": "place | places | direction | piece | number | flag" } }],
   "controls": [{ "id": "", "move": "the move it makes, or none for a switch", "key": "its letter" }],
-  "events": [{ "id": "", "line": "", "fields": { "<name>": "place | places | piece | player | number | points" }, "mistake": "true when it is one",
-              "changes": ["arrive | leave | travel | change: the board changes it can carry"] }],
+  "events": [{ "id": "", "line": "", "fields": { "<name>": "place | places | piece | seat | side | number | points" }, "mistake": "true when it is one",
+              "changes": ["arrive | leave | travel | change: the board changes it can carry"],
+              "step": "true when it counts as a cascade step", "closes": "a phase id", "reveals": ["zone ids, or the board"] }],
   "moment": { "event": "the event id", "when": "an optional condition on it", "size": "its number field", "most": "a number or a setting: the biggest" },
   "payouts": [{ "id": "", "line": "", "on": ["event ids"], "counts": "the event's field it grows from", "growth": "flat | linear | superlinear | stepped",
                 "cap": "a number or a setting", "reads": ["setting ids"] }],
@@ -977,7 +1196,7 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
   "streak": "absent, or { builds: { event, when } or { grade }, grace, breaksOn: [mistake event ids] }",
   "tasks": [{ "id": "", "line": "", "open": "how many at once", "ends": ["done | given-up | out-of-time"], "control": "given-up only", "setting": "out-of-time only",
               "graded": "par | best | none", "grades": ["from best"], "next": "dealt, or the control that asks for it" }],
-  "gauges": [{ "id": "", "line": "", "most": "a number or a setting", "danger": "the value past which it means danger" }],
+  "gauges": [{ "id": "", "line": "", "most": "a number or a setting", "danger": "the value past which it means danger", "each": "round | seat | side" }],
   "stats": [{ "id": "", "line": "" }],
   "texts": [{ "key": "", "placeholders": [] }],
   "teaching": { "preview": "true or false", "hint": "true or false" }
@@ -1029,13 +1248,15 @@ A board's sizes, a zone's capacity and a gauge's most are each a number, or the 
 - Every part of the puzzle is filled in.
 - The ladder has two to four stages, each layer is added by exactly one, and the last is `full`.
 - The rules know every layer, setting, relation, terrain, zone, piece, state, move, control, event,
-  gauge, payout, multiplier, task, draw, check, secret and signal the puzzle declares, and declare nothing it lacks. A host checks this before it runs a round.
+  gauge, payout, multiplier, task, draw, check, phase, ending and signal the puzzle declares, and declare nothing it lacks. A host checks this before it runs a round.
 - The moment names one of the puzzle's events and a number field of it.
-- Every draw has a stream of its own, every check has a fallback that passes, and every secret is
-  revealed by an event.
+- Every draw has a stream of its own, every check has a fallback that passes, and every place that
+  hides something has an event that reveals it.
+- Every phase can close, every move belongs to a phase where the puzzle has phases, and every ending
+  has a reason.
 - The rules answer `onStart`, `canMove` and `onMove`.
-- A puzzle between sides can list the moves a round allows and say what each is worth, so it takes
-  every type of stand-in, or it brings a stand-in of its own.
+- A puzzle between sides can list the moves a round allows, so it takes every type of stand-in, or it
+  brings a stand-in of its own. It names its absent stand-in, and says how its sides are placed.
 - The puzzle keeps witness rounds, each still giving the read recorded for it, and a history line for
   its current version.
 - The skin has a drawing for every piece, state and kind, a cue for every cue an event names, a text
@@ -1061,7 +1282,7 @@ An excerpt of the puzzle:
   "version": "0.1",
   "mechanic": "Draw a path through touching pieces of one kind to clear them",
   "verb": "trace",
-  "round": { "tempo": { "kind": "still" }, "ends": [{ "by": "clock", "setting": "roundSeconds" }], "logLimit": 600 },
+  "round": { "tempo": { "kind": "still" }, "ends": [{ "id": "time", "by": "clock", "setting": "roundSeconds" }], "logLimit": 600 },
   "board": { "shape": "grid", "width": "width", "height": "height", "touch": 8, "rim": false },
   "layers": [
     { "id": "loops", "rule": "a closed path takes every prize at once",
@@ -1079,5 +1300,7 @@ An excerpt of the puzzle:
 
 ## Not yet covered
 
-- **Versus details:** a drawn round, how each seat is judged when a side holds several, and what a turn
-  does when its time runs out with no orders.
+- **Jumping between phases.** Phases run in the order declared. A parent phase whose order the rules
+  give is the place kept for it, and no puzzle needs it yet.
+- **Trying a move where a seat cannot see everything.** The copy would deal the unseen pieces again,
+  so the four stand-in types could play there. Until then such a puzzle brings its own.
