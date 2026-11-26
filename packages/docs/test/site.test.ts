@@ -37,7 +37,7 @@ describe("the site", () => {
       for (const m of text.matchAll(/label: "(docs\.[a-z0-9_.]+)"/g)) if (!(m[1]! in content.messages)) missing.push(m[1]!);
     }
     for (const area of AREAS) for (const key of [`docs.area.${area}`, `docs.home.${area}_blurb`]) if (!(key in content.messages)) missing.push(key);
-    for (const kind of ["page", "section", "term", "guide", "field", "type"]) if (!(`docs.kind.${kind}` in content.messages)) missing.push(`docs.kind.${kind}`);
+    for (const kind of ["page", "section", "term", "guide", "field", "type", "hook", "member"]) if (!(`docs.kind.${kind}` in content.messages)) missing.push(`docs.kind.${kind}`);
     for (const kind of ["example", "note", "preview"]) if (!(`docs.callout.${kind}` in content.messages)) missing.push(`docs.callout.${kind}`);
     for (const n of [1, 2, 3]) for (const key of [`docs.home.step_${n}`, `docs.home.step_${n}_blurb`]) if (!(key in content.messages)) missing.push(key);
     expect(missing).toEqual([]);
@@ -47,7 +47,10 @@ describe("the site", () => {
     expect(searchIndex().length).toBeGreaterThan(300);
     expect(search("streak")[0]?.title).toBe("Streak");
     expect(search("hooks").some((h) => h.path === "/api/hooks")).toBe(true);
-    expect(search("oncascade")[0]?.path).toBe("/api/hooks#oncascade");
+    expect(search("oncascade")[0]?.path).toBe("/api/hooks/onCascade");
+    expect(search("ctx.emit")[0]?.path).toBe("/api/context/emit");
+    expect(search("e.arrive")[0]?.path).toBe("/api/context/emit#e-arrive");
+    expect(search("NewPiece")[0]?.path).toBe("/api/sdk#newpiece");
     expect(search("cooling")[0]?.path).toBe("/guides/cooling");
     expect(search("tier starts").length).toBeGreaterThan(0);
     // A field of the reference, by its name, and a named type.

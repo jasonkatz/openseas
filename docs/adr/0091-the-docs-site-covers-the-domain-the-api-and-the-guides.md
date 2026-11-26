@@ -34,15 +34,21 @@ The owner asked for one site that covers all three, reads well from first princi
    what must hold between fields. The site draws an object browser from it. Each top-level object has a page
    at `/api/<object>`, and every object that belongs to it has a page under that, at `/api/<object>/<key>`.
    Anything nested more deeply is defined on its parent's page. The types that fields share are on one page,
-   `/api/types`. `packages/docs/content/api/` holds the rest in Markdown: the overview, a worked puzzle from an
-   empty folder, the whole Paths documents read from `docs/puzzles/examples/`, and three pages on the rules
-   SDK. Tests read the shapes in the domain guide and fail when a key is not in the reference, and hold the
-   Paths puzzle, its skin and every example on a page to the types the reference gives.
-4. **The rules SDK is documented as a design, and says so.** The engine of ADR 0088 and ADR 0090 is not built.
-   Its pages carry a notice, give the settled parts, and list what is open. Where the ADRs name a thing and
-   give it no signature, the page gives one, so the pages are also the first whole sketch of the SDK's
-   surface. When the engine lands, its types replace the sketch, and a difference between them is settled in
-   the engine's own ADR.
+   `/api/types`. Tests read the shapes in the domain guide and fail when a key is not in the reference, and
+   hold the Paths puzzle, its skin and every example on a page to the types the reference gives.
+   `packages/docs/content/api/` holds the rest in Markdown: the overview, a worked puzzle from an empty
+   folder, the whole Paths documents read from `docs/puzzles/examples/`, and the page on writing rules.
+4. **The rules SDK is documented as a design, from one file of declarations.** The engine of ADR 0088 and
+   ADR 0090 is not built. `packages/docs/content/api/sdk/engine.d.ts` declares its whole surface, and
+   `packages/docs/src/api/sdk/` describes it as data: every hook, every member of a view and a context, and
+   every type, with its signature, its parameters, what each value it gives back means, and when a call is
+   refused. The rules object, the view and the context each have a page, with a page under it for every hook
+   or method, and the types share one page. Tests hold every signature on a page to the declarations, and
+   compile every example against them with the TypeScript compiler, on two generated puzzle types kept
+   beside them. The pages carry a notice that this is a design. Where the ADRs name a thing and give it no
+   signature, the declarations give one, so they are also the first whole sketch of the SDK's surface. When
+   the engine lands, its own declarations replace the file, and a difference between them is settled in the
+   engine's own ADR.
 5. **The site stands on its own.** No page in Domain or API names an ADR, a pull request or a file of this
    repository's `docs`. A test holds that.
 6. **A guide is at `/guides/<id>`.** This changes ADR 0038, where it was at `/<id>`. The old address still
@@ -64,6 +70,7 @@ The owner asked for one site that covers all three, reads well from first princi
   the guide gives a key and no type, the reference's type is a proposal until the engine reads the document.
 - A sentence that describes a part of the puzzle is its `description`. The guide wrote that key as `line`
   when ADR 0088 and ADR 0090 were written, and they keep the word they were written in.
-- The rules SDK pages say more than the ADRs do in places. Until the engine exists they are a proposal for
-  those places, and the page on writing rules lists the edges that are open.
+- The rules SDK pages say more than the ADRs do in places: a type for every argument, and a few members the
+  ADRs do not name. Until the engine exists they are a proposal for those places, and the page on writing
+  rules lists the edges that are open.
 - The docs package gains one build-time dependency. The engine stays pure and the site still has no server.

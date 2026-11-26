@@ -187,7 +187,7 @@ That is the whole document. It has said nothing yet about what a swap does.
 The rules are an object of hooks. Swap writes six. It keeps no state of its own, because the pieces sit on the engine's board.
 
 ```ts title=swap.rules.ts
-import { defineRules, type Board, type Place } from "@openseas/engine";
+import { defineRules, type Board, type GridCell, type Move } from "@openseas/engine";
 import type { Swap } from "./swap.puzzle.gen";
 
 type State = {};
@@ -197,7 +197,7 @@ export default defineRules<Swap, State>({
   onStart(ctx) {
     const kinds = freshBoard(ctx.board, () => 1 + ctx.draw("fill").even(ctx.settings.kinds));
     ctx.emit("fill", {}, (e) => {
-      for (const p of ctx.board.places()) e.arrive(p, { kind: kinds[p.y][p.x] }, "below");
+      for (const p of ctx.board.places()) e.arrive(p, { piece: "kind", kind: kinds[p.y][p.x] }, "below");
     });
     return {};
   },
@@ -233,7 +233,7 @@ export default defineRules<Swap, State>({
           top++;
         }
         for (let y = top; y < ctx.board.height; y++) { // ...and new ones come in from below
-          e.arrive({ x, y }, { kind: 1 + ctx.draw("rise").even(ctx.settings.kinds) }, "below");
+          e.arrive({ x, y }, { piece: "kind", kind: 1 + ctx.draw("rise").even(ctx.settings.kinds) }, "below");
         }
       }
     });
@@ -244,7 +244,7 @@ export default defineRules<Swap, State>({
     if (findSwap(ctx.board)) return;
     const kinds = freshBoard(ctx.board, () => 1 + ctx.draw("fill").even(ctx.settings.kinds));
     ctx.emit("reshuffle", {}, (e) => {
-      for (const p of ctx.board.places()) e.leave(p).arrive(p, { kind: kinds[p.y][p.x] }, "in place");
+      for (const p of ctx.board.places()) e.leave(p).arrive(p, { piece: "kind", kind: kinds[p.y][p.x] }, "in place");
     });
   },
 
@@ -253,9 +253,9 @@ export default defineRules<Swap, State>({
 });
 
 // Swap's own helpers are plain functions on a board. None of them touches the engine.
-declare function groupsOf(board: Board): Place[][];         // every run of three or more, touching runs joined
-declare function findSwap(board: Board): { move: "swap"; a: Place; b: Place } | null;
-declare function freshBoard(board: Board, draw: () => number): number[][]; // the "playable" check, with its fallback
+declare function groupsOf(board: Board<Swap>): GridCell[][]; // every run of three or more, touching runs joined
+declare function findSwap(board: Board<Swap>): Move<Swap> | null;
+declare function freshBoard(board: Board<Swap>, draw: () => number): number[][]; // the "playable" check, with its fallback
 ```
 
 Read it for what is missing. The rules never add a point, never count a step of the cascade, never keep a streak, never count the swaps left and never decide the round is over. Each of those was declared in the document, so the engine does it.

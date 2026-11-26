@@ -6,7 +6,7 @@ boards of its own. It has three areas.
 | Area | Address | What it holds | Written in |
 |---|---|---|---|
 | Domain | `/domain` | What a puzzle is, apart from any world, a page for each idea, and the glossary | `docs/puzzles/DOMAIN.md` and `docs/puzzles/CONTEXT.md`, read at build time |
-| API | `/api` | The puzzle, skin and theme objects field by field, and the rules SDK | `src/api/schema/*.ts` for the reference, `content/api/*.md` for the rest |
+| API | `/api` | The puzzle, skin and theme objects field by field, and the rules SDK | `src/api/schema/*.ts` for the objects, `src/api/sdk/*.ts` and `content/api/sdk/engine.d.ts` for the rules SDK, `content/api/*.md` for the rest |
 | Puzzle guides | `/guides` | One page per puzzle that takes a player from a first round to expert play | `src/guides/<id>.ts`, with pictures captured from the real boards on the studio's `/play` pages (ADR 0042) |
 
 The site stands on its own: a reader needs nothing from this repository. No page in Domain or API names an
@@ -55,10 +55,33 @@ The puzzle, skin and theme objects are typed data in `src/api/schema/` (`puzzle.
 - **Every example is real.** Each example on a page, and the whole Paths puzzle and skin in
   `docs/puzzles/examples/`, are checked against the reference's own types (`src/api/schema/check.ts`).
 
+## The rules SDK reference
+
+The SDK is declared in one file, `content/api/sdk/engine.d.ts`, and described as data in `src/api/sdk/`
+(`hooks.ts`, `view.ts` for the view and the context, `typedefs.ts`). `src/pages/Sdk.tsx` draws it.
+
+| Address | Shows |
+|---|---|
+| `/api/hooks`, `/api/view`, `/api/context` | The rules object, a view and a context: every member, with a link to the page of each |
+| `/api/hooks/<hook>`, `/api/view/<member>`, `/api/context/<member>` | One hook or method: its signature, its parameters, what it returns and when it is refused. What it holds is defined on the same page, as an event's builder is on `emit` |
+| `/api/sdk` | The two functions, every type down to plain values, and the declarations whole |
+
+- **The declarations come first.** Change `engine.d.ts`, then the data. `test/sdk.test.ts` fails when a member
+  or a type is declared and not documented, or documented and not declared, and when a signature, a
+  parameter or a return type on a page differs from the declaration.
+- **A hook** says its stage of the loop, how often it is asked, what the loop has done before and does after,
+  and what it must and must never do. Its stages are held to the loop table in the domain guide.
+- **A union says each of its parts.** A return of `string | null` has an entry for `null` and one for `string`.
+  An optional parameter says what leaving it out means.
+- **Every example compiles.** Each is compiled, strict, against `engine.d.ts` and one of the two generated
+  puzzle types beside it (`swap.puzzle.gen.ts`, `tricks.puzzle.gen.ts`). An example names its puzzle, how it
+  stands in a file (`file`, `rules` or `body`), and declares any helper it calls in `given`. The `ts` blocks
+  of the prose pages that are whole files are compiled the same way.
+
 ## The other API pages
 
-The overview, the walkthrough, Paths in full and the rules SDK are Markdown files in `content/api/`, listed in
-`src/api/pages.ts`. Plain Markdown, with three additions.
+The overview, the walkthrough, Paths in full and the page on writing rules are Markdown files in
+`content/api/`, listed in `src/api/pages.ts`. Plain Markdown, with three additions.
 
 | Written | Shows |
 |---|---|
@@ -66,12 +89,12 @@ The overview, the walkthrough, Paths in full and the rules SDK are Markdown file
 | A quote that starts `[!NOTE]` or `[!PREVIEW]` | A callout. A plain quote is an example |
 | `<!-- figure: name -->` | One of the figures in `src/figures/` |
 
-- **Every hook is covered.** `test/api.test.ts` fails when a hook the guide lists has no entry on the hooks
-  page, and when a link on any page, or in the reference, leads nowhere.
+- **Every link leads somewhere.** `test/api.test.ts` fails when a link on any page, or in either reference,
+  leads to no page or no anchor.
 - **A `json` fence must parse.** The whole Paths documents are read from `docs/puzzles/examples/`, not typed again.
-- **The rules SDK is a design.** The engine that runs it is not built. The pages say what is settled, and
-  `content/api/rules.md` lists what is not. When the engine lands, its own types replace the sketch on the
-  context page.
+- **The rules SDK is a design.** The engine that runs it is not built. The pages say so, and
+  `content/api/rules.md` lists what is not settled. When the engine lands, its own declarations replace
+  `engine.d.ts`.
 
 Both areas keep the guides' voice: plain words, short sentences, sentence case, no dashes as punctuation.
 

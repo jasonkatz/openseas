@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
 import { API_PAGES } from "./api/pages.js";
 import { pageOf, rootOf } from "./api/schema/index.js";
+import { SDK_TYPES_PATH, memberPageOf, sdkRootOf } from "./api/sdk/index.js";
 import { t } from "./content.js";
 import { DOMAIN_PAGES, GLOSSARY_SLUG } from "./domain/pages.js";
 import { ApiPage } from "./pages/Api.jsx";
@@ -11,6 +12,7 @@ import { GuidePage } from "./pages/GuidePage.jsx";
 import { Guides } from "./pages/Guides.jsx";
 import { Landing } from "./pages/Landing.jsx";
 import { ObjectRefPage, RootRefPage, TypesPage } from "./pages/Reference.jsx";
+import { SdkMemberPage, SdkRootPage, SdkTypesPage } from "./pages/Sdk.jsx";
 import { Link, Router, useRoute } from "./router.jsx";
 import { Shell } from "./Shell.jsx";
 import { guidePath } from "./site.js";
@@ -50,6 +52,12 @@ function Pages() {
     if (root && page) return <ObjectRefPage key={path} root={root} page={page} />;
     if (root && sub === "") return <RootRefPage key={slug} root={root} />;
     if (slug === "types" && sub === "") return <TypesPage />;
+    // The rules SDK: the rules object, a view and a context, each with a page for every hook or member.
+    const sdk = sdkRootOf(slug);
+    const member = sdk && sub !== "" ? memberPageOf(slug, sub) : undefined;
+    if (sdk && member) return <SdkMemberPage key={path} root={sdk} member={member} />;
+    if (sdk && sub === "") return <SdkRootPage key={slug} root={sdk} />;
+    if (path.replace(/\/+$/, "") === SDK_TYPES_PATH) return <SdkTypesPage />;
   }
   if (sub !== "") return <NotFound />;
   if (area === "") return <Landing />;

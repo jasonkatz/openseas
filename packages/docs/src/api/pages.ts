@@ -2,16 +2,15 @@ import type { Token } from "marked";
 import overview from "../../content/api/overview.md?raw";
 import write from "../../content/api/write-a-puzzle.md?raw";
 import rules from "../../content/api/rules.md?raw";
-import hooks from "../../content/api/hooks.md?raw";
-import context from "../../content/api/context.md?raw";
 import pathsPuzzle from "../../../../docs/puzzles/examples/paths.puzzle.json?raw";
 import pathsSkin from "../../../../docs/puzzles/examples/paths.skin.json?raw";
 import { lex, withIds, type Heading } from "../md/parse.js";
 
 /**
  * The API section's pages of prose: one Markdown file a page, in `content/api/`. A page's title
- * and lede are here, with the order the section is read in. The reference to the three objects is
- * not prose: it is data, in `schema/`, and `site.ts` lists its pages between these groups.
+ * and lede are here, with the order the section is read in. The reference to the three objects
+ * and to the rules SDK is not prose: it is data, in `schema/` and `sdk/`, and `site.ts` lists its
+ * pages among these groups.
  */
 export interface ApiPage {
   readonly slug: string;
@@ -54,8 +53,6 @@ export const API_GROUPS: readonly ApiGroup[] = [
     title: "Rules SDK",
     pages: [
       { slug: "rules", title: "Writing rules", lede: "The one file of code in a puzzle: what it exports, the loop that runs it, and what it must never do.", source: rules },
-      { slug: "hooks", title: "Hooks", lede: "Every hook the loop asks, with its signature, when it is asked and what happens when it is left out.", source: hooks },
-      { slug: "context", title: "Context and view", lede: "What a hook is handed: the view a question sees, the context that reports events, draws, the board and zones.", source: context },
     ],
   },
 ];

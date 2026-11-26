@@ -477,7 +477,7 @@ const placing = page({
         ["rules", "By the rules' own answer to the `placing` hook, as a puzzle that places by chips does."],
       ),
       "What orders the sides.",
-      { must: "Have the rules answer [`placing`](/api/hooks#placing), where it is `rules`." },
+      { must: "Have the rules answer [`placing`](/api/hooks/placing), where it is `rules`." },
     ),
   ]),
   rules: ["`placing` is present exactly when `opponents` is.", "`last-standing` needs a way for a side to go out: an event on which the rules say its seats are out of the round."],
@@ -1247,7 +1247,7 @@ const teaching = page({
   need: "required",
   type: obj([
     req("preview", bool, "Whether the board can tell what a move would do before it is made.", { must: "Have the rules answer a question of their own that previews a move, where it is true." }),
-    req("hint", bool, "Whether the puzzle offers a move worth making to a player who is stuck. A round that counts never hints, whatever this says.", { must: "Have the rules answer the [`hint`](/api/hooks#hint) hook, where it is true." }),
+    req("hint", bool, "Whether the puzzle offers a move worth making to a player who is stuck. A round that counts never hints, whatever this says.", { must: "Have the rules answer the [`hint`](/api/hooks/hint) hook, where it is true." }),
   ]),
   examples: [fromPaths("teaching")],
 });

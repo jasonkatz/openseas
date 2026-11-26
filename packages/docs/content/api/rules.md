@@ -18,7 +18,8 @@ export default defineRules<Swap, State>({
   onStart(ctx) {
     ctx.emit("fill", {}, (e) => {
       for (const place of ctx.board.places()) {
-        e.arrive(place, { kind: 1 + ctx.draw("fill").even(ctx.settings.kinds) }, "above");
+        const kind = 1 + ctx.draw("fill").even(ctx.settings.kinds);
+        e.arrive(place, { piece: "kind", kind }, "above");
       }
     });
     return {};
@@ -44,7 +45,7 @@ export default defineRules<Swap, State>({
 | `P` | The puzzle's own type, made from its document. It is what lets the compiler know every id the puzzle declares |
 | `S` | The rules' own state: whatever the puzzle must remember that the engine does not already keep |
 
-Three hooks are required: [`onStart`](/api/hooks#onstart), [`canMove`](/api/hooks#canmove) and [`onMove`](/api/hooks#onmove). Every other hook has a default, so a puzzle writes only the ones it needs.
+Three hooks are required: [`onStart`](/api/hooks/onStart), [`canMove`](/api/hooks/canMove) and [`onMove`](/api/hooks/onMove). Every other hook has a default, so a puzzle writes only the ones it needs.
 
 ## The loop
 
@@ -72,7 +73,7 @@ A hook's name says which kind it is.
 | | A hook that starts with `on` | Any other hook |
 |---|---|---|
 | Is | Told that something happened | A question |
-| Is given | A [context](/api/context#the-context): the whole table | A [view](/api/context#the-view): what one seat may see |
+| Is given | A [context](/api/context): the whole table | A [view](/api/view): what one seat may see |
 | May | Report events, and return the next state | Answer |
 | Changes the round | Only through the events it reports | Never |
 
@@ -101,7 +102,7 @@ The same seed, settings and log must always make the same round. So a hook never
 
 | A hook never uses | It uses |
 |---|---|
-| `Math.random` | A [draw](/api/context#draws) the document declares |
+| `Math.random` | A [draw](/api/context/draw) the document declares |
 | `Date` or a timer | The time on the entry, and ticks |
 | Anything global, a file or the network | Its arguments |
 

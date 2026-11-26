@@ -6,8 +6,6 @@ const API_PAGES = [
   { slug: "write-a-puzzle", title: "Write a puzzle" },
   { slug: "paths", title: "Paths, in full" },
   { slug: "rules", title: "Writing rules" },
-  { slug: "hooks", title: "Hooks" },
-  { slug: "context", title: "Context and view" },
 ];
 const apiPath = (slug: string): string => (slug === "" ? "/api" : `/api/${slug}`);
 import { DOMAIN_PAGES, domainPath } from "../src/domain/pages.js";
@@ -124,8 +122,55 @@ test("the glossary narrows as it is typed into", async ({ page }) => {
 });
 
 test("an address with an anchor opens at its heading", async ({ page }) => {
-  await page.goto("/api/hooks#oncascade");
-  await expect(page.locator("#oncascade")).toBeInViewport();
+  await page.goto("/api/rules#the-loop");
+  await expect(page.locator("#the-loop")).toBeInViewport();
+});
+
+// The rules SDK is listed here as the reference is: its three objects, and how many pages each has.
+const SDK = [
+  { root: "hooks", pages: 21 },
+  { root: "view", pages: 7 },
+  { root: "context", pages: 2 },
+];
+
+for (const o of SDK) {
+  test(`the SDK's ${o.root} page lists its members, and each has a page with its signature`, async ({ page }) => {
+    await page.goto(`/api/${o.root}`);
+    await expect(page.getByTestId(`sdk-${o.root}`)).toBeVisible();
+    expect(await fits(page)).toBe(true);
+    const links = await page.getByTestId("sdk-child").evaluateAll((as) => as.map((a) => a.getAttribute("href")!));
+    expect(links.length).toBe(o.pages);
+    for (const href of links) {
+      await page.goto(href);
+      const name = href.split("/").pop()!;
+      await expect(page.getByTestId(`sdk-${o.root}-${name}`)).toBeVisible();
+      await expect(page.getByRole("heading", { level: 1, name, exact: true })).toBeVisible();
+      await expect(page.locator(".sig").first()).toContainText(name);
+      expect(await fits(page), href).toBe(true);
+    }
+  });
+}
+
+test("a hook's page says when it is asked, what it is given and what each answer means", async ({ page }) => {
+  await page.goto("/api/hooks/canMove");
+  await expect(page.getByTestId("sdk-stage")).toContainText("Check");
+  await expect(page.getByTestId("sdk-params")).toContainText("View<P, S>");
+  for (const value of ["null", "string"]) await expect(page.getByTestId("sdk-returns").locator(".values")).toContainText(value);
+  // A name in a signature leads to where it is defined.
+  await page.locator(".sig").first().getByRole("link", { name: "Move" }).click();
+  await expect(page).toHaveURL(/\/api\/sdk#move$/);
+  await expect(page.locator("#move")).toBeInViewport();
+});
+
+test("an event's builder is defined on the page of emit, and the SDK's types on one page", async ({ page }) => {
+  await page.goto("/api/context/emit#e-arrive");
+  await expect(page.locator("#e-arrive")).toBeInViewport();
+  await expect(page.locator("#e-arrive .values")).toContainText("in place");
+  expect(await page.getByTestId("sdk-inner").count()).toBe(11);
+  await page.goto("/api/sdk");
+  await expect(page.getByTestId("sdk-types")).toBeVisible();
+  expect(await page.getByTestId("sdk-type").count()).toBeGreaterThan(25);
+  expect(await fits(page)).toBe(true);
 });
 
 test("the search finds a hook and opens it", async ({ page }) => {
@@ -134,9 +179,9 @@ test("the search finds a hook and opens it", async ({ page }) => {
   await page.getByTestId("search").getByRole("searchbox").fill("onMoveEnd");
   await expect(page.getByTestId("search-hit").first()).toContainText("onMoveEnd");
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/api\/hooks#onmoveend$/);
+  await expect(page).toHaveURL(/\/api\/hooks\/onMoveEnd$/);
   await expect(page.getByTestId("search")).toHaveCount(0);
-  await expect(page.locator("#onmoveend")).toBeInViewport();
+  await expect(page.getByRole("heading", { level: 1, name: "onMoveEnd" })).toBeVisible();
 });
 
 test("the guides list every puzzle and link to Cooling", async ({ page }) => {

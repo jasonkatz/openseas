@@ -8,7 +8,7 @@ import { GLOSSARY } from "../src/domain/glossary.js";
 import { domainContent } from "../src/domain/guide.js";
 import { DOMAIN_PAGES, GLOSSARY_SLUG } from "../src/domain/pages.js";
 import { ALIASES, ROOTS, TYPES_PATH, pagePath, pageView, pagesOf, refPath, rootNodes, rootPath, type RefTarget } from "../src/api/schema/index.js";
-import { HOOKS } from "../src/md/highlight.js";
+import { FUNCTIONS, ID_TYPES, SDK_ROOTS, SDK_TYPES_PATH, TYPE_GROUPS, innerAnchor, memberPath, membersOf, sdkRootPath, typeAnchor } from "../src/api/sdk/index.js";
 
 const REF_TARGETS: readonly RefTarget[] = ["setting", "move", "control", "event", "phase", "payout", "layer", "piece", "zone", "gauge", "multiplier", "task", "draw", "check", "stand-in", "puzzle", "theme", "cue", "colour", "event field"];
 
@@ -48,7 +48,7 @@ function sentences(value: unknown, out: string[] = [], seen = new Set<unknown>()
   else if (typeof value === "function") sentences((value as () => unknown)(), out, seen);
   else if (value && typeof value === "object" && !seen.has(value)) {
     seen.add(value);
-    for (const [key, v] of Object.entries(value)) if (key !== "examples" && key !== "example") sentences(v, out, seen);
+    for (const [key, v] of Object.entries(value)) if (!["examples", "example", "code", "signature", "definition"].includes(key)) sentences(v, out, seen);
   }
   return out;
 }
@@ -59,18 +59,6 @@ describe("the API section", () => {
     for (const page of API_PAGES) {
       expect(page.lede.length, page.slug).toBeGreaterThan(40);
       expect(apiContent(page.slug)!.headings.length, page.slug).toBeGreaterThan(1);
-    }
-  });
-
-  it("has a section for every hook the guide lists", () => {
-    const table = GUIDE.slice(GUIDE.indexOf("### Hooks\n"), GUIDE.indexOf("### What a hook reports through"));
-    const listed = [...table.matchAll(/^\| `(\w+)` \|/gm)].map((m) => m[1]!);
-    expect(listed.length).toBeGreaterThan(18);
-    const ids = new Set(apiContent("hooks")!.headings.map((h) => h.id));
-    const sections = [...ids].join(" ");
-    for (const hook of listed) {
-      expect(sections, hook).toContain(hook.toLowerCase());
-      expect(HOOKS.has(hook), `${hook} is coloured as a hook`).toBe(true);
     }
   });
 
@@ -108,6 +96,15 @@ describe("the API section", () => {
       anchors.set(rootPath(root.root), new Set([...pagesOf(root).map((p) => p.key.toLowerCase()), ...[...rootNodes(root).values()].map((n) => n.anchor)]));
       for (const page of pagesOf(root)) anchors.set(pagePath(page), new Set(pageView(page).all.map((n) => n.anchor)));
     }
+    for (const root of SDK_ROOTS) {
+      anchors.set(sdkRootPath(root.root), new Set(membersOf(root).map((m) => m.name.toLowerCase())));
+      for (const m of membersOf(root)) {
+        if (!m.page) continue;
+        const inner = (m.members ?? []).flatMap((g) => g.members.map((x) => innerAnchor(g.name, x.name)));
+        anchors.set(memberPath(root.root, m), new Set([...inner, ...(m.params ?? []).map((x) => innerAnchor("param", x.name)), "parameters", "returns", "what-must-hold", "refused-when", "when-it-is-asked"]));
+      }
+    }
+    anchors.set(SDK_TYPES_PATH, new Set([...TYPE_GROUPS.flatMap((g) => g.types.map((d) => typeAnchor(d.name))), ...FUNCTIONS.map((f) => typeAnchor(f.name)), "ids", "functions", "a-generated-type", "how-a-field-reaches-the-rules", "how-a-setting-reaches-the-rules", "the-whole-surface"]));
     anchors.set(TYPES_PATH, new Set(ALIASES.map((a) => a.name.replace(/\s+/g, "-"))));
 
     const check = (href: string, from: string, own: string): void => {
@@ -124,6 +121,8 @@ describe("the API section", () => {
     }
     // The reference: what its sentences link to, where the ideas behind a page are, and where an id is declared.
     for (const text of sentences(ROOTS)) for (const m of text.matchAll(/\]\(([^)]+)\)/g)) check(m[1]!, "the reference", "/api");
+    for (const text of sentences(SDK_ROOTS)) for (const m of text.matchAll(/\]\(([^)]+)\)/g)) check(m[1]!, "the rules SDK", "/api");
+    for (const text of sentences([FUNCTIONS, TYPE_GROUPS, ID_TYPES])) for (const m of text.matchAll(/\]\(([^)]+)\)/g)) check(m[1]!, "the SDK's types", SDK_TYPES_PATH);
     for (const page of ROOTS.flatMap(pagesOf)) if (page.ideas) check(page.ideas.path, pagePath(page), pagePath(page));
     for (const to of REF_TARGETS) check(refPath(to), `id of ${to}`, "/api");
     for (const page of DOMAIN_PAGES) for (const m of page.lede.matchAll(/\]\(([^)]+)\)/g)) check(m[1]!, `/domain/${page.slug}`, `/domain/${page.slug}`);
@@ -134,6 +133,7 @@ describe("the API section", () => {
       if (page.slug === "paths") continue;
       expect(page.source, page.slug).not.toMatch(/\bADR\b|DOMAIN\.md|CONTEXT\.md|docs\/|packages\//);
     }
+    for (const text of sentences([SDK_ROOTS, FUNCTIONS, TYPE_GROUPS])) expect(text).not.toMatch(/\bADR\b|DOMAIN\.md|CONTEXT\.md|docs\/|packages\//);
     for (const text of sentences(ROOTS)) expect(text).not.toMatch(/\bADR\b|DOMAIN\.md|CONTEXT\.md|docs\/|packages\//);
   });
 });

@@ -26,7 +26,7 @@ import { Link } from "../router.jsx";
 import { Pager } from "../Shell.jsx";
 import { useTitle } from "./DocPage.jsx";
 
-function NeedTag({ need }: { need: Need }) {
+export function NeedTag({ need }: { need: Need }) {
   const label = needLabel(need);
   return <span className={`need need-${label}`}>{t(`docs.ref.${label}`)}</span>;
 }
@@ -195,7 +195,7 @@ function Examples({ examples, width }: { examples: readonly Example[]; width: nu
   );
 }
 
-function Crumbs({ items }: { items: readonly { title: string; path?: string }[] }) {
+export function Crumbs({ items }: { items: readonly { title: string; path?: string }[] }) {
   return (
     <p className="eyebrow crumbs">
       {items.map((item, i) => (

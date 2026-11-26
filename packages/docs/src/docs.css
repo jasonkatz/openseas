@@ -1692,6 +1692,10 @@ button.figure-frame {
   list-style: none;
   margin: 0;
   padding: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+.field {
+  min-width: 0;
 }
 .ref-fields > * + * {
   margin-top: 12px;
@@ -2060,6 +2064,91 @@ button.figure-frame {
     font-size: 13px;
     color: var(--cream);
     margin-bottom: 8px;
+  }
+}
+
+/* ---- the rules SDK: a signature, and when a hook is asked */
+.sig > .values-title {
+  margin-bottom: 6px;
+}
+.prose .sig pre {
+  margin: 0;
+  padding: 12px 14px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.prose .sig code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+  color: var(--cream);
+}
+.prose .sig a {
+  color: inherit;
+  text-decoration-color: var(--dim);
+  text-underline-offset: 3px;
+}
+.prose .sig a:hover {
+  text-decoration-color: var(--cream);
+}
+.ref-main > .sig {
+  margin-top: 20px;
+}
+.asked {
+  margin: 14px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.asked > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px 20px;
+  padding: 12px 16px;
+}
+.asked > div + div {
+  border-top: 1px solid var(--line);
+}
+.asked dt {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--dim);
+}
+.asked dd {
+  margin: 0;
+}
+.prose .asked .stage {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 2px 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cream);
+  text-decoration: none;
+}
+.prose .asked .stage:hover {
+  background: var(--raised);
+}
+.returns > * + * {
+  margin-top: 8px;
+}
+.returns-top {
+  padding-top: 4px;
+}
+.member > .sig {
+  max-width: 100%;
+}
+@media (min-width: 600px) {
+  .asked > div {
+    grid-template-columns: 160px minmax(0, 1fr);
+    align-items: baseline;
   }
 }
 
