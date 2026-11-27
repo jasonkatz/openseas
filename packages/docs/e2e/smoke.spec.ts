@@ -81,6 +81,8 @@ for (const o of OBJECTS) {
     expect(await fits(page)).toBe(true);
     const sections = page.locator(".ref-section");
     expect(await sections.count()).toBe(o.sections);
+    // Its table of contents leads to every section.
+    for (const id of await sections.evaluateAll((els) => els.map((e) => e.id))) await expect(page.getByTestId("ref-toc").locator(`a[href="#${id}"]`)).toHaveCount(1);
     // Every section has its fields and an example beside them, and no two things on the page share an anchor.
     expect(await sections.filter({ has: page.getByTestId("ref-fields") }).filter({ has: page.locator(".ref-side .code") }).count()).toBe(o.sections);
     const twice = await page.evaluate(() => {

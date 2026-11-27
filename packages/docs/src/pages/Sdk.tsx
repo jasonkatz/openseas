@@ -25,11 +25,10 @@ import {
 import type { Need, Rule } from "../api/schema/index.js";
 import { t } from "../content.js";
 import { Code, Line } from "../md/Markdown.jsx";
-import { slug } from "../md/slug.js";
 import { Link } from "../router.jsx";
 import { Pager } from "../Shell.jsx";
 import { useTitle } from "./DocPage.jsx";
-import { Crumbs, NeedTag } from "./Reference.jsx";
+import { Crumbs, NeedTag, Toc, groupAnchor } from "./Reference.jsx";
 
 /** A piece of TypeScript with every name it uses linked to where that name is defined. */
 function Ts({ text }: { text: string }) {
@@ -380,27 +379,20 @@ export function SdkRootPage({ root }: { root: SdkRoot }) {
           {root.about.map((p, i) => (
             <p key={i}><Line text={p} /></p>
           ))}
-          <h2 id="members">{t(root.root === "hooks" ? "docs.sdk.hooks" : "docs.sdk.members")}</h2>
-          <dl className="contents" data-testid="sdk-contents">
-            {root.groups.map((group) => (
-              <div key={group.title}>
-                <dt>{group.title}</dt>
-                <dd className="jump">
-                  {group.members.map((m) => (
-                    <a key={m.name} href={`#${memberAnchor(m)}`}><code>{m.name}</code></a>
-                  ))}
-                </dd>
-              </div>
-            ))}
-          </dl>
+          <Toc
+            groups={root.groups.map((group) => ({ title: group.title, items: group.members.map((m) => ({ name: m.name, anchor: memberAnchor(m) })) }))}
+            tail={root.holds ? [{ title: root.holds.title, anchor: "what-holds" }] : []}
+          />
         </article>
         <Examples examples={[root.example]} />
       </div>
       {root.groups.map((group) => (
         <Fragment key={group.title}>
-          <div className="prose ref-group-head">
-            <h2 id={`group-${slug(group.title)}`}>{group.title}</h2>
-            {group.note && <p className="muted"><Line text={group.note} /></p>}
+          <div className="ref ref-group-head">
+            <div className="prose ref-main">
+              <h2 id={groupAnchor(group.title)}>{group.title}</h2>
+              {group.note && <p className="muted"><Line text={group.note} /></p>}
+            </div>
           </div>
           {runsOf(group.members).map((run) =>
             Array.isArray(run) ? (

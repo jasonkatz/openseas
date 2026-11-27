@@ -2199,7 +2199,7 @@ button.figure-frame {
   border-top: 1px solid var(--line);
 }
 .ref-page > .ref-group-head {
-  margin-top: 0;
+  margin-top: 16px;
   padding-top: 44px;
   border-top: 1px solid var(--line);
 }
@@ -2207,7 +2207,10 @@ button.figure-frame {
   border-top: 0;
   padding-top: 28px;
 }
-.ref-group-head > h2 {
+.ref-group-head > .ref-main > h2 {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
   font-size: 13px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2237,27 +2240,54 @@ button.figure-frame {
   font-weight: 700;
   color: var(--dim);
 }
-.contents {
-  margin: 16px 0 0;
-  display: grid;
-  gap: 14px;
+.ref-toc {
+  margin-top: 40px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
 }
-.contents > div {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 6px 20px;
+.ref-toc > h2 {
+  font-size: 20px;
 }
-.contents dt {
-  font-size: 13px;
+.prose .ref-toc ol {
+  display: block;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.prose .ref-toc > ol {
+  margin-top: 16px;
+  columns: 3 180px;
+  column-gap: 32px;
+}
+.ref-toc > ol > li {
+  break-inside: avoid;
+  padding-bottom: 18px;
+}
+.prose .ref-toc a {
+  display: block;
+  padding: 4px 0;
+  text-decoration: none;
+}
+.ref-toc > ol > li > a {
+  font-size: 14px;
   font-weight: 700;
+  color: var(--cream);
+}
+.prose .ref-toc ol ol {
+  margin-top: 2px;
+  border-left: 1px solid var(--line);
+}
+.prose .ref-toc ol ol a {
+  padding: 3px 0 3px 12px;
   color: var(--dim);
 }
-.contents dd {
-  margin: 0;
+.prose .ref-toc code {
+  padding: 0;
+  background: none;
+  font-size: 13px;
+  color: inherit;
 }
-@media (min-width: 600px) {
-  .contents > div {
-    grid-template-columns: 160px minmax(0, 1fr);
-    align-items: baseline;
-  }
+.prose .ref-toc a:hover,
+.prose .ref-toc a:hover code {
+  color: var(--amber);
 }

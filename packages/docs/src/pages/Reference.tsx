@@ -209,6 +209,42 @@ export function Crumbs({ items }: { items: readonly { title: string; path?: stri
   );
 }
 
+export interface TocGroup {
+  readonly title: string;
+  readonly items: readonly { readonly name: string; readonly anchor: string }[];
+}
+
+/** Where a group's heading is on a reference page. */
+export const groupAnchor = (title: string): string => `group-${slug(title)}`;
+
+/** A reference page's table of contents: each group of the page, and under it every key or member the group holds. */
+export function Toc({ groups, tail = [] }: { groups: readonly TocGroup[]; tail?: readonly { title: string; anchor: string }[] }) {
+  return (
+    <nav className="ref-toc" aria-label={t("docs.ref.contents")} data-testid="ref-toc">
+      <h2 id="contents">{t("docs.ref.contents")}</h2>
+      <ol>
+        {groups.map((group) => (
+          <li key={group.title}>
+            <a href={`#${groupAnchor(group.title)}`}>{group.title}</a>
+            <ol>
+              {group.items.map((item) => (
+                <li key={item.anchor}>
+                  <a href={`#${item.anchor}`}><code>{item.name}</code></a>
+                </li>
+              ))}
+            </ol>
+          </li>
+        ))}
+        {tail.map((item) => (
+          <li key={item.anchor}>
+            <a href={`#${item.anchor}`}>{item.title}</a>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
+
 /** What a field's need and absence say, where they say anything. */
 function PageNotes({ page, top }: { page: ObjectPage; top?: boolean }) {
   if (typeof page.need === "string" && !page.absent) return null;
@@ -307,28 +343,23 @@ export function RootRefPage({ root }: { root: RootObject }) {
           {root.about.map((p, i) => (
             <p key={i}><Line text={p} /></p>
           ))}
-          <h2 id="attributes">{t("docs.ref.attributes")}</h2>
-          <dl className="contents" data-testid="ref-contents">
-            {root.groups.map((group) => (
-              <div key={group.title}>
-                <dt>{group.title}</dt>
-                <dd className="jump">
-                  {group.fields.map((f) => {
-                    const [name, anchor] = isPage(f) ? [f.key, pageAnchor(f)] : [f.name, own.get(f)!.anchor];
-                    return <a key={name} href={`#${anchor}`}><code>{name}</code></a>;
-                  })}
-                </dd>
-              </div>
-            ))}
-          </dl>
+          <Toc
+            groups={root.groups.map((group) => ({
+              title: group.title,
+              items: group.fields.map((f) => (isPage(f) ? { name: f.key, anchor: pageAnchor(f) } : { name: f.name, anchor: own.get(f)!.anchor })),
+            }))}
+            tail={[{ title: t("docs.ref.ready"), anchor: "when-it-is-ready" }]}
+          />
         </article>
         <Examples examples={[root.example]} width={52} />
       </div>
       {root.groups.map((group) => (
         <Fragment key={group.title}>
-          <div className="prose ref-group-head">
-            <h2 id={`group-${slug(group.title)}`}>{group.title}</h2>
-            {group.note && <p className="muted"><Line text={group.note} /></p>}
+          <div className="ref ref-group-head">
+            <div className="prose ref-main">
+              <h2 id={groupAnchor(group.title)}>{group.title}</h2>
+              {group.note && <p className="muted"><Line text={group.note} /></p>}
+            </div>
           </div>
           {runsOf(group.fields).map((run) =>
             Array.isArray(run) ? (
