@@ -82,8 +82,9 @@ jobs:
           side server "$FORCE_SERVER" packages/server railpack.json "${shared[@]}"
           side client "$FORCE_CLIENT" packages/client packages/boards vercel.json "${shared[@]}"
           side studio "$FORCE_STUDIO" packages/studio packages/boards "${shared[@]}"
-          # The guides read content and the engine's puzzle list; they share no code with the boards.
-          side docs "$FORCE_DOCS" packages/docs packages/engine packages/content "${base[@]}"
+          # The docs read content, the engine's puzzle list and the puzzle domain guide (ADR 0091); they
+          # share no code with the boards.
+          side docs "$FORCE_DOCS" packages/docs packages/engine packages/content docs/puzzles "${base[@]}"
           # The studio's service (ADR 0043) shares only the protocol with the rest. Until it has a
           # Railway service (docs/DEPLOY.md, step 1b) there is nowhere to deploy it, and that is
           # no warning: the studio works without it.

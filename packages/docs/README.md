@@ -1,8 +1,16 @@
-# Puzzle guides
+# The docs site
 
-The docs site at docs.openseas.online (ADR 0038): one page per puzzle that takes a player from a first round to expert
-play. A static Vite and React app with no server and no boards of its own. Its pictures are
-captured from the real boards on the studio's `/play` pages (ADR 0042).
+The docs site at docs.openseas.online (ADR 0038, ADR 0091). A static Vite and React app with no server and no
+boards of its own. It has three areas.
+
+| Area | Address | What it holds | Written in |
+|---|---|---|---|
+| Domain | `/domain` | What a puzzle is, apart from any world, a page for each idea, and the glossary | `docs/puzzles/DOMAIN.md` and `docs/puzzles/CONTEXT.md`, read at build time |
+| API | `/api` | The puzzle, skin and theme objects field by field, and the rules SDK | `src/api/schema/*.ts` for the objects, `src/api/sdk/*.ts` and `content/api/sdk/engine.d.ts` for the rules SDK, `content/api/*.md` for the rest |
+| Puzzle guides | `/guides` | One page per puzzle that takes a player from a first round to expert play | `src/guides/<id>.ts`, with pictures captured from the real boards on the studio's `/play` pages (ADR 0042) |
+
+The site stands on its own: a reader needs nothing from this repository. No page in Domain or API names an
+ADR or another file of the repo, and a test holds that.
 
 ```
 pnpm --filter @openseas/docs dev        # the site, on :5175
@@ -11,6 +19,84 @@ pnpm --filter @openseas/docs capture cooling   # one puzzle's
 pnpm --filter @openseas/docs test       # every guide's shape, and its media on disk
 pnpm --filter @openseas/docs test:smoke # Playwright: every page renders
 ```
+
+## The domain pages
+
+The domain guide stays one file, `docs/puzzles/DOMAIN.md`, and it is the only place its prose is written.
+`src/domain/pages.ts` cuts it into pages: each page names the guide's `##` sections it shows, in order, with a
+one-line lede and sometimes a figure. A link inside the guide to another of its headings becomes a link to the
+page that heading is on.
+
+- A new `##` section in the guide must be given to a page. `test/domain.test.ts` fails on a section no page
+  shows, on one shown twice, and on a link that leads nowhere.
+- The glossary page is built from `docs/puzzles/CONTEXT.md`: each `**Term**:` line is an entry, under its heading.
+
+## The API reference
+
+The puzzle, skin and theme objects are typed data in `src/api/schema/` (`puzzle.ts`, `skin.ts`, `theme.ts`), and
+`src/pages/Reference.tsx` draws them: fields on the left, examples beside them.
+
+| Address | Shows |
+|---|---|
+| `/api/<object>` | A top-level object, whole, on one page: its own fields, then a section for each object that belongs to it, with everything nested inside defined there |
+| `/api/<object>#<key>` | The section of one object that belongs to it. A field inside it is at `#<key>-<path>` |
+| `/api/types` | The primitive values and the named types fields share |
+
+- **A field** is `req`, `opt` or `when` (required in one case, refused in every other), with a type built from
+  `src/api/schema/types.ts` and one description. An optional field says what leaving it out means (`absent`).
+  What must hold between fields goes in its `only`, `never` and `must`, or in the section's `rules`.
+- **An enum** lists every value with a sentence on what the value means. A value that is one of several forms
+  is `variants` (told apart by a field) or `or` (told apart by its type).
+- **A section** is an object directly under a top-level object. Add it with `page({...})` and place it in a group
+  of the root. No object gets a page of its own: a top-level object is one page.
+- **Every key is covered.** `test/reference.test.ts` reads the shapes in the domain guide and fails when a key
+  is not in the reference, when an enum value has no explanation, and when a field is not typed down to a
+  primitive value.
+- **Every example is real.** Each example beside a section, and the whole Paths puzzle and skin in
+  `docs/puzzles/examples/`, are checked against the reference's own types (`src/api/schema/check.ts`).
+
+## The rules SDK reference
+
+The SDK is declared in one file, `content/api/sdk/engine.d.ts`, and described as data in `src/api/sdk/`
+(`hooks.ts`, `view.ts` for the view and the context, `typedefs.ts`). `src/pages/Sdk.tsx` draws it.
+
+| Address | Shows |
+|---|---|
+| `/api/hooks`, `/api/view`, `/api/context` | The rules object, a view and a context, each whole on one page: a section for every hook or method, with its signature, its parameters, what it returns and when it is refused |
+| `/api/hooks#<hook>`, `/api/view#<member>`, `/api/context#<member>` | The section of one hook or method. What it holds is defined inside it, as an event's builder is in `emit`, at `#e-<name>` |
+| `/api/sdk` | The two functions, every type down to plain values, and the declarations whole |
+
+- **The declarations come first.** Change `engine.d.ts`, then the data. `test/sdk.test.ts` fails when a member
+  or a type is declared and not documented, or documented and not declared, and when a signature, a
+  parameter or a return type on a page differs from the declaration.
+- **A hook** says its stage of the loop, how often it is asked, what the loop has done before and does after,
+  and what it must and must never do. Its stages are held to the loop table in the domain guide.
+- **A union says each of its parts.** A return of `string | null` has an entry for `null` and one for `string`.
+  An optional parameter says what leaving it out means.
+- **Every example compiles.** Each is compiled, strict, against `engine.d.ts` and one of the two generated
+  puzzle types beside it (`swap.puzzle.gen.ts`, `tricks.puzzle.gen.ts`). An example names its puzzle, how it
+  stands in a file (`file`, `rules` or `body`), and declares any helper it calls in `given`. The `ts` blocks
+  of the prose pages that are whole files are compiled the same way.
+
+## The other API pages
+
+The overview, the walkthrough, Paths in full and the page on writing rules are Markdown files in
+`content/api/`, listed in `src/api/pages.ts`. Plain Markdown, with three additions.
+
+| Written | Shows |
+|---|---|
+| A fence opened with `json title=swap.puzzle.json` | A code block with its file name. Add `tall` to let a long one scroll |
+| A quote that starts `[!NOTE]` or `[!PREVIEW]` | A callout. A plain quote is an example |
+| `<!-- figure: name -->` | One of the figures in `src/figures/` |
+
+- **Every link leads somewhere.** `test/api.test.ts` fails when a link on any page, or in either reference,
+  leads to no page or no anchor.
+- **A `json` fence must parse.** The whole Paths documents are read from `docs/puzzles/examples/`, not typed again.
+- **The rules SDK is a design.** The engine that runs it is not built. The pages say so, and
+  `content/api/rules.md` lists what is not settled. When the engine lands, its own declarations replace
+  `engine.d.ts`.
+
+Both areas keep the guides' voice: plain words, short sentences, sentence case, no dashes as punctuation.
 
 ## What a guide is made of
 

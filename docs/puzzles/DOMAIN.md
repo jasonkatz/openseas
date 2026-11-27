@@ -71,7 +71,7 @@ puzzle declares its phases as a tree, in the order they run. Each has:
 | Field | Holds |
 |---|---|
 | id | A neutral word |
-| line | One plain sentence on what it is |
+| description | One plain sentence on what it is |
 | acts | How its seats act |
 | moves | The moves it takes |
 | repeat | How many times it runs, a number or a setting. Absent when once |
@@ -156,7 +156,7 @@ player makes: the verb, or a lesser act.
 > top of one rack onto another, and *call* brings the next crate down early. Flick (Tug): the verb
 > flicks a pod, and *skip* gives up the lit clamp.
 
-A puzzle declares each move with an id, one line, its typed fields (place, places, direction, piece,
+A puzzle declares each move with an id, a description, its typed fields (place, places, direction, piece,
 number or flag) and the gesture that makes it.
 
 ### How a move is made
@@ -206,7 +206,7 @@ A **setting** is a named number a puzzle is tuned by. Each declares:
 | type | Whole number, percent, permille, list of numbers, flag, or a list of maps |
 | default | The number the puzzle ships with |
 | min, max | The bounds every host holds it to |
-| line | One plain sentence on what it does |
+| description | One plain sentence on what it does |
 | group | Board, deal, tempo or scoring |
 | unit | What it counts: seconds, ticks, moves, cells, pieces or points. Absent for a plain count, a percent, a permille or a flag |
 | entries | A list only: the least and most entries, or the setting or count that fixes how many, and the bounds of each entry |
@@ -248,7 +248,7 @@ change, sampled, or at the end).
 
 ### Events
 
-An **event** is something the rules report happened. A puzzle declares each with an id, one line, and
+An **event** is something the rules report happened. A puzzle declares each with an id, a description, and
 its typed fields: place, places, piece, seat, side, number or points, and the board changes it can
 carry ([Motion](#motion)). It also says, where it does, that it is a step of a cascade, the phase it
 closes, and the zones it reveals. Every number a player sees counted on the board arrives on an event, so nothing
@@ -300,7 +300,7 @@ A **stat** is a count the rules keep about a round, shown when it ends: the long
 ### Gauges
 
 A **gauge** is a number a player watches while the round is played, besides the score: taps left, a
-rising line, cuts left, a crate's countdown. A puzzle declares each gauge with an id, one line, its
+rising line, cuts left, a crate's countdown. A puzzle declares each gauge with an id, a description, its
 most where it has one (a number or a setting), the point past which it means danger, such as heat
 past half or pings past par, and whether there is one for the round, for each seat or for each side. `read(round)` gives every gauge's value.
 
@@ -329,7 +329,7 @@ declares each payout with:
 | Field | Holds |
 |---|---|
 | id | A neutral word |
-| line | One plain sentence on what it pays for |
+| description | One plain sentence on what it pays for |
 | on | The event or events it pays on |
 | counts | The event's field it grows from: a number, or places, counted, such as a path's cells. Absent for a flat payout |
 | growth | Flat, linear, superlinear or stepped |
@@ -403,7 +403,7 @@ posted bounty. A puzzle declares each task with:
 | Field | Holds |
 |---|---|
 | id | A neutral word |
-| line | One plain sentence on what finishes it |
+| description | One plain sentence on what finishes it |
 | open | How many can be open at once |
 | ends | Done, given up (with the control that gives it up), or out of time (with the setting that times it) |
 | graded | By par, by best, or by nothing |
@@ -549,7 +549,7 @@ A **draw** is one source of luck. A puzzle declares each with:
 | Field | Holds |
 |---|---|
 | id | A neutral word |
-| line | One plain sentence on what it decides |
+| description | One plain sentence on what it decides |
 | gives | What it decides: a kind, a piece, a place, a map, a task, or a number |
 | by | How: an even roll, a weighted roll, a bag, or a pick from a list |
 | when | When it is drawn: at the start, on a refill, for a new task, on a tick, or every so many moves |
@@ -713,7 +713,7 @@ too, and a puzzle promoted into a world keeps its version running.
 | **Major** | A change can make a stored round replay differently from the same seed, settings and log: the rules, the deal, the board, zones and who sees them, pieces, moves, events, tempo, phases, how points are banked, endings or the log cap | The minor goes back to 0 |
 | **Minor** | Any other number in the puzzle changes: a setting's default or bounds, a relation, tier starts, the ladder, the pace window | |
 
-Wording raises nothing: a setting's line or the mechanic. Skins raise nothing either, since a drawing,
+Wording raises nothing: a setting's description or the mechanic. Skins raise nothing either, since a drawing,
 cue, text or motion changes no round. A skin has no version of its own; it must be ready against the
 puzzle's current version, and that is checked whenever the version rises.
 
@@ -1143,33 +1143,33 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
 {
   "id": "a neutral word for the mechanic",
   "version": "major.minor",
-  "history": [{ "version": "major.minor", "line": "what changed, in one plain line" }],
+  "history": [{ "version": "major.minor", "description": "what changed, in one plain line" }],
   "mechanic": "one line, plain English",
   "verb": "the id of the move the puzzle is built around",
   "round": {
     "tempo": { "kind": "still | ticking", "tickMs": "ticking only" },
     "acts": "anyone | in-turn | together: for a round with no phases, anyone when absent",
-    "phases": [{ "id": "", "line": "", "acts": "anyone | in-turn | together | nobody", "moves": ["move ids"],
+    "phases": [{ "id": "", "description": "", "acts": "anyone | in-turn | together | nobody", "moves": ["move ids"],
                  "repeat": "a number or a setting", "next": "the control that starts the next repeat",
                  "tally": "true or false", "phases": ["the phases inside it, in order"] }],
     "ends": [{ "id": "its reason", "by": "clock | budget | stock | fail | outcome", "setting": "what sizes it", "event": "what names it", "phase": "stock: the phase it counts" }],
     "logLimit": "the fixed cap on the log"
   },
-  "opponents": "absent when solo, or { sides: [least, most], seatsPerSide: [least, most], ghosts: true or false, standIns: [{ id, line, dials: [declared as settings are], presets: { <name>: a value for each dial } }]: its own, beside the four, absent: the stand-in that plays a lapsed seat, left: absent | out, seatSettings: [declared as settings are] }",
+  "opponents": "absent when solo, or { sides: [least, most], seatsPerSide: [least, most], ghosts: true or false, standIns: [{ id, description, dials: [declared as settings are], presets: { <name>: a value for each dial } }]: its own, beside the four, absent: the stand-in that plays a lapsed seat, left: absent | out, seatSettings: [declared as settings are] }",
   "points": "absent when paid to the seat as earned, or { to: seat | side, banks: paid | a phase id, floor: total | tally }",
   "placing": "between sides: { by: points | last-standing | rules }",
   "board": { "shape": "grid | rings", "width": "grid", "height": "grid", "touch": "grid: 4 | 8", "rim": "grid: true or false",
              "rings": "rings", "sectors": "rings", "shared": "between sides: true, or one board a seat", "seenBy": "everyone | seat | side | nobody: its pieces, everyone when absent" },
   "terrain": [{ "id": "", "states": "names, if it has any" }],
   "zones": [{ "id": "", "holds": "how many pieces", "player": "watches | takes", "each": "round | seat | side", "seenBy": "everyone | seat | side | nobody" }],
-  "settings": [{ "id": "", "type": "whole | percent | permille | list | flag | maps", "default": "", "min": "", "max": "", "line": "", "group": "board | deal | tempo | scoring",
+  "settings": [{ "id": "", "type": "whole | percent | permille | list | flag | maps", "default": "", "min": "", "max": "", "description": "", "group": "board | deal | tempo | scoring",
                  "unit": "seconds | ticks | moves | cells | pieces | points", "entries": "list: { least, most } or { count }, and { min, max } each",
                  "map": "maps: { board, check }", "role": "true when a role may set it" }],
   "relations": [{ "is": "at-most | below | ascending | fits", "a": "a setting", "b": "a setting, or the board" }],
   "deal": {
-    "draws": [{ "id": "", "line": "", "gives": "kind | piece | place | map | task | number", "by": "even | weighted | bag | pick",
+    "draws": [{ "id": "", "description": "", "gives": "kind | piece | place | map | task | number", "by": "even | weighted | bag | pick",
                 "when": "start | refill | task | tick | every: a setting", "reads": ["setting ids"], "shared": "between sides: true, or a stream a seat" }],
-    "checks": [{ "id": "", "line": "", "draws": ["draw ids"], "tries": "a number", "fallback": "one line: what is dealt, and why it passes", "during": "the event that says the board was dealt again, if it holds during play" }],
+    "checks": [{ "id": "", "description": "", "draws": ["draw ids"], "tries": "a number", "fallback": "one line: what is dealt, and why it passes", "during": "the event that says the board was dealt again, if it holds during play" }],
     "bounds": [{ "setting": "", "caps": "a draw id" }]
   },
   "layers": [{ "id": "", "rule": "one line", "brings": { "pieces": [], "events": [], "settings": [], "zones": [], "gauges": [], "controls": [],
@@ -1178,22 +1178,22 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
   "evaluation": { "tierStarts": "judged by score: { steady, sharp, masterful, legendary }", "by": "between sides: outcome | score", "paceWindowSeconds": "" },
   "signals": { "in": [{ "id": "", "type": "number | flag | outcome", "fields": { "<name>": "in place of a type: typed as a move's" }, "seat": "true when it is for one seat", "when": "on-change | sampled | at-end" }], "out": ["the same"] },
   "pieces": [{ "id": "", "footprint": "one cell, or the cells it covers", "family": "the setting that counts its kinds, or one for each family it belongs to", "of": "the piece it is based on", "states": "names, or { count }" }],
-  "moves": [{ "id": "", "line": "", "gesture": "tap | long-press | draw | drag | swipe | slice | turn | hold", "inHand": "true when built in hand",
+  "moves": [{ "id": "", "description": "", "gesture": "tap | long-press | draw | drag | swipe | slice | turn | hold", "inHand": "true when built in hand",
               "fields": { "<name>": "place | places | direction | piece | number | flag" } }],
   "controls": [{ "id": "", "move": "the move it makes, or none for a switch", "key": "its letter" }],
-  "events": [{ "id": "", "line": "", "fields": { "<name>": "place | places | piece | seat | side | number | points" }, "mistake": "true when it is one",
+  "events": [{ "id": "", "description": "", "fields": { "<name>": "place | places | piece | seat | side | number | points" }, "mistake": "true when it is one",
               "changes": ["arrive | leave | travel | change: the board changes it can carry"],
               "step": "true when it counts as a cascade step", "closes": "a phase id", "reveals": ["zone ids, or the board"] }],
   "moment": { "event": "the event id", "when": "an optional condition on it", "size": "its number field", "most": "a number or a setting: the biggest" },
-  "payouts": [{ "id": "", "line": "", "on": ["event ids"], "counts": "the event's field it grows from", "growth": "flat | linear | superlinear | stepped",
+  "payouts": [{ "id": "", "description": "", "on": ["event ids"], "counts": "the event's field it grows from", "growth": "flat | linear | superlinear | stepped",
                 "cap": "a number or a setting", "reads": ["setting ids"] }],
-  "multipliers": [{ "id": "", "line": "", "scales": ["payout ids"], "on": "the event, and the condition, it applies on",
+  "multipliers": [{ "id": "", "description": "", "scales": ["payout ids"], "on": "the event, and the condition, it applies on",
                     "by": "{ percent: setting }, or { table: list setting, index: streak | step }" }],
   "streak": "absent, or { builds: { event, when } or { grade }, grace, breaksOn: [mistake event ids] }",
-  "tasks": [{ "id": "", "line": "", "open": "how many at once", "ends": ["done | given-up | out-of-time"], "control": "given-up only", "setting": "out-of-time only",
+  "tasks": [{ "id": "", "description": "", "open": "how many at once", "ends": ["done | given-up | out-of-time"], "control": "given-up only", "setting": "out-of-time only",
               "graded": "par | best | none", "grades": ["from best"], "next": "dealt, or the control that asks for it" }],
-  "gauges": [{ "id": "", "line": "", "most": "a number or a setting", "danger": "the value past which it means danger", "each": "round | seat | side" }],
-  "stats": [{ "id": "", "line": "" }],
+  "gauges": [{ "id": "", "description": "", "most": "a number or a setting", "danger": "the value past which it means danger", "each": "round | seat | side" }],
+  "stats": [{ "id": "", "description": "" }],
   "texts": [{ "key": "", "placeholders": [] }],
   "teaching": { "preview": "true or false", "hint": "true or false" }
 }
@@ -1284,12 +1284,12 @@ An excerpt of the puzzle:
     { "id": "loops", "rule": "a closed path takes every prize at once",
       "brings": { "events": ["loop"], "settings": ["loopMin", "loopPercent", "insidePoints", "prizeLoopPoints"] } }
   ],
-  "moves": [{ "id": "trace", "line": "draw a path through touching pieces, closed or open", "gesture": "draw",
+  "moves": [{ "id": "trace", "description": "draw a path through touching pieces, closed or open", "gesture": "draw",
               "fields": { "path": "places", "closed": "flag" } }],
-  "events": [{ "id": "loop", "line": "a closed path took every prize", "fields": { "path": "places", "inside": "places", "prizes": "number", "points": "points" },
+  "events": [{ "id": "loop", "description": "a closed path took every prize", "fields": { "path": "places", "inside": "places", "prizes": "number", "points": "points" },
                "changes": ["leave"] }],
   "moment": { "event": "loop", "when": "prizes > 0", "size": "prizes", "most": "maxPrizes" },
-  "gauges": [{ "id": "prizes", "line": "prizes on the board", "most": "maxPrizes" }],
+  "gauges": [{ "id": "prizes", "description": "prizes on the board", "most": "maxPrizes" }],
   "evaluation": { "tierStarts": { "steady": 850, "sharp": 2450, "masterful": 4800, "legendary": 8400 }, "paceWindowSeconds": 10 }
 }
 ```

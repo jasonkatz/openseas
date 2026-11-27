@@ -671,11 +671,14 @@ What holds for all eight:
   or the address (`?stage=`). Salvage is the first: lines, then streak and crates, then nets and
   orders, then volatiles. The other seven are deepened and laddered one at a time.
 
-### 3.13 Puzzle guides
+### 3.13 The docs site and its puzzle guides
 
-A separate site (ADR 0038, `packages/docs`) with one guide per puzzle, the game's seven and the
-eight prototypes alike. It is where a player learns a puzzle properly; the start card in the game
-stays a few lines.
+A separate site (ADR 0038, ADR 0091, `packages/docs`) in three areas. **Domain** is the puzzle domain
+guide a page at a time, with its glossary. **API** is the puzzle, skin and theme documents key by key
+and the rules SDK. **Puzzle guides** is one guide per puzzle, the game's seven and the eight
+prototypes alike: where a player learns a puzzle properly, while the start card in the game stays a
+few lines. The site stands on its own and names no file of this repository. The rest of this section
+is about the guides.
 
 - **One shape for every guide.** What the puzzle is in the world and what it does for the ship,
   the rules a first round needs, the controls for touch and for mouse and keys, how it scores,
@@ -1063,7 +1066,7 @@ pnpm monorepo. Packages:
 
 | `studio-server` | The studio's service (ADR 0042, ADR 0043): tester links, the owner's GitHub sign-in, the owner's drafts (ADR 0045), and Save for a draft's numbers and words: a clone on a volume, a worktree a draft, and a draft pull request from a GitHub App (ADR 0046); and the chat: the Claude Agent SDK on the draft's worktree, as a unix user of its own, behind the service's own proxy to the model (ADR 0047), in as many chats as the owner starts, kept past their draft (ADR 0060). All in a Postgres schema of its own | Deals no round and imports no engine; knows nothing of the game's accounts; the studio works without it |
 | `bots` | The bot runner (ADR 0067): careless, one-move and rollout bots and each prototype's own, played against the real engines through one file a puzzle, and the ladder table they print from `content` | A tool: nothing deployed, nothing imports it. Plays only through `reduce`; its logs replay on the server's engine |
-| `docs` | The puzzle guides (section 3.13, ADR 0038): one page per puzzle from first round to expert play, the capture files that take its pictures from the studio, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
+| `docs` | The docs site (section 3.13, ADR 0038, ADR 0091): the puzzle domain a page at a time, the API of the puzzle, skin and theme documents and the rules SDK, and the puzzle guides, one page per puzzle from first round to expert play, with the capture files that take its pictures from the studio, and those pictures | A static site: no server, no boards. Reads `content` for every number; types none |
 
 In M9 the harness became the studio (3.14, ADR 0042): `harness` was renamed `studio` (the deploy pipeline, the
 message keys, now `studio.*`, and the code's identifiers followed), and `studio-server` holds the service its tester links run on, and later its chat and Save. The table
