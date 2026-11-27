@@ -1,0 +1,10 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`the expansion promise > is held to the docs site's reference for a puzzle document 1`] = `
+[
+  "swap: moment is missing",
+  "swap.payouts[0].reads: has 0 entries",
+  "swap.ladder: has 1 entries",
+  "swap: evaluation is missing",
+]
+`;
