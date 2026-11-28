@@ -19,7 +19,9 @@ What is built: rungs 0 to 3, and rung 4 without its ticks, for one seat on a sti
 | `src/prng.ts` | The same generator `engine` uses. Each draw has a stream seeded from `<seed>/<draw id>` |
 | `examples/` | Swap in seven lines, the same rules written flat by hand, Swap with a part of an author's own, Cooling: its numbers as data and two parts of its own, Paths: six parts over a ladder of four stages, and Gunnery: five parts on a ticking tempo, with terrain, maps and a bag |
 
-Swap plays in the studio at `/rungs/swap`, on a board drawn through `seen.ts` in the stock skin.
+Swap plays in the studio at `/rungs/swap`, on a board drawn through `seen.ts` in the stock skin. Cooling, Paths and
+Gunnery play there at `/rungs/cooling`, `/rungs/paths` and `/rungs/gunnery`, each on the page and board its
+hand-written engine has, through a mirror in `studio/src/rungs/mirror` (ADR 0097).
 
 The tests start with determinism, then the deal's check, then that the rules written flat report
 the same events as the parts. `test/cooling.test.ts` plays Cooling beside the engine the game ships,

@@ -403,6 +403,14 @@ export function Home() {
               <span className="tile-blurb">{t("rungs.home_blurb")}</span>
             </Link>
           </li>
+          {(["cooling", "paths", "gunnery"] as const).map((id) => (
+            <li key={id}>
+              <Link to={`/rungs/${id}`} className="practice-tile live" data-testid={`tile-rung-${id}`}>
+                <span className="tile-title">{t(`rungs.${id}.home`)}</span>
+                <span className="tile-blurb">{t(`rungs.${id}.home_blurb`)}</span>
+              </Link>
+            </li>
+          ))}
         </ul>
       </section>
 

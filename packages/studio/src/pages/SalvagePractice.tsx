@@ -5,19 +5,20 @@ import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { SALVAGE } from "../prototypes/salvage.js";
+import type { StudioPuzzle } from "../puzzles.js";
 
 const salvage = content.puzzles.salvage;
 
-/** Salvage (prototype, ADR 0036): the shared board in the studio's frame. */
-export function SalvagePractice() {
+/** Salvage (prototype, ADR 0036): the shared board in the studio's frame. `entry` is the puzzle this page plays: Salvage, or the same puzzle on another engine (ADR 0097). */
+export function SalvagePractice({ entry = SALVAGE }: { entry?: StudioPuzzle<SalvageState, SalvageMove, SalvageConfig> } = {}) {
   const api = usePractice<SalvageState, SalvageMove, SalvageConfig>({
     puzzle: "salvage",
-    def: SALVAGE.def,
+    def: entry.def,
     config: salvage.config,
     roundSeconds: salvage.roundSeconds,
     summarize: summarizeSalvage,
   });
-  const studio = useStudio(SALVAGE, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const shown = state;
   const cfg = shown.config;
@@ -30,7 +31,7 @@ export function SalvagePractice() {
   return (
     <PracticeShell
       puzzle="salvage"
-      eyebrow={t("studio.prototype_eyebrow")}
+      eyebrow={entry === SALVAGE ? t("studio.prototype_eyebrow") : t("rungs.eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}

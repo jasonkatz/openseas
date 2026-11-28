@@ -5,11 +5,12 @@ import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { useSoloHeat } from "../practice/useSoloHeat.js";
-import { COOLING } from "../puzzles.js";
+import { COOLING, type StudioPuzzle } from "../puzzles.js";
 
 const cooling = content.puzzles.cooling;
 
-export function CoolingPractice() {
+/** `entry` is the puzzle this page plays: the game's own, or the same puzzle on another engine (ADR 0097). */
+export function CoolingPractice({ entry = COOLING }: { entry?: StudioPuzzle<CoolingState, CoolingMove, CoolingConfig> } = {}) {
   const [vented, setVented] = useState(0);
   /** Rows vented down this round, counted on the client for the result card only. */
   const ventedRef = useRef(0);
@@ -26,14 +27,14 @@ export function CoolingPractice() {
 
   const api = usePractice<CoolingState, CoolingMove, CoolingConfig>({
     puzzle: "cooling",
-    def: COOLING.def,
+    def: entry.def,
     config: cooling.config,
     roundSeconds: cooling.roundSeconds,
     summarize: summarizeCooling,
     onMove,
   });
   useSoloHeat(api);
-  const studio = useStudio(COOLING, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const shown = state;
   const playing = api.phase === "playing";
@@ -106,6 +107,7 @@ export function CoolingPractice() {
   return (
     <PracticeShell
       puzzle="cooling"
+      {...(entry === COOLING ? {} : { eyebrow: t("rungs.eyebrow") })}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}

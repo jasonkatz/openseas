@@ -54,8 +54,9 @@ test("the home list shows every puzzle alike and pictures each board from this b
   expect(errors).toEqual([]);
 });
 
-test("Cooling plays alone on /play: a round accepts a keyboard swap and a tap", async ({ page }) => {
-  await page.goto("/play/cooling");
+// The same round is played twice: on the engine the game ships, and on the same page with the new engine behind it (ADR 0097).
+for (const [path, on] of [["/play/cooling", ""], ["/play/rungs/cooling", ", on the new engine"]] as const) test(`Cooling plays alone on /play: a round accepts a keyboard swap and a tap${on}`, async ({ page }) => {
+  await page.goto(path);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("cooling-canvas");
   await expect(canvas).toBeVisible();
@@ -168,8 +169,8 @@ test("Plating plays alone on /play: plates go down by keyboard and by tap", asyn
   await expect(page.getByTestId("hud-moves")).toContainText("2");
 });
 
-test("Gunnery plays alone on /play: a round lays arrows by key and by tap, and lifts one by tapping again", async ({ page }) => {
-  await page.goto("/play/gunnery");
+for (const [path, on] of [["/play/gunnery", ""], ["/play/rungs/gunnery", ", on the new engine"]] as const) test(`Gunnery plays alone on /play: a round lays arrows by key and by tap, and lifts one by tapping again${on}`, async ({ page }) => {
+  await page.goto(path);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("gunnery-canvas");
   await expect(canvas).toBeVisible();

@@ -45,8 +45,11 @@ async function drag(page: Page, cells: readonly number[]): Promise<void> {
   await page.mouse.up();
 }
 
-test("Salvage plays alone on /play: a round hauls a line by key and by drag", async ({ page }) => {
-  await page.goto("/play/salvage");
+// Each round here is played twice: on Salvage's own engine, and on the same page with Paths on the new engine behind it (ADR 0097).
+const ENGINES = [["/play/salvage", ""], ["/play/rungs/paths", ", on the new engine"]] as const;
+
+for (const [path, on] of ENGINES) test(`Salvage plays alone on /play: a round hauls a line by key and by drag${on}`, async ({ page }) => {
+  await page.goto(path);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("salvage-canvas");
   await expect(canvas).toBeVisible();
@@ -77,9 +80,9 @@ test("Salvage plays alone on /play: a round hauls a line by key and by drag", as
   await expectViewMatchesState(page, "salvage");
 });
 
-test("a Salvage line closed into a loop nets the crates on the field", async ({ page }) => {
-  // A pinned lab seed whose opening holds a loop of four round nothing, with two crates adrift.
-  await page.goto("/play/salvage?seed=loop-1&start=lab");
+for (const [path, on] of ENGINES) test(`a Salvage line closed into a loop nets the crates on the field${on}`, async ({ page }) => {
+  // A pinned lab seed whose opening holds a loop of four round nothing, with two crates adrift. Both engines deal it the same.
+  await page.goto(`${path}?seed=loop-1&start=lab`);
   const canvas = page.getByTestId("salvage-canvas");
   await expect(canvas).toBeVisible();
   await expectViewMatchesState(page, "salvage");
@@ -92,8 +95,8 @@ test("a Salvage line closed into a loop nets the crates on the field", async ({ 
   await expectViewMatchesState(page, "salvage");
 });
 
-test("a Salvage stage plays from its address: its name in the HUD, its card on the start card, its numbers on the board (ADR 0066)", async ({ page }) => {
-  await page.goto("/play/salvage?stage=lines");
+for (const [path, on] of ENGINES) test(`a Salvage stage plays from its address: its name in the HUD, its card on the start card, its numbers on the board (ADR 0066)${on}`, async ({ page }) => {
+  await page.goto(`${path}?stage=lines`);
   await expect(page.getByTestId("stage-intro")).toHaveAttribute("data-stage", "lines");
   await page.getByTestId("play-start").click();
   await expect(page.getByTestId("salvage-canvas")).toBeVisible();

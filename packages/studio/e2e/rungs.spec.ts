@@ -119,3 +119,15 @@ test("Swap plays by key: arrows move, space picks, an arrow swaps", async ({ pag
   expect(next.score).toBe(0);
   expect(next.board).not.toBe(after.board);
 });
+
+// Cooling, Paths and Gunnery on the new engine play on their shipped pages (ADR 0097). Their rounds are driven by
+// the shipped smoke of each board, which runs on both engines; this holds only that the pages are reached.
+for (const [id, canvas] of [["cooling", "cooling-canvas"], ["paths", "salvage-canvas"], ["gunnery", "gunnery-canvas"]] as const) {
+  test(`${id} on the new engine is reached from home, on its shipped board`, async ({ page }) => {
+    await page.goto("/");
+    await page.getByTestId(`tile-rung-${id}`).click();
+    await expect(page).toHaveURL(new RegExp(`/rungs/${id}$`));
+    await expect(page.getByTestId(canvas)).toBeVisible();
+    await expect(page.getByText("On the new engine", { exact: true }).first()).toBeVisible();
+  });
+}
