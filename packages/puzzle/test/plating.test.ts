@@ -70,6 +70,7 @@ describe("Plating on the new engine, beside the engine the game ships", () => {
         };
         level(`seed ${seed}, the deal`);
         for (let m = 0; m < WELDS && !shipped.finished; m++) {
+          if (m % 10 === 9) await breathe();
           // Every weld the hull takes. Most moves take one that wastes least on the breach it works; the rest any at all.
           const legal: { slot: number; rot: number; flip: boolean; col: number; row: number; waste: number; laid: number }[] = [];
           for (let slot = 0; slot < 3; slot++)

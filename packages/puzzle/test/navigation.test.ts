@@ -75,6 +75,7 @@ describe("Navigation on the new engine, beside the engine the game ships", () =>
         let tick = 0;
         const last = config.maxTick - 50;
         for (let m = 0; tick < last; m++) {
+          if (m % 10 === 9) await breathe();
           tick = Math.min(last, tick + 1 + pick(pick(6) === 0 ? 20 : 3));
           const where = `seed ${seed}, tick ${tick}`;
           // Mostly the turn the shipped hint gives, so constellations are charted. Now and then any turn, a drop or a wait.

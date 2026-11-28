@@ -67,6 +67,7 @@ describe("Engines on the new engine, beside the engine the game ships", () => {
         };
         level(`seed ${seed}, the deal`);
         for (let m = 0; m < PAIRS; m++) {
+          if (m % 10 === 9) await breathe();
           // The shipped engine's resting places are the new one's, every one of them.
           const shippedRests = enginesRestingPlacements(shipped).map((r) => ({ x: r.col, y: config.height - 1 - r.row, rot: r.rot }));
           const own = rests(view(round).board).map((r) => ({ ...r.at, rot: r.rot }));
