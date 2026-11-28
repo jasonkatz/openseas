@@ -1128,7 +1128,7 @@ const multipliers = page({
               description: "It scales by an entry of a list, read at a count the loop keeps. The last entry holds for every count past it.",
               type: obj([
                 req("table", ref("setting"), "The setting that holds the percents. Of type `list`."),
-                req("index", en(["streak", "The streak's count: the first entry for no streak, the next for one success in a row, and so on."], ["step", "The cascade's step: the first entry for what the move itself did, the next for the first step it set off."]), "Which count picks the entry."),
+                req("index", en(["streak", "The streak a move leaves: the first entry for the first success in a row, the next for the second, and so on. A move that leaves no streak is paid as it is."], ["step", "The cascade's step: the first entry for what the move itself did, the next for the first step it set off."]), "Which count picks the entry."),
               ]),
             },
           ),

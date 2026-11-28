@@ -44,8 +44,12 @@ dealt again. And its heat needs to know, in the middle of a move, what the move 
    step of the cascade, the move's own hook included. Each such event carries its step, counted from 1.
    How many cleared together in a step is the rules' to say: the stock `lines` puts it on each clear as
    the field `together`, and a puzzle that pays for it reads the field in `pointsFor`.
-7. **The streak moves once a move.** A move that reported an event that builds it adds one, however many
-   it reported. Its grace is a number or a setting.
+7. **The streak moves once a move, and a move is paid at the streak it leaves.** A move that reported an
+   event that builds it adds one, however many it reported. Its grace is a number or a setting. The
+   streak's table has an entry for each success in a row: the first success takes the first entry, a
+   move within the grace takes the entry the streak still stands at, and a move that leaves no streak is
+   paid as it is. A mistake breaks the streak after the move has been paid. It is the one reading that
+   both Cooling and Salvage, the two shipped engines with a streak, already keep.
 8. **A hook reads four things the loop keeps:** the score banked so far, the streak, the step, and
    `pending`, what the move would bank if it closed now. It reads nothing else of the loop's.
 9. **State is what a hook gives back.** A hook that starts with `on` answers the rules' next state, or

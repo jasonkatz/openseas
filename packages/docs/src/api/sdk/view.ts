@@ -321,7 +321,7 @@ const streak: Member = {
   name: "streak",
   kind: "property",
   signature: "readonly streak: number",
-  description: "The [streak](/api/puzzle#streak)'s count: moves, or tasks, in a row that built it. It is 0 in a puzzle with no streak. It moves when a move closes, so within a move it is the count the move is paid at.",
+  description: "The [streak](/api/puzzle#streak)'s count: moves, or tasks, in a row that built it. It is 0 in a puzzle with no streak. It moves when a move closes, so within a move it is the count the move started on.",
 };
 
 const repeat: Member = {

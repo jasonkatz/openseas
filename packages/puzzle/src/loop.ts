@@ -100,14 +100,29 @@ function total(terms: readonly Term[]): number {
   const den = terms.reduce((d, t) => Math.max(d, t.den), 1);
   return floorDiv(terms.reduce((n, t) => n + t.num * (den / t.den), 0), den);
 }
-/** What the tally would bank on this streak: each share times the multipliers held for the whole entry, rounded down once. */
-function bank(doc: Document, settings: Settings, tally: Tally, streak: number): number {
+/**
+ * The streak a move leaves, before any mistake breaks it: one more when the move built it, the same within
+ * its grace, and none past it.
+ */
+function streakAfter(doc: Document, settings: Settings, tally: Tally, s: { streak: number; misses: number }): { streak: number; misses: number } {
+  if (!doc.streak) return { streak: 0, misses: 0 };
+  if (tally.built) return { streak: s.streak + 1, misses: 0 };
+  const misses = s.misses + 1;
+  return { streak: misses > amount(settings, doc.streak.grace) ? 0 : s.streak, misses };
+}
+/**
+ * What the tally would bank: each share times the multipliers held for the whole entry, rounded down once.
+ * A move is paid at the streak it leaves. The table's first entry is for the first success in a row, its
+ * last entry holds, and a move that leaves no streak is paid as it is.
+ */
+function bank(doc: Document, settings: Settings, tally: Tally, s: { streak: number; misses: number }): number {
+  const streak = streakAfter(doc, settings, tally, s).streak;
   return total(
     tally.terms.map((t) => {
       let { num, den } = t;
       for (const id of t.held) {
         const m = doc.multipliers.find((x) => x.id === id)!;
-        num *= entry(settings[(m.by as { table: string }).table], streak);
+        num *= streak === 0 ? 100 : entry(settings[(m.by as { table: string }).table], streak - 1);
         den *= 100;
       }
       return { num, den, held: [] };
@@ -173,7 +188,7 @@ function ctxOf(puzzle: Puzzle, settings: Settings, s: State, out: Event[], tally
       return s.step;
     },
     get pending() {
-      return bank(doc, settings, tally, s.streak);
+      return bank(doc, settings, tally, s);
     },
     draw(id) {
       if (!doc.deal.draws.some((d) => d.id === id)) throw new Error(`draw ${id} is not declared`);
@@ -389,13 +404,11 @@ export function play<M extends AnyMove>(round: Round<M>, move: NoInfer<M>, when:
   const tally = newTally();
   apply(puzzle, round.settings, s, move, events, tally);
   // Close: the points are banked and the streak kept, then the check that holds during play, then the endings.
-  const banked = bank(doc, round.settings, tally, s.streak);
+  const banked = bank(doc, round.settings, tally, s);
   s.points = Math.max(0, s.points + banked);
-  if (doc.streak) {
-    if (tally.built) (s.streak++, (s.misses = 0));
-    else if (++s.misses > amount(round.settings, doc.streak.grace)) s.streak = 0;
-    if (tally.broke) s.streak = 0;
-  }
+  Object.assign(s, streakAfter(doc, round.settings, tally, s));
+  // A mistake breaks the streak at once, after the move has been paid at it.
+  if (tally.broke) s.streak = 0;
   const check = doc.deal.checks.find((c) => c.during);
   if (check && stuck(puzzle, round.settings, s)) deal(puzzle, round.settings, s, events, check, true);
   s.moves++;

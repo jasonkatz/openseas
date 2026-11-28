@@ -48,7 +48,7 @@ The rules never add a point. You say what an event is worth, and the engine pays
 
 The engine counts the steps of a cascade and keeps the streak. You never do.
 
-A group of four on the second step of a cascade, in a move made on a streak of two: 4 × 4 = 16, times 200% for the step, is 32, and the clear shows 32. The move banks 32 × 120% = 38.4, rounded down to 38. Points are rounded down once, when a move is banked. What a move banked is on the round beside its events.
+A group of four on the second step of a cascade, in the third move in a row to clear anything: 4 × 4 = 16, times 200% for the step, is 32, and the clear shows 32. A move is paid at the streak it leaves, and the third entry of the table is 120, so the move banks 32 × 120% = 38.4, rounded down to 38. Points are rounded down once, when a move is banked. What a move banked is on the round beside its events.
 
 ```ts
 round = play(round, move, { at: 12_400 });

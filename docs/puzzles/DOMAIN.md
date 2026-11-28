@@ -369,8 +369,9 @@ any multiplier that holds for the whole move.
 > multiplies every payout. A closed path of 6 on a streak at 130%: 6 × 6 = 36, doubled to 72, then 72
 > × 130% = 93.6, rounded down to 93.
 
-> A move of Cooling clears two groups of three at once, on a streak at 110%. Each pays 3, doubled for
-> clearing together, so the two show 6 and 6. The move banks 12 × 110% = 13.2, rounded down to 13.
+> A move of Cooling clears two groups of three at once, and is the second in a row to clear anything,
+> so it is paid at 110%. Each group pays 3, doubled for clearing together, so the two show 6 and 6. The
+> move banks 12 × 110% = 13.2, rounded down to 13.
 
 ### Conditions
 
@@ -403,6 +404,10 @@ A puzzle has at most one **streak**: a run of successes that raises a multiplier
 What it raises is a multiplier whose table is indexed by the streak: a list setting with an entry for
 each success in a row, whose last entry holds. A move builds the streak once, however many of its events
 would: the streak counts moves, and tasks, never events.
+
+A move is paid at the streak it leaves. The first success in a row takes the table's first entry and
+the next takes the second. A miss within the grace takes the entry the streak still stands at, and a
+move that leaves no streak is paid as it is. A mistake breaks the streak after its move has been paid.
 
 The rules keep the round's best streak as the stat `best_streak`, and the streak's count as a gauge.
 
