@@ -65,8 +65,11 @@ export interface EndSpec { readonly end: EndDecl; readonly settings: readonly Se
 /** A setting as a puzzle writes it: a bare value is its default, and an object may bound and describe it. */
 export type SettingSpec = Setting | { readonly default: Setting; readonly min?: number; readonly max?: number; readonly unit?: string; readonly description?: string; readonly group?: SettingDecl["group"] };
 export interface PayoutSpec { readonly on: string | readonly string[]; readonly counts?: string; readonly growth?: PayoutDecl["growth"]; readonly cap?: number | string; readonly reads?: string; readonly description?: string }
-/** `by` names the setting that holds the percent, or with `index` the list that holds one for each count. */
-export interface MultiplierSpec { readonly scales: string | readonly string[]; readonly on?: string; readonly by: string; readonly index?: "streak" | "step"; readonly description?: string }
+/**
+ * `by` names the setting that holds the percent, or with `index` the list that holds one for each count: the streak,
+ * the cascade's step, or `{ field }`, a number the event carries.
+ */
+export interface MultiplierSpec { readonly scales: string | readonly string[]; readonly on?: string; readonly by: string; readonly index?: "streak" | "step" | { readonly field: string }; readonly description?: string }
 export interface StreakSpec { readonly builds: string | readonly string[]; readonly when?: string; readonly counts?: "moves" | "events"; readonly grace?: number | string; readonly breaksOn?: readonly string[] }
 /** One stage of a puzzle's ladder: the parts it switches on, and the bar a player clears to move past it. */
 export interface StageSpec<Q extends Part<any> = Part<any>> { readonly stage: string; readonly parts: readonly Q[]; readonly advance?: StageDecl["advance"] }
@@ -224,6 +227,12 @@ export function documentProblem(doc: Document): string | null {
     if ("percent" in m.by ? !typed(m.by.percent, "whole") : !typed(m.by.table, "list")) return `${what} reads ${"percent" in m.by ? `${m.by.percent}, which is no whole number` : `${m.by.table}, which is no list`} among the settings`;
     if ("index" in m.by && m.by.index === "streak" && !doc.streak) return `${what} is indexed by the streak, and the puzzle declares none`;
     if ("index" in m.by && m.by.index === "step" && !doc.events.some((e) => e.step)) return `${what} is indexed by the step, and no event of the puzzle counts as one`;
+    if ("field" in m.by) {
+      const field = m.by.field;
+      const on = new Set(doc.payouts.filter((p) => m.scales.includes(p.id)).flatMap((p) => p.on));
+      const lacking = doc.events.find((e) => on.has(e.id) && e.fields[field] !== "number");
+      if (lacking) return `${what} is indexed by the field ${field}, and the event ${lacking.id} carries no such number`;
+    }
   }
   if (doc.streak) {
     const wrong = named("the streak", doc.streak.builds.event, doc.streak.builds.when);
@@ -294,7 +303,7 @@ export function puzzle<const P extends readonly Part<any>[], Q extends Part<any>
     const scales = list(m.scales);
     // Left unsaid, a multiplier applies on every event its payouts pay on.
     const on = m.on ?? [...new Set(payouts.filter((p) => scales.includes(p.id)).flatMap((p) => p.on))].join(" or ");
-    return { id: name, description: m.description ?? name, scales, on, by: m.index ? { table: m.by, index: m.index } : { percent: m.by } };
+    return { id: name, description: m.description ?? name, scales, on, by: !m.index ? { percent: m.by } : typeof m.index === "string" ? { table: m.by, index: m.index } : { table: m.by, index: "field", field: m.index.field } };
   });
   const multipliers = gather<MultiplierDecl>("multiplier", [...from("multipliers"), ["the puzzle", scaled]]);
   const gauges = gather<GaugeDecl>("gauge", from("gauges"));

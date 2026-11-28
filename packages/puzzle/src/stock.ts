@@ -59,7 +59,10 @@ const held = (value: number | string, id: string, rest: Omit<SettingNeed, "id" |
 export const grid = (width: number | string, height: number | string, opts: { touch?: 4 | 8 } = {}): BoardSpec => {
   const w = held(width, "width", { type: "whole", min: 3, max: 12, description: "columns on the board", group: "board", unit: "cells" });
   const h = held(height, "height", { type: "whole", min: 3, max: 12, description: "rows on the board", group: "board", unit: "cells" });
-  return { board: { shape: "grid", width: w.id, height: h.id, touch: opts.touch ?? 4, rim: false }, settings: [w, h] };
+  // A square board named by one setting: it is declared once, as the cells on a side.
+  const square = typeof width === "string" && width === height;
+  const settings = square ? [{ ...w, description: "cells on a side of the board" }] : [w, h];
+  return { board: { shape: "grid", width: w.id, height: h.id, touch: opts.touch ?? 4, rim: false }, settings };
 };
 /** Rings around a centre, cut into sectors. A cell's `x` is its sector, clockwise from the top, and its `y` its ring, from the innermost. */
 export const rings = (count: number | string, sectors: number | string): BoardSpec => {

@@ -226,6 +226,11 @@ function termsOf(g: Game, id: string, fields: Readonly<Record<string, unknown>>,
       if (!m.scales.includes(p.id) || !there(g, "multipliers", m.id) || !applies(m.on, undefined, id, fields, settings)) continue;
       if ("percent" in m.by) (num *= settings[m.by.percent] as number), (den *= 100);
       else if (m.by.index === "step") (num *= entry(settings[m.by.table], step - 1)), (den *= 100);
+      // A count the event carries: the first entry for one, and none for nothing.
+      else if (m.by.index === "field") {
+        const n = fields[m.by.field] as number;
+        (num *= n < 1 ? 100 : entry(settings[m.by.table], n - 1)), (den *= 100);
+      }
       else if (streakNow === null) held.push(m.id);
       // A streak that counts events has already counted this one: it is paid at the streak it leaves, now.
       else (num *= streakNow === 0 ? 100 : entry(settings[m.by.table], streakNow - 1)), (den *= 100);

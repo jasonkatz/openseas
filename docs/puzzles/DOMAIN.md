@@ -362,7 +362,8 @@ A layer brings the payouts that exist only while it is on.
 ### Multipliers
 
 A **multiplier** scales named payouts on an event by a percent. The percent is either a setting, or an
-entry in a table: a list setting indexed by the streak or by a cascade's step. It names the events it
+entry in a table: a list setting indexed by the streak, by a cascade's step, or by a number the event
+carries, such as how many pieces left together in a salvo. It names the events it
 applies on: `every`, or their ids joined by `or`, with a condition after them where it has one.
 
 Multipliers that meet on one event multiply together, and nothing is rounded as they do. A multiplier
@@ -1376,7 +1377,7 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
   "payouts": [{ "id": "", "description": "", "on": ["event ids"], "counts": "the event's field it grows from", "growth": "flat | linear | superlinear | stepped",
                 "cap": "a number or a setting", "reads": ["setting ids"] }],
   "multipliers": [{ "id": "", "description": "", "scales": ["payout ids"], "on": "every, or event ids joined by or, and a condition after them where it has one",
-                    "by": "{ percent: setting }, or { table: list setting, index: streak | step }" }],
+                    "by": "{ percent: setting }, or { table: list setting, index: streak | step | field, field: the event's number field, with field }" }],
   "streak": "absent, or { builds: { event, when } or { grade }, counts: moves | events, grace: a number or a setting, breaksOn: [mistake event ids] }",
   "tasks": [{ "id": "", "description": "", "open": "how many at once", "ends": ["done | given-up | out-of-time"], "control": "given-up only", "setting": "out-of-time only",
               "graded": "par | best | none", "grades": ["from best"], "next": "dealt, or the control that asks for it" }],

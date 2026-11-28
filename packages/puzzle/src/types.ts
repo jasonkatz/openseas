@@ -57,7 +57,7 @@ export interface CheckDecl { id: string; description: string; draws: string[]; t
 export type Amount = number | string;
 export interface PayoutDecl { id: string; description: string; on: string[]; counts?: string; growth: "flat" | "linear" | "superlinear" | "stepped"; cap?: Amount; reads: string[] }
 /** `on` names the events it applies on: `every`, or ids joined by `or`, with an optional `when <condition>` after them. */
-export interface MultiplierDecl { id: string; description: string; scales: string[]; on: string; by: { percent: string } | { table: string; index: "streak" | "step" } }
+export interface MultiplierDecl { id: string; description: string; scales: string[]; on: string; by: { percent: string } | { table: string; index: "streak" | "step" } | { table: string; index: "field"; field: string } }
 /**
  * `builds.event` names one event, or several joined by `or`. `counts: "events"` is for a puzzle whose successes
  * are not moves: every event that builds it counts, nothing is a miss, and each is paid at the streak it leaves.
