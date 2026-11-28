@@ -9,7 +9,7 @@
 import { InvalidMoveError, OVERLOAD_DEF, overloadChainValue, overloadNeighbours, overloadStreakPercentAt, type OverloadCell, type OverloadConfig, type OverloadEvent, type OverloadFresh, type OverloadMove, type OverloadState, type OverloadWave, type PuzzleDef } from "@openseas/engine";
 import { advance, play, read, seedFromString, start, type AnyMove, type Cell, type Round, type Seen, type Setting } from "@openseas/puzzle";
 import overload, { type Hand } from "@openseas/puzzle/examples/overload";
-import { held, roundOf } from "./held.js";
+import { held, roundOf, steady } from "./held.js";
 
 /** The new engine ticks every tenth of a second, as the prototype does as shipped. */
 const TICK_MS = 100;
@@ -105,7 +105,7 @@ export function advanceOverloadMirror(state: OverloadState, tick: number): Overl
   const to = Math.min(tick, state.config.maxTick);
   if (to <= state.tick) return state;
   // Time let pass is no move: the round is over only when a move says so, as the prototype's is.
-  return shown(advance(roundOf(state), { at: to * TICK_MS }), state.config, keptOf(state), state.lastMove, false, false);
+  return steady(state, shown(advance(roundOf(state), { at: to * TICK_MS }), state.config, keptOf(state), state.lastMove, false, false), "cells");
 }
 
 export const OVERLOAD_MIRROR: PuzzleDef<OverloadState, OverloadMove, OverloadConfig> = {
@@ -130,7 +130,7 @@ export const OVERLOAD_MIRROR: PuzzleDef<OverloadState, OverloadMove, OverloadCon
     // A wait is time let pass, and ending early is the host's: neither is a move of the puzzle's.
     if (move.type !== "tap") {
       const later = tick > state.tick ? advance(round, { at: tick * TICK_MS }) : round;
-      return shown(later, c, kept, { move, events: [], points: 0 }, move.type === "end");
+      return steady(state, shown(later, c, kept, { move, events: [], points: 0 }, move.type === "end"), "cells");
     }
     if (!Number.isInteger(move.cell) || move.cell < 0 || move.cell >= state.cells.length) throw new InvalidMoveError("no such capacitor", move);
     // The bank as it stands at the tap's tick: the taps that came back by then.

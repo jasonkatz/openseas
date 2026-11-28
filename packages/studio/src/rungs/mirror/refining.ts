@@ -5,7 +5,7 @@
 import { InvalidMoveError, REFINING_CATALYST, REFINING_DEF, REFINING_OIL, REFINING_SMOKE, REFINING_TAR, REFINING_VAPOUR, type PuzzleDef, type RefiningConfig, type RefiningDrawValue, type RefiningEvent, type RefiningGrade, type RefiningKind, type RefiningMove, type RefiningPiece, type RefiningSmoke, type RefiningState } from "@openseas/engine";
 import { advance, play, read, seedFromString, seenAfter, start, type AnyMove, type Cell, type Event, type Round, type Seen, type Setting } from "@openseas/puzzle";
 import refining, { type Tower } from "@openseas/puzzle/examples/refining";
-import { held, roundOf } from "./held.js";
+import { held, roundOf, steady } from "./held.js";
 
 /** The new engine ticks every tenth of a second, as the prototype does as shipped. */
 const TICK_MS = 100;
@@ -122,7 +122,7 @@ function passed(state: RefiningState, tick: number): { state: RefiningState; hea
 /** The state at a later tick, without a move: what the board shows while the clock draws. */
 export function advanceRefiningMirror(state: RefiningState, tick: number): RefiningState {
   if (tick <= state.tick || state.finished) return state;
-  return passed(state, Math.min(tick, state.config.maxTick)).state;
+  return steady(state, passed(state, Math.min(tick, state.config.maxTick)).state, "cells");
 }
 
 const streamsOf = (seed: string) => ({
@@ -153,7 +153,7 @@ export const REFINING_MIRROR: PuzzleDef<RefiningState, RefiningMove, RefiningCon
     const { state: before, heard: due } = passed(state, tick);
     const kept: Kept = { ...keptOf(before), logLength: state.logLength + 1 };
     if (move.type === "wait" || move.type === "end") {
-      return shown(roundOf(before), c, NAMES.get(before)!, { ...kept, events: due }, { move, events: due, points: before.score - state.score }, move.type === "end");
+      return steady(state, shown(roundOf(before), c, NAMES.get(before)!, { ...kept, events: due }, { move, events: due, points: before.score - state.score }, move.type === "end"), "cells");
     }
     if (move.type === "swap" && (!Number.isInteger(move.cell) || move.cell < 0 || move.cell >= c.width * c.height)) throw new InvalidMoveError("no such cell", move);
     const round = roundOf(before);

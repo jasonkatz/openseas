@@ -62,6 +62,14 @@ describe("the Refining board's state from the new engine, beside the prototype's
     }, 120_000);
   }
 
+  it("keeps the tower the very same while only the clock moves, so the board plays a draw out", () => {
+    const config = DEFAULT_REFINING_CONFIG;
+    const dealt = REFINING_MIRROR.create("seed-1", config);
+    const later = advanceRefiningMirror(dealt, config.pulseTicks - 1);
+    expect(later.tick).toBe(config.pulseTicks - 1);
+    expect(later.cells).toBe(dealt.cells);
+  });
+
   it("refuses a tick the new engine does not play", () => {
     expect(() => REFINING_MIRROR.validateConfig({ ...DEFAULT_REFINING_CONFIG, tickMs: 50 })).toThrow(/tick of 100 ms/);
   });

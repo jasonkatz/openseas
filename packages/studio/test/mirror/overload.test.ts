@@ -48,6 +48,15 @@ describe("the Overload board's state from the new engine, beside the prototype's
     });
   }
 
+  it("keeps the bank the very same while only the clock moves, so the board plays a chain out wave by wave", () => {
+    const config = DEFAULT_OVERLOAD_CONFIG;
+    const tapped = OVERLOAD_MIRROR.reduce(OVERLOAD_MIRROR.create("seed-1", config), { type: "tap", cell: 0, tick: 1 });
+    const later = advanceOverloadMirror(tapped, 9);
+    expect(later.tick).toBe(9);
+    expect(later.cells).toBe(tapped.cells);
+    expect(OVERLOAD_MIRROR.reduce(later, { type: "wait", tick: 12 }).cells).toBe(tapped.cells);
+  });
+
   it("refuses a tick the new engine does not play", () => {
     expect(() => OVERLOAD_MIRROR.validateConfig({ ...DEFAULT_OVERLOAD_CONFIG, tickMs: 50 })).toThrow(/tick of 100 ms/);
   });
