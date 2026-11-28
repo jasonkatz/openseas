@@ -4,19 +4,20 @@ import { PlatingBoard, PlatingPlateIcon, content, sfx, t } from "@openseas/board
 import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
-import { PLATING } from "../puzzles.js";
+import { PLATING, type StudioPuzzle } from "../puzzles.js";
 
 const plating = content.puzzles.plating;
 
-export function PlatingPractice() {
+/** `entry` is the puzzle this page plays: the game's own, or the same puzzle on another engine (ADR 0097). */
+export function PlatingPractice({ entry = PLATING }: { entry?: StudioPuzzle<PlatingState, PlatingMove, PlatingConfig> } = {}) {
   const api = usePractice<PlatingState, PlatingMove, PlatingConfig>({
     puzzle: "plating",
-    def: PLATING.def,
+    def: entry.def,
     config: plating.config,
     roundSeconds: plating.roundSeconds,
     summarize: summarizePlating,
   });
-  const studio = useStudio(PLATING, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const shown = state;
 
@@ -44,6 +45,7 @@ export function PlatingPractice() {
 
   return (
     <PracticeShell
+      {...(entry === PLATING ? {} : { eyebrow: t("rungs.eyebrow") })}
       puzzle="plating"
       phase={api.phase}
       outcome={api.outcome}
@@ -52,7 +54,7 @@ export function PlatingPractice() {
       score={shown.score}
       moves={shown.moveCount}
       // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
-      maxMoves={shown.config.maxMoves < PLATING.config.maxMoves ? shown.config.maxMoves : undefined}
+      maxMoves={shown.config.maxMoves < entry.config.maxMoves ? shown.config.maxMoves : undefined}
       combo={shown.combo}
       onStart={studio.start}
       ready={studio.ready}

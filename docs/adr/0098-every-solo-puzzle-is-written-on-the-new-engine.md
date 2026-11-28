@@ -62,5 +62,5 @@ Plating, Engines and Navigation each asked something the engine did not have, or
 - Five of the seven shipped puzzles, and the Swap sample, are definitions on the new engine. Swordfighting
   and Battle wait for seats.
 - Plating, Engines and Navigation have no page on the new engine yet. A mirror for each, as ADR 0097 gave
-  the first three, is the next step to see them in the studio.
+  the first three, puts them in the studio (ADR 0100).
 - `Entry` is now a move or a signal. A host that reads a log entry asks which it is.

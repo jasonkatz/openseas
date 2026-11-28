@@ -82,8 +82,8 @@ for (const [path, on] of [["/play/cooling", ""], ["/play/rungs/cooling", ", on t
   await expect(page.getByTestId("hud-moves")).toContainText("2");
 });
 
-test("Engines plays alone on /play: a round takes keyboard drops", async ({ page }) => {
-  await page.goto("/play/engines");
+for (const [path, on] of [["/play/engines", ""], ["/play/rungs/engines", ", on the new engine"]] as const) test(`Engines plays alone on /play: a round takes keyboard drops${on}`, async ({ page }) => {
+  await page.goto(path);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("engines-canvas");
   await expect(canvas).toBeVisible();
@@ -128,10 +128,10 @@ test("Engines plays alone on /play: a round takes keyboard drops", async ({ page
   await touch.up();
 });
 
-test("Plating plays alone on /play: plates go down by keyboard and by tap", async ({ page }) => {
+for (const [path, on] of [["/play/plating", ""], ["/play/rungs/plating", ", on the new engine"]] as const) test(`Plating plays alone on /play: plates go down by keyboard and by tap${on}`, async ({ page }) => {
   // The plate tray and board redraw are the heaviest canvas in the suite on the phone profile.
   test.slow();
-  await page.goto("/play/plating");
+  await page.goto(path);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("plating-canvas");
   await expect(canvas).toBeVisible();
@@ -201,8 +201,8 @@ for (const [path, on] of [["/play/gunnery", ""], ["/play/rungs/gunnery", ", on t
   await expectViewMatchesState(page, "gunnery");
 });
 
-test("Navigation plays alone on /play: a round turns a ring by key and brings stars down by key and by tap", async ({ page }) => {
-  await page.goto("/play/navigation");
+for (const [path, on] of [["/play/navigation", ""], ["/play/rungs/navigation", ", on the new engine"]] as const) test(`Navigation plays alone on /play: a round turns a ring by key and brings stars down by key and by tap${on}`, async ({ page }) => {
+  await page.goto(path);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("navigation-canvas");
   await expect(canvas).toBeVisible();

@@ -15,7 +15,7 @@ import { NavigationBoard, StarIcon, content, sfx, t, useTicked } from "@openseas
 import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
-import { NAVIGATION } from "../puzzles.js";
+import { NAVIGATION, type StudioPuzzle } from "../puzzles.js";
 
 const navigation = content.puzzles.navigation;
 const MARKERS_KEY = "openseas.navigation.markers";
@@ -29,7 +29,8 @@ function readMarkersFlag(): boolean {
   }
 }
 
-export function NavigationPractice() {
+/** `entry` is the puzzle this page plays, and `advance` its engine's state at a later tick: the game's own, or the same puzzle on another engine (ADR 0097). */
+export function NavigationPractice({ entry = NAVIGATION, advance = advanceNavigation }: { entry?: StudioPuzzle<NavigationState, NavigationMove, NavigationConfig>; advance?: (state: NavigationState, tick: number) => NavigationState } = {}) {
   const [showMarkers, setShowMarkersState] = useState(readMarkersFlag);
 
   const setShowMarkers = (on: boolean): void => {
@@ -43,15 +44,15 @@ export function NavigationPractice() {
 
   const api = usePractice<NavigationState, NavigationMove, NavigationConfig>({
     puzzle: "navigation",
-    def: NAVIGATION.def,
+    def: entry.def,
     config: navigation.config,
     roundSeconds: navigation.roundSeconds,
     summarize: summarizeNavigation,
   });
-  const studio = useStudio(NAVIGATION, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const cfg = api.round?.config ?? navigation.config;
-  const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceNavigation, wait: waitAt });
+  const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance, wait: waitAt });
   const shown = ticked.shown;
 
   const onRotate = useCallback((ring: number, dir: -1 | 1): boolean => api.apply({ type: "rotate", ring, dir, tick: ticked.moveTick() }), [api, ticked]);
@@ -124,6 +125,7 @@ export function NavigationPractice() {
 
   return (
     <PracticeShell
+      {...(entry === NAVIGATION ? {} : { eyebrow: t("rungs.eyebrow") })}
       puzzle="navigation"
       phase={api.phase}
       outcome={api.outcome}
