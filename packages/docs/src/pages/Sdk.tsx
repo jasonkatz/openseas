@@ -247,7 +247,7 @@ function MemberSection({ root, member }: { root: SdkRoot; member: Member }) {
             <dl className="asked">
               <div>
                 <dt>{t("docs.sdk.stage")}</dt>
-                <dd data-testid="sdk-stage">{member.stages?.length ? member.stages.map((s) => <Link key={s} to="/api/rules#the-loop" className="stage">{s}</Link>) : t("docs.sdk.stage_none")}</dd>
+                <dd data-testid="sdk-stage">{member.stages?.length ? member.stages.map((s) => <Link key={s} to="/guides/rules#the-loop" className="stage">{s}</Link>) : t("docs.sdk.stage_none")}</dd>
               </div>
               <div>
                 <dt>{t("docs.sdk.how_often")}</dt>
@@ -368,7 +368,7 @@ export function SdkRootPage({ root }: { root: SdkRoot }) {
       <div className="ref">
         <article className="prose ref-main">
           <header className="doc-head">
-            <Crumbs items={[{ title: t("docs.area.api"), path: "/api" }, { title: t("docs.sdk.group") }]} />
+            <Crumbs items={[{ title: t("docs.area.reference"), path: "/reference" }, { title: t("docs.sdk.group") }]} />
             <h1>{root.title}</h1>
             <p className="ref-type">
               <span className="type"><span className="type-name">{root.name}{"<P, S>"}</span><span className="type-fact"><code>@openseas/puzzle</code></span></span>
@@ -423,7 +423,7 @@ export function SdkRootPage({ root }: { root: SdkRoot }) {
               </ul>
             </>
           )}
-          <Pager area="api" path={sdkRootPath(root.root)} />
+          <Pager area="reference" path={sdkRootPath(root.root)} />
         </div>
       </div>
     </div>
@@ -508,7 +508,7 @@ export function SdkTypesPage() {
     <div className="doc" data-testid="sdk-types">
       <article className="prose">
         <header className="doc-head">
-          <Crumbs items={[{ title: t("docs.area.api"), path: "/api" }, { title: t("docs.sdk.group") }]} />
+          <Crumbs items={[{ title: t("docs.area.reference"), path: "/reference" }, { title: t("docs.sdk.group") }]} />
           <h1>{t("docs.sdk.types_title")}</h1>
           <p className="lede">{t("docs.sdk.types_lede")}</p>
         </header>
@@ -575,7 +575,7 @@ export function SdkTypesPage() {
         <h2 id="the-whole-surface">{t("docs.sdk.surface")}</h2>
         <p><Line text={t("docs.sdk.surface_blurb")} /></p>
         <Code code={ENGINE_DTS.trim()} lang="ts" title="engine.d.ts" tall />
-        <Pager area="api" path={SDK_TYPES_PATH} />
+        <Pager area="reference" path={SDK_TYPES_PATH} />
       </article>
     </div>
   );

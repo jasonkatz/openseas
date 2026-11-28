@@ -1,24 +1,26 @@
 import { expect, test, type Page } from "@playwright/test";
 import { PUZZLE_IDS } from "@openseas/engine";
-// The API pages are listed here, not imported: their module reads Markdown files, which only Vite can load.
-const API_PAGES = [
-  { slug: "", title: "The API" },
-  { slug: "quickstart", title: "Quickstart" },
-  { slug: "tune", title: "Tune" },
-  { slug: "own-rule", title: "Write a rule" },
-  { slug: "depth", title: "Add depth" },
-  { slug: "seats", title: "Seat more players" },
-  { slug: "write-a-puzzle", title: "The whole thing" },
-  { slug: "ship", title: "Ship it" },
-  { slug: "paths", title: "Paths, in full" },
-  { slug: "rules", title: "Writing rules" },
+// The pages of prose are listed here, not imported: their module reads Markdown files, which only Vite can load.
+const PROSE_PAGES = [
+  { path: "/guides", title: "Getting started" },
+  { path: "/reference", title: "Reference" },
+
+  { path: "/guides/quickstart", title: "Quickstart" },
+  { path: "/guides/tune", title: "Tune" },
+  { path: "/guides/own-rule", title: "Write a rule" },
+  { path: "/guides/depth", title: "Add depth" },
+  { path: "/guides/seats", title: "Seat more players" },
+  { path: "/guides/write-a-puzzle", title: "The whole thing" },
+  { path: "/guides/ship", title: "Ship it" },
+  { path: "/guides/paths", title: "Paths, in full" },
+  { path: "/guides/rules", title: "Writing rules" },
 ];
-const apiPath = (slug: string): string => (slug === "" ? "/api" : `/api/${slug}`);
 import { DOMAIN_PAGES, domainPath } from "../src/domain/pages.js";
 
 /**
- * Smoke: the site builds, its three areas open from the front page, every page of the domain and
- * the API renders, every guide renders with its pictures loaded, and nothing spills sideways.
+ * Smoke: the site builds, its four areas open from the front page, every page of the domain, the
+ * guides and the reference renders, every puzzle's page renders with its pictures loaded, old
+ * addresses lead to new ones, and nothing spills sideways.
  */
 
 const fits = (page: Page): Promise<boolean> => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
@@ -29,10 +31,13 @@ async function openNav(page: Page): Promise<void> {
   if (await menu.isVisible()) await menu.click();
 }
 
-test("the front page leads to all three areas", async ({ page }) => {
+test("the front page leads to all four areas", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1, name: "Puzzles, from the rules up" })).toBeVisible();
-  for (const area of ["domain", "api", "guides"]) await expect(page.getByTestId(`card-${area}`)).toBeVisible();
+  for (const area of ["domain", "guides", "reference", "puzzles"]) {
+    await expect(page.getByTestId(`card-${area}`)).toBeVisible();
+    await expect(page.getByTestId(`area-${area}`).first()).toBeAttached();
+  }
   expect(await fits(page)).toBe(true);
   await page.getByTestId("start").click();
   await expect(page).toHaveURL(/\/domain$/);
@@ -63,9 +68,9 @@ for (const p of DOMAIN_PAGES) {
   });
 }
 
-for (const p of API_PAGES) {
-  test(`the API page "${p.title}" renders`, async ({ page }) => {
-    await page.goto(apiPath(p.slug));
+for (const p of PROSE_PAGES) {
+  test(`the page "${p.title}" renders`, async ({ page }) => {
+    await page.goto(p.path);
     await expect(page.getByRole("heading", { level: 1, name: p.title })).toBeVisible();
     await expect(page.locator(".prose h2").first()).toBeVisible();
     expect(await fits(page)).toBe(true);
@@ -81,7 +86,7 @@ const OBJECTS = [
 
 for (const o of OBJECTS) {
   test(`the ${o.root} object is one page, with a section for every object inside it`, async ({ page }) => {
-    await page.goto(`/api/${o.root}`);
+    await page.goto(`/reference/${o.root}`);
     await expect(page.getByTestId(`ref-${o.root}`)).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toContainText(o.root);
     expect(await fits(page)).toBe(true);
@@ -97,17 +102,17 @@ for (const o of OBJECTS) {
     });
     expect(twice).toEqual([]);
     // An address under the object has no page.
-    await page.goto(`/api/${o.root}/nope`);
+    await page.goto(`/reference/${o.root}/nope`);
     await expect(page.getByTestId("not-found")).toBeVisible();
   });
 }
 
 test("an object's page names every value an enum takes, and opens at a field", async ({ page }) => {
-  await page.goto("/api/puzzle#round-tempo-kind");
+  await page.goto("/reference/puzzle#round-tempo-kind");
   const field = page.locator("#round-tempo-kind");
   await expect(field).toBeInViewport();
   for (const value of ["still", "ticking"]) await expect(field.locator(".values")).toContainText(value);
-  await page.goto("/api/types");
+  await page.goto("/reference/types");
   await expect(page.getByTestId("ref-types")).toBeVisible();
   expect(await fits(page)).toBe(true);
 });
@@ -118,7 +123,7 @@ test("the search finds a field of the reference", async ({ page }) => {
   await page.getByTestId("search").getByRole("searchbox").fill("logLimit");
   await expect(page.getByTestId("search-hit").first()).toContainText("logLimit");
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/api\/puzzle#round-loglimit$/);
+  await expect(page).toHaveURL(/\/reference\/puzzle#round-loglimit$/);
   await expect(page.locator("#round-loglimit")).toBeInViewport();
 });
 
@@ -132,7 +137,7 @@ test("the glossary narrows as it is typed into", async ({ page }) => {
 });
 
 test("an address with an anchor opens at its heading", async ({ page }) => {
-  await page.goto("/api/rules#the-loop");
+  await page.goto("/guides/rules#the-loop");
   await expect(page.locator("#the-loop")).toBeInViewport();
 });
 
@@ -145,7 +150,7 @@ const SDK = [
 
 for (const o of SDK) {
   test(`the SDK's ${o.root} page is one page, with a section and a signature for each member`, async ({ page }) => {
-    await page.goto(`/api/${o.root}`);
+    await page.goto(`/reference/${o.root}`);
     await expect(page.getByTestId(`sdk-${o.root}`)).toBeVisible();
     expect(await fits(page)).toBe(true);
     const sections = page.locator(".ref-section");
@@ -157,13 +162,13 @@ for (const o of SDK) {
       return ids.filter((id, i) => ids.indexOf(id) !== i);
     });
     expect(twice).toEqual([]);
-    await page.goto(`/api/${o.root}/nope`);
+    await page.goto(`/reference/${o.root}/nope`);
     await expect(page.getByTestId("not-found")).toBeVisible();
   });
 }
 
 test("a hook's section says when it is asked, what it is given and what each answer means", async ({ page }) => {
-  await page.goto("/api/hooks#canmove");
+  await page.goto("/reference/hooks#canmove");
   const hook = page.getByTestId("sdk-hooks-canMove");
   await expect(hook).toBeInViewport();
   await expect(hook.getByTestId("sdk-stage")).toContainText("Check");
@@ -171,16 +176,16 @@ test("a hook's section says when it is asked, what it is given and what each ans
   for (const value of ["null", "string"]) await expect(hook.getByTestId("sdk-returns").locator(".values")).toContainText(value);
   // A name in a signature leads to where it is defined.
   await hook.locator(".sig").first().getByRole("link", { name: "Move", exact: true }).click();
-  await expect(page).toHaveURL(/\/api\/sdk#move$/);
+  await expect(page).toHaveURL(/\/reference\/sdk#move$/);
   await expect(page.locator("#move")).toBeInViewport();
 });
 
 test("an event's builder is defined in the section of emit, and the SDK's types on one page", async ({ page }) => {
-  await page.goto("/api/context#e-arrive");
+  await page.goto("/reference/context#e-arrive");
   await expect(page.locator("#e-arrive")).toBeInViewport();
   await expect(page.locator("#e-arrive .values")).toContainText("in place");
   expect(await page.getByTestId("sdk-context-emit").getByTestId("sdk-inner").count()).toBe(14);
-  await page.goto("/api/sdk");
+  await page.goto("/reference/sdk");
   await expect(page.getByTestId("sdk-types")).toBeVisible();
   expect(await page.getByTestId("sdk-type").count()).toBeGreaterThan(25);
   expect(await fits(page)).toBe(true);
@@ -192,25 +197,25 @@ test("the search finds a hook and opens it", async ({ page }) => {
   await page.getByTestId("search").getByRole("searchbox").fill("onMoveEnd");
   await expect(page.getByTestId("search-hit").first()).toContainText("onMoveEnd");
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/api\/hooks#onmoveend$/);
+  await expect(page).toHaveURL(/\/reference\/hooks#onmoveend$/);
   await expect(page.getByTestId("search")).toHaveCount(0);
   await expect(page.getByRole("heading", { level: 3, name: "onMoveEnd", exact: true })).toBeInViewport();
 });
 
-test("the guides list every puzzle and link to Cooling", async ({ page }) => {
-  await page.goto("/guides");
-  await expect(page.getByRole("heading", { level: 1, name: "Puzzle guides" })).toBeVisible();
-  for (const id of PUZZLE_IDS) await expect(page.getByTestId(`guide-${id}`)).toBeVisible();
-  await page.getByTestId("guide-cooling").click();
-  await expect(page).toHaveURL(/\/guides\/cooling$/);
+test("the puzzles list every puzzle and link to Cooling", async ({ page }) => {
+  await page.goto("/puzzles");
+  await expect(page.getByRole("heading", { level: 1, name: "Puzzles" })).toBeVisible();
+  for (const id of PUZZLE_IDS) await expect(page.getByTestId(`puzzle-${id}`)).toBeVisible();
+  await page.getByTestId("puzzle-cooling").click();
+  await expect(page).toHaveURL(/\/puzzles\/cooling$/);
   await expect(page.getByRole("heading", { level: 1, name: "Cooling" })).toBeVisible();
   await page.getByTestId("back-home").click();
-  await expect(page).toHaveURL(/\/guides$/);
+  await expect(page).toHaveURL(/\/puzzles$/);
 });
 
 for (const id of PUZZLE_IDS) {
   test(`the ${id} guide renders every rung and loads its pictures`, async ({ page }) => {
-    await page.goto(`/guides/${id}`);
+    await page.goto(`/puzzles/${id}`);
     await expect(page.getByTestId(`guide-page-${id}`)).toBeVisible();
     for (const level of ["beginner", "intermediate", "advanced", "expert"]) {
       await page.getByTestId(`level-${level}`).click();
@@ -238,10 +243,32 @@ for (const id of PUZZLE_IDS) {
   });
 }
 
-test("a guide's old address leads to its new one", async ({ page }) => {
-  await page.goto("/cooling#expert");
-  await expect(page).toHaveURL(/\/guides\/cooling#expert$/);
-  await expect(page.getByTestId("level-expert")).toHaveAttribute("aria-selected", "true");
+test("a puzzle's old addresses lead to its new one", async ({ page }) => {
+  for (const old of ["/cooling#expert", "/guides/cooling#expert"]) {
+    await page.goto(old);
+    await expect(page).toHaveURL(/\/puzzles\/cooling#expert$/);
+    await expect(page.getByTestId("level-expert")).toHaveAttribute("aria-selected", "true");
+  }
+});
+
+test("the old API addresses lead to the guides and the reference", async ({ page }) => {
+  await page.goto("/api");
+  await expect(page).toHaveURL(/\/guides$/);
+  await page.goto("/api/tune");
+  await expect(page).toHaveURL(/\/guides\/tune$/);
+  await page.goto("/api/hooks#canmove");
+  await expect(page).toHaveURL(/\/reference\/hooks#canmove$/);
+  await expect(page.getByRole("heading", { level: 3, name: "canMove", exact: true })).toBeInViewport();
+  await page.goto("/api/puzzle#round");
+  await expect(page).toHaveURL(/\/reference\/puzzle#round$/);
+});
+
+test("the reference lists only the documents and the SDK", async ({ page }) => {
+  await page.goto("/reference");
+  await openNav(page);
+  const nav = page.getByTestId("side-nav");
+  for (const name of ["Overview", "Types", "Types and functions"]) await expect(nav.getByRole("link", { name, exact: true })).toBeVisible();
+  for (const name of ["Quickstart", "Tune", "Writing rules"]) await expect(nav.getByRole("link", { name, exact: true })).toHaveCount(0);
 });
 
 test("an address with no page says so", async ({ page }) => {

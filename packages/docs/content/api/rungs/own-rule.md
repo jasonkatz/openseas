@@ -37,7 +37,7 @@ export default puzzle("cooling", {
 });
 ```
 
-A part holds what it declares, here a piece and an event, beside the [hooks](/api/hooks) that work them. It is written the way a stock part is.
+A part holds what it declares, here a piece and an event, beside the [hooks](/reference/hooks) that work them. It is written the way a stock part is.
 
 | Idea | What it is |
 |---|---|
@@ -78,11 +78,11 @@ const heat = part<never, { heat: number }>({
 });
 ```
 
-A hook reads four things the engine keeps for it: [`score`](/api/view#score), [`streak`](/api/view#streak), [`step`](/api/context#step) and [`pending`](/api/context#pending), which is what the move would bank if it closed now. A host reads a part's state from `read(round).state`, under the part's name.
+A hook reads four things the engine keeps for it: [`score`](/reference/view#score), [`streak`](/reference/view#streak), [`step`](/reference/context#step) and [`pending`](/reference/context#pending), which is what the move would bank if it closed now. A host reads a part's state from `read(round).state`, under the part's name.
 
 ## When scoring is your own
 
-Where no growth curve gives what an event is worth, [`pointsFor`](/api/hooks#pointsfor) is handed the event and what the engine would pay, and answers what it is worth. Cooling pays more for clearing several groups in one step. Each clear from `lines` says how many cleared together, and the puzzle multiplies by it.
+Where no growth curve gives what an event is worth, [`pointsFor`](/reference/hooks#pointsfor) is handed the event and what the engine would pay, and answers what it is worth. Cooling pays more for clearing several groups in one step. Each clear from `lines` says how many cleared together, and the puzzle multiplies by it.
 
 ```ts
 pointsFor: (event, paid) => paid * ((event.fields.together as number | undefined) ?? 1),
@@ -100,4 +100,4 @@ Cooling as the game ships it is written on these two rungs in about 130 lines: i
 
 ## What you learned
 
-Four ideas: a hook, an event, a draw and state. The [rules SDK](/api/rules) is the reference for all of it.
+Four ideas: a hook, an event, a draw and state. The [rules SDK](/guides/rules) is the reference for all of it.

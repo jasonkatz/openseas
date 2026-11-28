@@ -16,11 +16,11 @@ export const SWAP_GEN: string = swapRaw;
 export const SDK_ROOTS: readonly SdkRoot[] = [HOOKS_ROOT, VIEW_ROOT, CONTEXT_ROOT];
 export const sdkRootOf = (root: string): SdkRoot | undefined => SDK_ROOTS.find((r) => r.root === root);
 
-export const SDK_TYPES_PATH = "/api/sdk";
-export const sdkRootPath = (root: SdkRootId): string => `/api/${root}`;
+export const SDK_TYPES_PATH = "/reference/sdk";
+export const sdkRootPath = (root: SdkRootId): string => `/reference/${root}`;
 /** The anchor of a hook or a member on its object's page. */
 export const memberAnchor = (member: Member): string => member.name.toLowerCase();
-export const memberPath = (root: SdkRootId, member: Member): string => `/api/${root}#${memberAnchor(member)}`;
+export const memberPath = (root: SdkRootId, member: Member): string => `/reference/${root}#${memberAnchor(member)}`;
 
 /** Every member of an object, in reading order. */
 export const membersOf = (root: SdkRoot): Member[] => root.groups.flatMap((g) => g.members);
@@ -54,12 +54,12 @@ export const definitionOf = (def: TypeDef): string => declOf(def.name).replace(/
 const NAMED: ReadonlyMap<string, string> = new Map<string, string>([
   ...TYPE_DEFS.map((d) => [d.name, `${SDK_TYPES_PATH}#${typeAnchor(d.name)}`] as const),
   ...ID_TYPES.map((v) => [v.value.replace(/<.*/, ""), `${SDK_TYPES_PATH}#ids`] as const),
-  ["Rules", "/api/hooks"],
-  ["View", "/api/view"],
-  ["Ctx", "/api/context"],
-  ["Board", "/api/view#board"],
-  ["Draw", "/api/context#draw"],
-  ["Changes", "/api/context#emit"],
+  ["Rules", "/reference/hooks"],
+  ["View", "/reference/view"],
+  ["Ctx", "/reference/context"],
+  ["Board", "/reference/view#board"],
+  ["Draw", "/reference/context#draw"],
+  ["Changes", "/reference/context#emit"],
 ]);
 export const namedPath = (name: string): string | undefined => NAMED.get(name);
 

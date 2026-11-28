@@ -38,7 +38,7 @@ export function GuidePage({ id }: { id: PuzzleId }) {
   return (
     <div className="guide" data-testid={`guide-page-${id}`}>
       <nav className="crumbs">
-        <Link to="/guides" className="back" data-testid="back-home">
+        <Link to="/puzzles" className="back" data-testid="back-home">
           ‹ {t("docs.all_guides")}
         </Link>
       </nav>

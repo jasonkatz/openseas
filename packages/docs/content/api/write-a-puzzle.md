@@ -1,4 +1,4 @@
-This page builds one small puzzle from an empty file with every key and every hook written by hand, so the whole API is seen doing its job. It is the long way on purpose. The short way to the same puzzle is the [quickstart](/api/quickstart). The puzzle is Swap: swap two touching pieces, and three or more of a kind in a line clear. The pieces below rise, new ones come in, and that can clear again.
+This page builds one small puzzle from an empty file with every key and every hook written by hand, so the whole API is seen doing its job. It is the long way on purpose. The short way to the same puzzle is the [quickstart](/guides/quickstart). The puzzle is Swap: swap two touching pieces, and three or more of a kind in a line clear. The pieces below rise, new ones come in, and that can clear again.
 
 It takes two files. The document says what exists. The rules say what a move does.
 
@@ -28,7 +28,7 @@ The board's size and the round's length are written as the ids of settings, not 
 
 ## 2. Declare the numbers
 
-Every number that tunes the puzzle is a [setting](/api/puzzle#settings), with a default, bounds and a description. A tuning panel is built from these, and every host holds a round to these bounds.
+Every number that tunes the puzzle is a [setting](/reference/puzzle#settings), with a default, bounds and a description. A tuning panel is built from these, and every host holds a round to these bounds.
 
 ```json
 {
@@ -281,7 +281,7 @@ declare function groupsOf(board: Board<Swap>): GridCell[][]; // every run of thr
 
 Read it for what is missing. The rules never add a point, never count a step of the cascade, never keep a streak, never count the swaps left and never decide the round is over. They never test their own deal either, and never look for a board with no swap left. Each of those was declared in the document, so the engine does it.
 
-This is every hook written by hand, the top rung. The [quickstart](/api/quickstart) makes the same puzzle from three stock parts in seven lines, and those lines expand to a document and hooks like the ones on this page.
+This is every hook written by hand, the top rung. The [quickstart](/guides/quickstart) makes the same puzzle from three stock parts in seven lines, and those lines expand to a document and hooks like the ones on this page.
 
 ## 9. Dress it
 
@@ -307,11 +307,11 @@ A skin gives every piece a drawing and every key a text. This is the start of on
 }
 ```
 
-Its cues and motion start as a copy of the theme's. The [skin object](/api/skin) has the rest.
+Its cues and motion start as a copy of the theme's. The [skin object](/reference/skin) has the rest.
 
 ## 10. Know it works
 
-Nobody writes a test to learn whether Swap ever stalls, or whether a round always ends. Every puzzle is run through the same [six tests](/api/rules#what-every-puzzle-is-tested-by), made from its document.
+Nobody writes a test to learn whether Swap ever stalls, or whether a round always ends. Every puzzle is run through the same [six tests](/guides/rules#what-every-puzzle-is-tested-by), made from its document.
 
 Swap then records a few witness rounds: a seed, settings, a log and the read each must give. From then on, a change that would make an old round replay differently fails the checks unless the puzzle's major version is raised.
 

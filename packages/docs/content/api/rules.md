@@ -45,9 +45,9 @@ export default defineRules<Swap, State>({
 | `P` | The puzzle's own type, made from its document. It is what lets the compiler know every id the puzzle declares |
 | `S` | The rules' own state: whatever the puzzle must remember that the engine does not already keep |
 
-Three hooks are required: [`onStart`](/api/hooks#onstart), [`canMove`](/api/hooks#canmove) and [`onMove`](/api/hooks#onmove). Every other hook has a default, so a puzzle writes only the ones it needs.
+Three hooks are required: [`onStart`](/reference/hooks#onstart), [`canMove`](/reference/hooks#canmove) and [`onMove`](/reference/hooks#onmove). Every other hook has a default, so a puzzle writes only the ones it needs.
 
-This is the top rung: every hook written by hand. A puzzle put together from [parts](/api/quickstart) writes none of these three, because its parts answer them. Its parts are merged into one object of hooks exactly like this one before a round starts, so everything on these pages holds for a part's hook too.
+This is the top rung: every hook written by hand. A puzzle put together from [parts](/guides/quickstart) writes none of these three, because its parts answer them. Its parts are merged into one object of hooks exactly like this one before a round starts, so everything on these pages holds for a part's hook too.
 
 ## The loop
 
@@ -75,7 +75,7 @@ A hook's name says which kind it is.
 | | A hook that starts with `on` | Any other hook |
 |---|---|---|
 | Is | Told that something happened | A question |
-| Is given | A [context](/api/context): the whole table | A [view](/api/view): what one seat may see |
+| Is given | A [context](/reference/context): the whole table | A [view](/reference/view): what one seat may see |
 | May | Report events, and return the next state | Answer |
 | Changes the round | Only through the events it reports | Never |
 
@@ -104,7 +104,7 @@ The same seed, settings and log must always make the same round. So a hook never
 
 | A hook never uses | It uses |
 |---|---|
-| `Math.random` | A [draw](/api/context#draw) the document declares |
+| `Math.random` | A [draw](/reference/context#draw) the document declares |
 | `Date` or a timer | The time on the entry, and ticks |
 | Anything global, a file or the network | Its arguments |
 

@@ -4,5 +4,37 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm --filter @openseas/docs build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "redirects": [
+    {
+      "source": "/api",
+      "destination": "/guides",
+      "permanent": true
+    },
+    {
+      "source": "/api/:page(puzzle|skin|theme|types|hooks|view|context|sdk)",
+      "destination": "/reference/:page",
+      "permanent": true
+    },
+    {
+      "source": "/api/:page(quickstart|tune|own-rule|depth|seats|write-a-puzzle|ship|rules|paths)",
+      "destination": "/guides/:page",
+      "permanent": true
+    },
+    {
+      "source": "/guides/:id(cooling|engines|plating|gunnery|navigation|battle|swordfight|salvage|overload|deflectors|reactor|scanner|tug|racks|cutting|tractor|refining|freefall|showdown|forging|assembly|pact|pouring)",
+      "destination": "/puzzles/:id",
+      "permanent": true
+    },
+    {
+      "source": "/:id(cooling|engines|plating|gunnery|navigation|battle|swordfight|salvage|overload|deflectors|reactor|scanner|tug|racks|cutting|tractor|refining|freefall|showdown|forging|assembly|pact|pouring)",
+      "destination": "/puzzles/:id",
+      "permanent": true
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }

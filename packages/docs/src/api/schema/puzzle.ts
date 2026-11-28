@@ -259,7 +259,7 @@ const settingFields: readonly Field[] = [
 ];
 
 const setting: Type = obj(settingFields, "setting");
-const settingLazy = lazy("setting", "Each is declared exactly as an entry of [`settings`](/api/puzzle#settings) is, with every key a setting has.", () => arr(setting, { noun: "settings" }));
+const settingLazy = lazy("setting", "Each is declared exactly as an entry of [`settings`](/reference/puzzle#settings) is, with every key a setting has.", () => arr(setting, { noun: "settings" }));
 
 const settings = page({
   key: "settings",
@@ -278,7 +278,7 @@ const settings = page({
     "`unit` is for `whole` and `list` only.",
     "`default` lies within `min` and `max`. For a list, every entry does, and the number of entries fits `entries`.",
     "A setting a layer brings exists only while that layer is on. Switching the layer off needs no value of its own.",
-    "What two settings must keep between them is a [relation](/api/puzzle#relations), not a bound.",
+    "What two settings must keep between them is a [relation](/reference/puzzle#relations), not a bound.",
   ],
   examples: [fromPaths("settings", ["roundSeconds", "kinds", "prizePermille", "loopPercent", "streakPercent"])],
 });
@@ -374,7 +374,7 @@ const opponents = page({
     "`ghosts` is true only where every seat has a board of its own: `board.shared` is false.",
     "A puzzle that hides any place from a seat brings at least one stand-in of its own.",
     "A puzzle with no stand-in of its own takes every one of the four types only if its rules answer `listMoves`.",
-    "A puzzle with `opponents` also declares [`placing`](/api/puzzle#placing), and says in [`evaluation`](/api/puzzle#evaluation) how its rounds are judged.",
+    "A puzzle with `opponents` also declares [`placing`](/reference/puzzle#placing), and says in [`evaluation`](/reference/puzzle#evaluation) how its rounds are judged.",
   ],
   examples: [
     {
@@ -477,7 +477,7 @@ const placing = page({
         ["rules", "By the rules' own answer to the `placing` hook, as a puzzle that places by chips does."],
       ),
       "What orders the sides.",
-      { must: "Have the rules answer [`placing`](/api/hooks#placing), where it is `rules`." },
+      { must: "Have the rules answer [`placing`](/reference/hooks#placing), where it is `rules`." },
     ),
   ]),
   rules: ["`placing` is present exactly when `opponents` is.", "`last-standing` needs a way for a side to go out: an event on which the rules say its seats are out of the round."],
@@ -770,7 +770,7 @@ const layers = page({
     ),
     { min: 1 },
   ),
-  rules: ["Every id in `brings` is a declared part of that kind.", "A part is brought by at most one layer. A part no layer brings is always there.", "Every layer is added by exactly one stage of the [ladder](/api/puzzle#ladder)."],
+  rules: ["Every id in `brings` is a declared part of that kind.", "A part is brought by at most one layer. A part no layer brings is always there.", "Every layer is added by exactly one stage of the [ladder](/reference/puzzle#ladder)."],
   examples: [fromPaths("layers", ["paths", "loops"])],
 });
 
@@ -915,7 +915,7 @@ const moves = page({
   ),
   rules: [
     "The puzzle's `verb` is the id of one of these.",
-    "A move with no place, such as a skip, is made with a [control](/api/puzzle#controls).",
+    "A move with no place, such as a skip, is made with a [control](/reference/puzzle#controls).",
     "No move ends a round. A round ends by its endings.",
     "Where the puzzle has phases, every move is listed by at least one phase.",
   ],
@@ -1038,7 +1038,7 @@ const gauges = page({
       "gauge",
     ),
   ),
-  rules: ["A puzzle with a [streak](/api/puzzle#streak) has a gauge for its count.", "A gauge a layer brings is shown only while that layer is on."],
+  rules: ["A puzzle with a [streak](/reference/puzzle#streak) has a gauge for its count.", "A gauge a layer brings is shown only while that layer is on."],
   examples: [fromPaths("gauges"), { title: "A gauge for each seat, with a danger line", value: { gauges: [{ id: "heat", description: "how hot the core runs", most: 100, danger: 50, each: "seat" }] } }],
 });
 
@@ -1050,7 +1050,7 @@ const stats = page({
   ideas: { title: "Stats", path: "/domain/moves-and-events#stats" },
   need: "required",
   type: arr(obj([req("id", id, "The stat's id. The skin labels it with the text `stat.<id>`."), req("description", sentence, "What it counts.")], "stat")),
-  rules: ["A puzzle with a [streak](/api/puzzle#streak) declares the stat `best_streak`. The rules keep the round's best streak in it."],
+  rules: ["A puzzle with a [streak](/reference/puzzle#streak) declares the stat `best_streak`. The rules keep the round's best streak in it."],
   examples: [fromPaths("stats", ["best_streak", "longest", "loops"])],
 });
 
@@ -1119,7 +1119,7 @@ const multipliers = page({
         req("id", id, "The multiplier's id."),
         req("description", sentence, "What it rewards."),
         req("scales", arr(ref("payout"), { min: 1, noun: "payout ids" }), "The payouts it scales. A payout it does not list is paid as it is."),
-        req("on", str("event ids"), "The events it applies on: `every`, or their ids joined by `or`. A [condition](/api/types#condition) may follow them after the word `when`, as in `loop when prizes > 0`."),
+        req("on", str("event ids"), "The events it applies on: `every`, or their ids joined by `or`. A [condition](/reference/types#condition) may follow them after the word `when`, as in `loop when prizes > 0`."),
         req(
           "by",
           or(
@@ -1142,7 +1142,7 @@ const multipliers = page({
   ),
   rules: [
     "`by` holds `percent`, or `table` with `index`. Never both forms.",
-    "`index: \"streak\"` needs the puzzle to declare a [streak](/api/puzzle#streak).",
+    "`index: \"streak\"` needs the puzzle to declare a [streak](/reference/puzzle#streak).",
     "`index: \"step\"` needs at least one event whose `step` is true.",
     "A percent of 100 leaves a payout as it is. A table's entries are percents too.",
   ],
@@ -1260,7 +1260,7 @@ const teaching = page({
   need: "required",
   type: obj([
     req("preview", bool, "Whether the board can tell what a move would do before it is made.", { must: "Have the rules answer a question of their own that previews a move, where it is true." }),
-    req("hint", bool, "Whether the puzzle offers a move worth making to a player who is stuck. A round that counts never hints, whatever this says.", { must: "Have the rules answer the [`hint`](/api/hooks#hint) hook, where it is true." }),
+    req("hint", bool, "Whether the puzzle offers a move worth making to a player who is stuck. A round that counts never hints, whatever this says.", { must: "Have the rules answer the [`hint`](/reference/hooks#hint) hook, where it is true." }),
   ]),
   examples: [fromPaths("teaching")],
 });
@@ -1285,8 +1285,8 @@ export const PUZZLE: RootObject = {
   title: "Puzzle",
   lede: "Everything about a puzzle except what a move does: its round, its board and pieces, its deal, what goes in, what comes out and what pays.",
   about: [
-    "The puzzle object is one JSON file, `<id>.puzzle.json`. It holds nothing from any world: no picture, no sound, no name a player reads. Those are its [skin](/api/skin)'s.",
-    "What a move does is the one thing it leaves to code: the [rules](/api/rules). Everything the rules name must be declared here, and everything declared here must be used by the rules.",
+    "The puzzle object is one JSON file, `<id>.puzzle.json`. It holds nothing from any world: no picture, no sound, no name a player reads. Those are its [skin](/reference/skin)'s.",
+    "What a move does is the one thing it leaves to code: the [rules](/guides/rules). Everything the rules name must be declared here, and everything declared here must be used by the rules.",
     "Every object inside it is defined below, on this page. Every key is present unless its section says it may be left out, and a list with nothing in it is written `[]`.",
   ],
   groups: [
@@ -1328,7 +1328,7 @@ export const PUZZLE: RootObject = {
   },
   example: {
     title: "Paths, in outline",
-    note: "Each object is cut to a line. The whole file is on [Paths, in full](/api/paths).",
+    note: "Each object is cut to a line. The whole file is on [Paths, in full](/guides/paths).",
     value: {
       id: PATHS.id,
       version: PATHS.version,
