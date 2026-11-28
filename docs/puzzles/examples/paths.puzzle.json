@@ -445,12 +445,12 @@
       "id": "streak",
       "description": "long paths in a row multiply everything",
       "scales": ["path", "inside", "prize_loop", "prize_floor", "defuse", "bounty"],
-      "on": "every event of a move and its cascade",
+      "on": "every",
       "by": {"table": "streakPercent", "index": "streak"}
     }
   ],
   "streak": {
-    "builds": {"event": "clear or loop", "when": "the path is streakMin long or more"},
+    "builds": {"event": "clear or loop", "when": "path >= streakMin"},
     "grace": 1,
     "breaksOn": ["blowup"]
   },

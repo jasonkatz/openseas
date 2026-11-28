@@ -1,0 +1,34 @@
+{
+  "name": "@openseas/puzzle",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The puzzle engine, written in rungs (ADR 0092 to ADR 0096): one loop that runs a whole puzzle document and a flat set of hooks, puzzle() with a default for every key, parts, and expand. Pure, with zero runtime dependencies.",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./examples/*": {
+      "types": "./examples/*.puzzle.ts",
+      "default": "./examples/*.puzzle.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "node ./scripts/check-purity.mjs",
+    "ready": "tsx scripts/promote.mjs ready",
+    "witness": "tsx scripts/promote.mjs witness",
+    "promote": "tsx scripts/promote.mjs promote"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@openseas/engine": "workspace:*",
+    "fast-check": "^4.1.0",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

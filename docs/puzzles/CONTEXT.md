@@ -24,7 +24,7 @@ _Avoid_: lifecycle, state machine
 
 **Hook**:
 A named place in the loop where the rules are asked, such as `onMove`, what a move does. One whose
-name starts with `on` reports events; any other is a question. Three are required, and every other
+name starts with `on` reports events; any other is a question. Three must be answered, by a part or by hand, and every other
 has a default.
 _Avoid_: callback, handler, name
 
@@ -32,6 +32,21 @@ _Avoid_: callback, handler, name
 A hook that only answers and never changes a round, such as whether a move is allowed or what a move
 would do. A board, a stand-in or a hint may ask one at any time.
 _Avoid_: query, getter, read
+
+**Part**:
+A slice of what a puzzle declares, with the hooks that work it, kept as one unit under a name, such as
+lines that clear. A puzzle's parts are merged into one document and one set of hooks before a round
+starts, so the loop never sees one.
+_Avoid_: module, plugin, component, mixin, part for anything else a puzzle declares
+
+**Stock part**:
+A part many puzzles share, kept beside the loop, such as a swap of two touching pieces or a refill.
+_Avoid_: built-in, preset, template
+
+**Reducer**:
+One function that owns a puzzle's whole round in place of the loop, for a puzzle whose round no other
+puzzle's is like. It is rare on purpose.
+_Avoid_: engine, custom loop
 
 **Round**:
 One play of a puzzle, from its start until one of its endings is met.
@@ -59,11 +74,12 @@ _Avoid_: rng, PRNG (that is how a stream is made)
 
 **Check**:
 A test a deal must pass before a player sees it, such as a move being possible, with its tries and a
-fallback that always passes.
+fallback that always passes. The loop holds it, never the rules. One that needs only a settled board
+asks for no move.
 _Avoid_: validation
 
 **Fallback**:
-What a check deals when every try fails. It always passes.
+What the rules deal for a check when every try fails. It always passes.
 
 **Bound**:
 A setting that caps what one draw can give, so no round is made by one windfall.
@@ -237,9 +253,19 @@ played.
 
 **Multiplier**:
 A percent that scales named payouts on an event: a setting, or an entry in a table indexed by the
-streak or by a cascade's step. Multipliers that meet multiply together, and the result is rounded
-down once for the event.
+streak or by a cascade's step. Multipliers that meet multiply together, and a move's total is rounded
+down once, when it is banked.
 _Avoid_: bonus (a bonus is a flat amount), factor
+
+**Condition**:
+One comparison on an event: a field of it or a setting, held against another or against a whole
+number. It is data the loop reads, and joins nothing with `and` or `or`.
+_Avoid_: predicate, rule (the rules are code), filter
+
+**Pending**:
+What the move being played would bank if it closed now. A hook reads it where a rule answers the
+points a move earns before the move is over.
+_Avoid_: running score, subtotal
 
 **Streak**:
 A run of successes that raises a multiplier through a table whose last entry holds. It builds on a
@@ -261,7 +287,8 @@ _Avoid_: error, fail (a fail is an ending)
 
 **Task**:
 A unit of work the deal sets within a round, such as a slab to cut or a clamp to fill, which ends when
-it is done, given up or out of time.
+it is done, given up or out of time. An open task **holds** whatever the rules gave it when they opened
+it, such as the kind a bounty names.
 _Avoid_: goal, objective, job
 
 **Grade**:
@@ -306,7 +333,7 @@ A value the puzzle gives to whatever is outside it, such as an outcome or its pa
 ## Depth
 
 **Layer**:
-A named group of rules that is either on or off.
+A named group of rules that is either on or off. Written as a part, it is a part a stage switches on.
 _Avoid_: feature, mode, level
 
 **Stage**:
@@ -556,6 +583,39 @@ What a move would do, told before it is made.
 
 **Hint**:
 A move worth making, offered to a player who is stuck. Never in a round that counts.
+
+## Writing a puzzle
+
+**Default**:
+What a key of the puzzle document is when a puzzle does not say, so a puzzle says only what is its
+own.
+
+**Expand**:
+To print the whole document a puzzle's parts and defaults make: what the loop runs.
+_Avoid_: compile, generate, eject
+
+**Explain**:
+To print which part answers each hook of a puzzle, and in what order.
+
+**Rung**:
+One level of writing a puzzle, from a few lines of stock parts up to the whole document and every
+hook. Each rung adds a few ideas to the one below and changes nothing already written.
+_Avoid_: ladder (a ladder is a puzzle's stages), level, step (a step is a cascade's), tier
+
+**Valid**:
+A puzzle that can be played: it has a board, a piece, a move and an ending, and rules that answer.
+Its rounds are scored and never judged, and the game cannot deal it.
+_Avoid_: draft, working
+
+**Ready**:
+A valid puzzle with everything a player is owed: its stages, tier starts, moment, fallbacks, witness
+rounds and skin. Only a ready puzzle is promoted.
+_Avoid_: done, complete, shippable
+
+**Promotion**:
+The step that lets the game deal a ready puzzle. It writes the puzzle document out whole, and from
+then on only that document holds the puzzle's numbers.
+_Avoid_: release, publish, ship
 
 ## Outside the puzzle
 

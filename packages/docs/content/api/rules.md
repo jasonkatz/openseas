@@ -8,7 +8,7 @@ The rules are a puzzle's code, and the only part of it that is code. They live i
 A rules file exports one object of hooks, passed through `defineRules`.
 
 ```ts title=swap.rules.ts
-import { defineRules } from "@openseas/engine";
+import { defineRules } from "@openseas/puzzle";
 import type { Swap } from "./swap.puzzle.gen";
 
 type State = {};
@@ -47,6 +47,8 @@ export default defineRules<Swap, State>({
 
 Three hooks are required: [`onStart`](/api/hooks#onstart), [`canMove`](/api/hooks#canmove) and [`onMove`](/api/hooks#onmove). Every other hook has a default, so a puzzle writes only the ones it needs.
 
+This is the top rung: every hook written by hand. A puzzle put together from [parts](/api/quickstart) writes none of these three, because its parts answer them. Its parts are merged into one object of hooks exactly like this one before a round starts, so everything on these pages holds for a part's hook too.
+
 ## The loop
 
 Every round runs the same loop. A hook is a named place in it where the rules are asked.
@@ -55,13 +57,13 @@ Every round runs the same loop. A hook is a named place in it where the rules ar
 
 | Stage | What happens | Hooks asked |
 |---|---|---|
-| Start | The round is made from its seed and settings, and its first phase opens | `onStart`, `onOpen` |
+| Start | The round is made from its seed and settings. The deal is held to its checks, and the first phase opens | `onStart`, `onFallback`, `onOpen` |
 | Wait | The loop works out who is awaited. A seat no player holds does not wait: it is played | `whoseTurn`, `onTurn`, `pickMove` |
 | Check | A move from a seat that is not awaited, or one the open phase does not take, is refused. Only then are the rules asked | `canMove` |
 | Move | The move is made. Where seats act together, every seat's move is made at once | `onMove` |
 | Cascade | What the move sets off, a step at a time, until a step reports nothing. The loop counts the steps | `onCascade` |
-| Move end | Asked once, when the cascade has run dry. What it reports may set the cascade off again | `onMoveEnd` |
-| Close | Points are paid and banked, the streak is kept, tasks are graded and dealt, phases close and open, and the endings are checked | `pointsFor`, `onTaskNeeded`, `onClose`, `onOpen` |
+| Move end | Asked when the cascade has run dry. What it reports may set the cascade off again, and only then is it asked once more | `onMoveEnd` |
+| Close | Points are paid and banked, the streak is kept, tasks are graded and dealt, a check that holds during play is held, phases close and open, and the endings are checked | `pointsFor`, `onTaskNeeded`, `onFallback`, `onClose`, `onOpen` |
 | End | An ending is met. The sides are placed, and the score is read for each seat | `onEnd`, `placing`, `score` |
 
 Wait to Close runs again for every entry until an ending is met. A tick goes to `onTick` and a signal goes to `onSignal`, where a move goes to `canMove` and `onMove`. Every entry and every tick then runs Cascade, Move end and Close, as a move does.
@@ -118,6 +120,7 @@ None of this is ever written in a rules file.
 - **Sight.** Building each seat's view and cutting each seat's copy of every event.
 - **Points.** Paying every payout and multiplier, banking, the floor at zero, and the streak.
 - **Cascades.** Counting the steps.
+- **The deal's checks.** Dealing on a copy, letting the cascade run there unseen and unpaid, trying the listed moves, and dealing again when none is worth making. The rules deal, and never test their own deal.
 - **Tasks.** Which are open, each one's grade, and what the grade pays.
 - **Endings.** Meeting them, placing the sides and reading the score.
 - **Stand-ins.** Playing any seat no player holds, through the same `canMove` and `onMove` as a player.
@@ -152,3 +155,4 @@ These are open while the engine is built. The pages here say what is decided and
 - The exact arguments of `onMove` in a phase where seats act together.
 - Jumping between phases. Phases run in the order declared.
 - Trying a move where a seat cannot see everything. Until then, such a puzzle brings its own stand-in.
+- What becomes of the rules' state when a board is dealt again during play, and how `onFallback` is told which check failed where a puzzle has more than one.

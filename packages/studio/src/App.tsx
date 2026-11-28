@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState, type ComponentType } from "react";
+import { lazy, Suspense, useEffect, useState, type ComponentType, type ReactNode } from "react";
 import type { PuzzleId } from "@openseas/engine";
 import type { TesterLink } from "@openseas/protocol";
 import { t } from "@openseas/boards";
@@ -29,9 +29,14 @@ import { PactPractice } from "./pages/PactPractice.jsx";
 import { PouringPractice } from "./pages/PouringPractice.jsx";
 import { RoundFrame, type FrameMode } from "./frame/RoundFrame.jsx";
 import { useMediaQuery } from "./practice/PracticeShell.jsx";
-import { STUDIO_PUZZLES } from "./puzzles.js";
+import { STUDIO_PUZZLES, type StudioPuzzle } from "./puzzles.js";
+import { advanceGunneryMirror } from "./rungs/mirror/gunnery.js";
+import { COOLING_RUNG, GUNNERY_RUNG, PATHS_RUNG } from "./rungs/mirrors.js";
 import { Router, useRoute } from "./router.jsx";
 import { fetchLink, looksLikeLinkId, type LinkLookup } from "./service/client.js";
+
+/** A puzzle on the new engine (ADR 0092) is its own chunk too: no puzzle's page loads that engine. */
+const SwapRung = lazy(() => import("./rungs/SwapRung.jsx").then((m) => ({ default: m.SwapRung })));
 
 /** The voyage bench is its own chunk: the puzzle pages never load the ship simulator or its charts. */
 const VoyageBench = lazy(() => import("./pages/VoyageBench.jsx").then((m) => ({ default: m.VoyageBench })));
@@ -62,6 +67,12 @@ const PAGES: Readonly<Record<PuzzleId, ComponentType>> = {
   pouring: PouringPractice,
 };
 
+const RUNGS: Record<string, { puzzle: StudioPuzzle<unknown, unknown, unknown>; page: ReactNode }> = {
+  "/rungs/cooling": { puzzle: COOLING_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <CoolingPractice entry={COOLING_RUNG} /> },
+  "/rungs/paths": { puzzle: PATHS_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <SalvagePractice entry={PATHS_RUNG} /> },
+  "/rungs/gunnery": { puzzle: GUNNERY_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <GunneryPractice entry={GUNNERY_RUNG} advance={advanceGunneryMirror} /> },
+};
+
 const isPuzzle = (id: string): id is PuzzleId => Object.hasOwn(PAGES, id);
 const PLAY = "/play/";
 
@@ -86,11 +97,34 @@ function Lanes() {
   if (path.startsWith(PLAY)) {
     const id = path.slice(PLAY.length).replace(/\/$/, "");
     if (isPuzzle(id)) return <Puzzle id={id} mode={new URLSearchParams(window.location.search).has(THUMB_PARAM) ? "thumb" : "play"} />;
+    const alone = RUNGS[`/${id}`];
+    if (alone)
+      return (
+        <RoundFrame key={`play/${id}`} mode="play" puzzle={alone.puzzle} link={null}>
+          {alone.page}
+        </RoundFrame>
+      );
     if (looksLikeLinkId(id)) return <LinkPlay key={id} id={id} />;
     return <Notice testId="play-unknown" title={t("play.unknown_title")} body={t("play.unknown")} />;
   }
   const id = path.slice(1);
   if (isPuzzle(id)) return <Puzzle id={id} mode={desktop ? "studio" : "play"} />;
+  // A shipped page and board with the new engine playing the round (ADR 0097).
+  const rung = RUNGS[path];
+  if (rung) {
+    const mode = desktop ? "studio" : "play";
+    return (
+      <RoundFrame key={`${mode}${path}`} mode={mode} puzzle={rung.puzzle} link={null}>
+        {rung.page}
+      </RoundFrame>
+    );
+  }
+  if (path === "/rungs/swap")
+    return (
+      <Suspense fallback={<p className="page muted">{t("app.loading")}</p>}>
+        <SwapRung />
+      </Suspense>
+    );
   if (path === "/voyage")
     return (
       <Suspense fallback={<p className="page muted">{t("app.loading")}</p>}>

@@ -1,0 +1,22 @@
+{
+  "kind-1": { "tint": "sand", "layers": [{ "name": "disc", "kind": "disc", "x": 12, "y": 12, "r": 9.6 }] },
+  "kind-2": { "tint": "sky", "layers": [{ "name": "square", "kind": "rect", "x": 3.2, "y": 3.2, "w": 17.6, "h": 17.6, "r": 2.6 }] },
+  "kind-3": { "tint": "rose", "layers": [{ "name": "wedge", "kind": "poly", "points": [12, 5.4, 19.4, 18.2, 4.6, 18.2], "round": 3.6 }] },
+  "kind-4": { "tint": "moss", "layers": [{ "name": "diamond", "kind": "poly", "points": [12, 3.8, 19.4, 12, 12, 20.2, 4.6, 12], "round": 3.2 }] },
+  "kind-5": { "tint": "lilac", "layers": [{ "name": "bar", "kind": "rect", "x": 2.2, "y": 7, "w": 19.6, "h": 10, "r": 5 }] },
+  "kind-6": {
+    "tint": "teal",
+    "layers": [
+      { "name": "upright", "kind": "rect", "x": 8.6, "y": 2.6, "w": 6.8, "h": 18.8, "r": 2 },
+      { "name": "across", "kind": "rect", "x": 2.6, "y": 8.6, "w": 18.8, "h": 6.8, "r": 2 }
+    ]
+  },
+  "kind-7": {
+    "tint": "rust",
+    "layers": [
+      { "name": "rim", "kind": "disc", "x": 12, "y": 12, "r": 9.8 },
+      { "name": "hole", "kind": "disc", "x": 12, "y": 12, "r": 4.6, "cut": true }
+    ]
+  },
+  "kind-8": { "tint": "slate", "layers": [{ "name": "star", "kind": "poly", "points": [12, 2.8, 14.6, 9.4, 21.2, 12, 14.6, 14.6, 12, 21.2, 9.4, 14.6, 2.8, 12, 9.4, 9.4], "round": 1.6 }] }
+}

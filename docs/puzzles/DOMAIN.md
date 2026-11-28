@@ -46,7 +46,9 @@ Every puzzle has one **tempo**: how its time moves.
 | Still | Nothing happens | Paths (Salvage): the board waits for the next path |
 | Ticking | The rules move on by themselves, one tick at a time | Overload: taps come back over time |
 
-A tick's length is fixed by the puzzle. It is never a setting. How long a seat may take over a move is
+A tick's length is fixed by the puzzle. It is never a setting. Ticks are counted from 1, and tick `n`
+falls at `n` times that length, so nothing happens as a round starts but its start. The last tick is the
+one on or before a clock's end. How long a seat may take over a move is
 not the puzzle's at all: the clock for a wait is the host's or a role's ([Sides](#sides)).
 
 ### Acting
@@ -296,6 +298,7 @@ own, shown as gauges.
 ### Stats
 
 A **stat** is a count the rules keep about a round, shown when it ends: the longest path, loops closed.
+A hook sets a stat on an event, and the loop keeps it. One that nothing has set stands at 0.
 
 ### Gauges
 
@@ -303,6 +306,9 @@ A **gauge** is a number a player watches while the round is played, besides the 
 rising line, cuts left, a crate's countdown. A puzzle declares each gauge with an id, a description, its
 most where it has one (a number or a setting), the point past which it means danger, such as heat
 past half or pings past par, and whether there is one for the round, for each seat or for each side. `read(round)` gives every gauge's value.
+
+A hook sets a gauge on an event, as it sets a stat, so the event carries the new value and a screen
+that sees only events can show it. The streak's count is the loop's own gauge, and no hook sets it.
 
 > Paths watches `prizes`, the prizes on the board out of at most `maxPrizes`, and `streak`, the long
 > paths in a row.
@@ -356,14 +362,32 @@ A layer brings the payouts that exist only while it is on.
 ### Multipliers
 
 A **multiplier** scales named payouts on an event by a percent. The percent is either a setting, or an
-entry in a table: a list setting indexed by the streak or by a cascade's step.
+entry in a table: a list setting indexed by the streak or by a cascade's step. It names the events it
+applies on: `every`, or their ids joined by `or`, with a condition after them where it has one.
 
-Multipliers that meet on one event multiply together, and the result is rounded down once, for the
-event, never once for each multiplier.
+Multipliers that meet on one event multiply together, and nothing is rounded as they do. A multiplier
+indexed by the streak holds for the whole move, so it is applied when the move is banked, to everything
+the move earned that it scales. The move's total is rounded down there, once: never once for each
+multiplier, and never once for each event. An event still shows what it is worth, rounded down, before
+any multiplier that holds for the whole move.
 
 > Paths' loop multiplier doubles the path payout when the path closes (`loopPercent`, 200). Its streak
 > multiplies every payout. A closed path of 6 on a streak at 130%: 6 × 6 = 36, doubled to 72, then 72
 > × 130% = 93.6, rounded down to 93.
+
+> A move of Cooling clears two groups of three at once, and is the second in a row to clear anything,
+> so it is paid at 110%. Each group pays 3, doubled for clearing together, so the two show 6 and 6. The
+> move banks 12 × 110% = 13.2, rounded down to 13.
+
+### Conditions
+
+A **condition** is one comparison on an event: a field of the event or a setting, one of `>=`, `>`,
+`<=`, `<`, `==` and `!=`, and another field, setting or whole number. A field that holds places counts
+as how many it holds. A condition joins nothing with `and` or `or` and does no arithmetic. Where a rule
+needs more, the rules report a field that says so and the condition reads it.
+
+> Paths' streak builds on a path that is long enough: `path >= streakMin`. Its moment is a loop that
+> holds a prize: `prizes > 0`.
 
 ### Cascades
 
@@ -379,12 +403,27 @@ A puzzle has at most one **streak**: a run of successes that raises a multiplier
 
 - what **builds** it: an event, with a condition on it, such as a path of five or more, or a task's
   grade, such as clean;
-- its **grace**: how many **misses** in a row it forgives before it breaks, where a miss is a move or a
-  task that builds nothing;
+- what it **counts**: moves, or events;
+- its **grace**: how many **misses** in a row it forgives before it breaks, as a number or a setting,
+  where a miss is a move or a task that builds nothing;
 - which **mistakes** break it at once.
 
 What it raises is a multiplier whose table is indexed by the streak: a list setting with an entry for
 each success in a row, whose last entry holds.
+
+A streak counts moves unless it says otherwise. A move builds it once, however many of its events
+would, and is paid at the streak it leaves. The first success in a row takes the table's first entry and
+the next takes the second. A miss within the grace takes the entry the streak still stands at, and a
+move that leaves no streak is paid as it is. A mistake breaks the streak after its move has been paid.
+A tick is no move: one that builds nothing is no miss.
+
+A streak that counts events is for a puzzle where successes come by themselves, several to a tick or
+none for many. Every event that builds it counts, and is paid at the streak it leaves. A mistake breaks
+it there and then, so what follows in the same tick is paid from the start of a new streak. Nothing is
+a miss, and it has no grace.
+
+> Paths counts moves: a long path builds its streak, and a short one is a miss. Gunnery counts events:
+> each full load builds its streak, two in one tick are two, and only a jam breaks it.
 
 The rules keep the round's best streak as the stat `best_streak`, and the streak's count as a gauge.
 
@@ -416,6 +455,9 @@ shown, since it would show what expertise takes; the player learns how well they
 grade when it ends.
 
 A task's grade can build the streak, and a payout can pay on a task ending with a given grade.
+
+A task is opened on an event, with what it **holds**: whatever the rules must remember of it, such as
+the kind a bounty names. It is finished on an event too. A hook reads the open task by its id.
 
 ### Difficulty
 
@@ -473,8 +515,14 @@ Each cell has one **terrain**: what the cell is, as opposed to the piece on it, 
 a port or a current. Terrain is plain unless the puzzle says otherwise, and it may have states, as a
 mirror that flips does. A cell holds at most one piece.
 
+A cell's terrain changes on an event, as a piece does: to another terrain, or to another state of the
+one it has. A terrain with states is in the first it declares unless the change names one.
+
 A puzzle either deals its terrain, as it deals pieces, or draws it by hand as **maps**. A puzzle with
-maps has a setting holding a list of them, and the seed picks one for each round.
+maps has a setting holding a list of them, and the seed picks one for each round. A map is a row for
+each row of the board, with a terrain for each cell. One that does not fit the board, or names terrain
+the puzzle does not have, is refused before a round starts. The rules lay the map out on an event, so a
+board drawn from events alone holds it.
 
 > Deflectors deals its mirrors, and Tug its blocks. Gunnery's decks and Space Battle's fields are maps.
 
@@ -559,7 +607,7 @@ A **draw** is one source of luck. A puzzle declares each with:
 |---|---|---|
 | Even roll | Each item alike, every time | Paths' debris: any of the `kinds` |
 | Weighted roll | Each item by its weight, or yes or no by a chance | Paths' prizes: `prizePermille` |
-| Bag | A shuffled set dealt out in order, then shuffled again | Gunnery's feed: every seven pieces hold the same seven |
+| Bag | A shuffled set dealt out in order, then shuffled again. Its setting is a list holding how many of each item a fill has, and the loop keeps what is left of it | Gunnery's feed: every seven pieces hold the same seven |
 | Pick | One entry of a list setting | Gunnery's deck, one of its maps |
 
 A draw belongs to a layer when only that layer's rules call for it.
@@ -583,13 +631,36 @@ changing hands never changes what is dealt.
 
 ### Checks
 
-A **check** is a test a deal must pass before a player sees it: a move can be made, or the task can be
-solved from what is shown. A puzzle declares each check with the draws it covers, how many **tries**
-the rules make, and a **fallback** for when every try fails. A fallback always passes, so no round is
-ever dealt one that fails. A deal that would force a guess fails its check.
+A **check** is a test a deal must pass before a player sees it: nothing is left to happen by itself,
+and a move worth making can be made. A puzzle declares each check with the draws it covers, how many
+**tries** it gets, and a **fallback** for when every try fails. A deal that would force a guess fails
+its check.
 
-A check can also hold during play. When the board has no move left, the rules deal it again, and an
-event says so.
+The loop holds a check, and the rules never do. What clears and what a move is are often two parts'
+rules ([Parts](#parts)), so neither could hold it alone. For each try the loop:
+
+1. Asks the rules to deal, on a copy of the round.
+2. Runs the cascade on the copy until it has run dry. Nobody sees it, and nothing it reports is paid.
+3. Tries every move the rules list. The deal passes when at least one sets off an event that counts as
+   a step, or pays.
+
+A check may ask for less. One that needs only a **settled** board stops after the second step: what
+would happen by itself has happened unseen, and no move is asked for. It is for a puzzle where a move
+that sets nothing off is still a move, as a swap that lines up the next one is in Cooling.
+
+A try that fails still uses its luck, so the next try deals differently. The player is shown one event:
+the board as the try that passed left it. So a puzzle with a check answers `listMoves`: it is the only
+way to ask whether a move is left without knowing the mechanic.
+
+When every try fails, the rules are asked for the fallback, in `onFallback`. What it deals is taken
+as it is, so it must pass. A puzzle that is valid and not yet ready may leave the fallback out
+([A puzzle is valid when](#a-puzzle-is-valid-when)). Its round then refuses to start, with an error
+that names the check, and no player is ever dealt a board that fails.
+
+A check can also hold during play. At the close of an entry, when no listed move is worth making, the
+loop deals the board again the same way, and the check's event says so. This time the rules deal onto
+the board as it stands. Whatever they leave alone stays where it is, so a puzzle chooses what is dealt
+again: Paths deals its plain pieces again and leaves a prize and a timed piece standing.
 
 > Paths checks that a path can be drawn, at the start and after every refill, in up to 50 tries. Its
 > fallback lays a path of `pathMin` pieces of one kind. When no path is left during play, the board is
@@ -632,8 +703,12 @@ waits on the host. Nothing a player is shown is ever false.
 ### Layers
 
 A **layer** is a named group of rules that is either on or off. It brings the pieces, events,
-settings, zones, gauges, controls, payouts, multipliers, tasks and draws that exist only while it is on. What a layer's rules cause elsewhere, such as a par rising
+settings, zones, gauges, stats, controls, payouts, multipliers, tasks and draws that exist only while it is on. What a layer's rules cause elsewhere, such as a par rising
 because there is more to plan around, is not the layer's concern.
+
+Until a round's stage reaches a layer, an event or a draw the layer brings is refused, and its payouts
+and multipliers pay nothing. Where a layer brings the streak's gauge, no streak is kept until that
+layer is on. Any hook may ask whether a layer is on.
 
 ### The ladder
 
@@ -750,8 +825,9 @@ differently, and the standing and ladder places built from it stand.
 
 ### Witness rounds
 
-Each puzzle keeps a few **witness rounds**: recorded rounds, each a seed, settings, log and the read
-it must give. A change that alters any of them without raising the major fails the checks, so the rule
+Each puzzle keeps a few **witness rounds**: recorded rounds, each a seed, a stage, settings, log and the
+read it must give. At least one is played on the whole puzzle. A witness holds the settings it was played
+with, so tuning a number moves none. A change that alters any of them without raising the major fails the checks, so the rule
 above does not rest on anyone noticing. Raising the major records them again.
 
 ## Sides
@@ -859,23 +935,25 @@ The **rules** are a puzzle's code, and the only part of it that is code. They ar
 on the **loop** every round runs. The loop is the same for every puzzle, and it keeps
 everything this guide gives one meaning: the log, time, seats and who holds them, who is awaited,
 phases, tasks, points and how they are banked, the streak, the endings, the placing and what each seat may
-see. The rules hold only what is the puzzle's own.
+see. The rules hold only what is the puzzle's own. They are written whole, or put together from parts ([Parts](#parts)).
 
 ### The loop
 
 | Stage | What happens | Hooks asked |
 |---|---|---|
-| Start | The round is made from its seed and settings, and its first phase opens | `onStart`, `onOpen` |
+| Start | The round is made from its seed and settings. The deal is held to its checks, and the first phase opens | `onStart`, `onFallback`, `onOpen` |
 | Wait | The loop works out who is awaited. A seat no player holds does not wait: it is played | `whoseTurn`, `onTurn`, `pickMove` |
 | Check | A move from a seat that is not awaited or not held, or one the open phase does not take, is refused. Only then are the rules asked, and a move they do not allow changes nothing. Its reason goes back to the board | `canMove` |
 | Move | The move is made. Where seats act together, every seat's move is made at once | `onMove` |
 | Cascade | What the move sets off, a step at a time, until a step reports nothing. The loop counts the steps | `onCascade` |
-| Move end | Asked once, when the cascade has run dry. What it reports may set the cascade off again, on the same count | `onMoveEnd` |
-| Close | Points are paid and banked, the streak is kept, tasks are graded and dealt, phases close and open, and the endings are checked | `pointsFor`, `onTaskNeeded`, `onClose`, `onOpen` |
+| Move end | Asked when the cascade has run dry. What it reports may set the cascade off again, on the same count, and only then is it asked once more | `onMoveEnd` |
+| Close | Points are paid and banked, the streak is kept, tasks are graded and dealt, a check that holds during play is held, phases close and open, and the endings are checked | `pointsFor`, `onTaskNeeded`, `onFallback`, `onClose`, `onOpen` |
 | End | An ending is met. The sides are placed, and the score is read for each seat | `onEnd`, `placing`, `score` |
 
 `start` runs Start. `play` runs Check to Close for one entry, after every tick that falls due before
-it, and Wait to Close runs again until an ending is met. A tick goes to `onTick` and a signal in to
+it, and Wait to Close runs again until an ending is met. An entry that is refused leaves its ticks
+unplayed, for whatever comes next. `advance` plays the ticks due by a time and nothing else, for a host
+showing a round between moves. A tick goes to `onTick` and a signal in to
 `onSignal`, where a move goes to `canMove` and `onMove`. Every entry and every tick runs Cascade, Move
 end and Close, as a move does.
 
@@ -888,11 +966,12 @@ way only: it reports events, and reads the board as each event leaves it. Every 
 
 | Hook | Asked | When the rules leave it out |
 |---|---|---|
-| `onStart` | Once, at Start: deal the board | Required |
+| `onStart` | At Start: deal the board. Where the puzzle has a check it is asked once for every try, and again when the board is dealt again during play | Required |
+| `onFallback` | Every try of a check has failed: deal a board that passes | The round refuses to start, or stops, and names the check |
 | `canMove` | May this seat make this move now, and if not, why. The loop has already checked the seat and the phase | Required |
 | `onMove` | What a move that passed the check does | Required |
 | `onCascade` | Again and again after a move, until it reports nothing: one step of what follows by itself | Nothing follows |
-| `onMoveEnd` | Once a move, when the cascade has run dry: what the end of the move brings | Nothing |
+| `onMoveEnd` | When the cascade has run dry: what the end of the move brings. It is asked again only when what it reported set the cascade off | Nothing |
 | `onTick` | Once for every tick, in order | Nothing happens between moves |
 | `onSignal` | A signal in arrives | It changes nothing |
 | `onTaskNeeded` | Fewer tasks are open than the puzzle declares: deal one, or say there is no room yet | The puzzle has no tasks |
@@ -902,7 +981,7 @@ way only: it reports events, and reads the board as each event leaves it. Every 
 | `onEnd` | An ending is met, and which. What it reports can pay | Nothing |
 | `whoseTurn` | In a phase in turn: which seat moves next, a player's included, or nobody | The next seat clockwise that is not sitting out |
 | `pickMove` | What a seat no player holds plays | One of the four stand-in types plays, where the rules answer `listMoves` |
-| `listMoves` | Which moves a seat can make now | None of the four types plays, and nothing can tell that a seat has no move left |
+| `listMoves` | Which moves a seat can make now | None of the four types plays, no check can be held, and nothing can tell that a seat has no move left |
 | `worth` | What a move is worth to a seat | The points it pays that seat now |
 | `pointsFor` | What an event is worth | The puzzle's payouts and multipliers pay |
 | `placing` | The sides in order, where the puzzle places by its rules | The loop places by points, or by the last side standing |
@@ -920,11 +999,14 @@ A hook added to this list later comes with a default, so no puzzle already writt
 
 ### What a hook reports through
 
-A hook that starts with `on` reports events, and on an event it may do four more things. Each is
+A hook that starts with `on` reports events, and on an event it may do seven more things. Each is
 refused when it names something the puzzle does not declare.
 
 | On an event | Does | Refused when |
 |---|---|---|
+| Set | Sets a gauge or a stat to a value | It is not declared, or it is the streak, which the loop keeps |
+| Open | Opens a task, with what it holds | As many are open as the task declares |
+| Done | Finishes the open task of that id, the oldest first | None is open |
 | Deal | Puts a piece from a draw straight into a place, unseen by the hook | The draw or the place is not declared |
 | Peek | Reads a piece the table cannot see | The event is not declared to reveal that place |
 | Sit out | A seat sits out of a phase, or is out of the round | The seat or the phase is not there |
@@ -957,11 +1039,28 @@ from a throwaway stream, so trying never shows the luck to come and never shifts
   seat moves is its delay, which the loop keeps.
 - **Tasks.** The loop keeps which tasks are open, grades each one, pays on the grade and meets the
   stock ending. The rules deal a task in `onTaskNeeded` and say on an event when one is done, wherever
-  that happens, a cascade included.
+  that happens, a cascade included. At the start, and at Close after any check, the loop asks
+  `onTaskNeeded` while fewer are open than the task declares, and stops when the rules open none.
+- **Gauges and stats.** The loop keeps what each one stands at. The rules set one on an event and read
+  it back by its id. The streak's count and the round's best streak are the loop's own.
 - **What a seat sees.** Every question is asked with only what its seat may see ([Sight](#sight)): its
   view. The hooks that start with `on` see the table, and read a hidden piece only by peeking.
-- **A board with no move left** has no hook of its own. The rules report it from `onMoveEnd`: the
-  round fails, the task ends, or the seat is out.
+- **A board with no move left.** Where a check holds during play, the loop deals the board again
+  ([Checks](#checks)). Where running out is the puzzle's own matter, the rules report it from
+  `onMoveEnd`: the round fails, the task ends, or the seat is out.
+- **Points.** The rules never add a point. The loop pays each event as it is reported and banks the
+  move at Close ([Multipliers](#multipliers)). A hook that starts with `on` may read four things of it:
+  the score banked so far, the streak, the step of the cascade, and what the move would bank if it
+  closed now. A rule that answers the score in the middle of a move, as Cooling's heat does, reads the
+  last.
+- **Steps.** Every event marked as a step that a hook reports in one asking is one step of the cascade,
+  and each carries its number, counted from 1.
+- **State.** What the rules remember that the loop does not keep is their state. A hook that starts
+  with `on` gives back the next state, or nothing to keep it, and a question only reads it. The cascade
+  a deal runs unseen leaves no state behind.
+- **Time.** A move is made at a time: whole milliseconds from the round's start, kept in the log beside
+  the move. A round with a clock refuses a move made at or after its end. The loop never ends a round
+  because time passed: a host reads the round at a time and is told whether its clock has run out.
 
 ### What every puzzle is tested by
 
@@ -975,7 +1074,91 @@ written by its author.
 | Hand-over | Changes holders and lapses seats at random entries | A round that stalls or replays differently after a hand-over |
 | Leaving | Ends every round at a random entry | A score the payouts cannot make, or a side with no place |
 | Board, for each seat | Draws the board from one seat's own events | A board that differs from that seat's view |
-| Declared is used | Looks for every declared phase, zone, ending, payout, draw and dial in play | A declared part the rules never use |
+| Declared is used | Looks for every declared phase, zone, ending, payout, draw and dial in play | Something declared that the rules never use |
+
+## Parts
+
+A puzzle can be written whole: every key of its document and every hook of its rules. Most are
+put together from parts instead. A **part** is a slice of what a puzzle declares, with the hooks that
+work it, kept as one unit under a name.
+
+> `lines` is a part. It brings a setting, `lineMin`, an event, `clear`, and the hook that finds every
+> line on the board and reports it cleared.
+
+Three things are parts, and all three are written the same way.
+
+| A part is | Such as |
+|---|---|
+| A **stock part**: a mechanic many puzzles share, kept beside the loop | Swapping two touching pieces, lines that clear, a refill |
+| A layer: a rule a player unlocks, with everything it brings | Paths' loops |
+| A rule of the puzzle's own that no stock part gives | A piece that clears everything around it |
+
+A part a stage switches on is a layer ([Layers](#layers)): the layer's id is the part's name, and it
+brings what the part declares. A part that is off is never asked, so its hooks do not test whether
+it is on. A puzzle lists its parts, all on from the first round, or its stages, and never both.
+
+### What the loop runs
+
+The loop never sees a part. Before a round starts, a puzzle's parts are merged into one whole
+document and one flat set of hooks. That pair is what the loop runs, and it is exactly what an author
+who uses no part writes by hand. Parts are a way of writing a puzzle, never a second way of running
+one.
+
+So nothing is hidden. To **expand** a puzzle is to print the whole document its parts make. To
+**explain** it is to print which part answers each hook, and in what order. Neither writes a file of
+merged rules: a part that is close and not right is copied, alone, into the author's own file and
+changed there. A stock part uses only what any part may use, so the copy is ordinary rules.
+
+### Defaults
+
+Every key of the document has a default, so a puzzle says only what is its own. A board, pieces, a
+move and an ending make a puzzle that plays.
+
+| Left unsaid | What it is |
+|---|---|
+| Settings | Every number written where a setting could be is one, with that number as its default |
+| Moves, events, draws and checks | What the parts bring |
+| Payouts | One point for every place an event names, on each event that carries points |
+| Layers and ladder | One stage, `full`, with every part on |
+| Evaluation and moment | None. The round is scored and not judged |
+| Text keys | Made from the ids |
+| Skin | A stock one: an outline for each kind, told apart without colour |
+| Everything else | Empty |
+
+### How parts meet
+
+Parts meet only through events and the board. A part never calls another and never reads another's
+state. One part swaps two pieces. Another finds a line on the board and clears it. A third finds the
+gaps and fills them. That is why merging needs only these rules.
+
+| When the loop | It asks |
+|---|---|
+| Tells the rules something happened: a start, a move, the end of a move | Every part with that hook, in the order the puzzle lists its parts. A puzzle may name the parts to be asked first |
+| Runs one step of a cascade | The parts in order, stopping at the first that reports anything. Its report is the step |
+| Asks whether a move is allowed | Every part with a say on that move, in order. The first reason given refuses it |
+| Asks for the moves a seat can make | Every part, and the answers are joined |
+| Asks any other question | The parts in order, and the first answer stands. `pointsFor` is the exception: each part is handed what the one before made of it |
+
+- **Ids are the puzzle's.** A setting, event, piece or draw has one id across the whole puzzle. Two
+  parts that declare the same id are refused, and the error names both.
+- **A part used twice** is given a name of its own for the second use, and what it declares is named
+  after it.
+- **State.** What a part remembers is kept under its name, and no other part reads it.
+- **One part shaping another's deal** goes through an option of the part that deals, such as a refill
+  told to mix in a special piece. No part reaches into another.
+- **A part may ask whether another layer is on.** It is for the part that deals what a later layer
+  brings: Paths' refill deals a prize only once the prizes layer is on. An option could not say it,
+  since an option is fixed when the puzzle is written and a stage is chosen when a round starts.
+
+### The reducer
+
+A puzzle whose round no other puzzle's is like may leave the loop: it writes one function that owns
+its whole round, a **reducer**. It still declares its settings, moves and events, so a host starts
+it, plays it and reads it as it does any puzzle, and a skin dresses it. The loop keeps nothing for
+it. A reducer is rare on purpose, and each new one is its own recorded decision.
+
+> Every seat committing a move in secret with all of them resolved at once is one puzzle's shape. A
+> board of its own for each seat, played in real time, is another's. Both are reducers.
 
 ## Motion
 
@@ -1002,6 +1185,10 @@ does. A board plays from events, never by comparing one state with the next.
 > pieces falling and the arrivals of new ones from above the board. `blowup` carries the changes of a
 > timed piece and its neighbours to `ruined`.
 
+A change that names a piece makes it that piece, whole: it keeps its id and nothing else, so a timed
+piece that is ruined keeps no kind and no count. A change that names only a kind or a state changes
+that alone.
+
 ### Playing it out
 
 One entry's events play in the order the rules report them. Everything in one cascade step plays
@@ -1021,7 +1208,8 @@ any entry with a good time.
 ### The moment and the beat
 
 A puzzle names its **moment**: the one event that is its biggest, an optional condition on it, and the
-number field that says how big each one is, with the value that counts as biggest. Which moment is
+field that says how big each one is, a number or places that are counted, with the value that counts as
+biggest. Which moment is
 biggest follows from scoring, so every skin of a puzzle agrees on it.
 
 The skin plays the **beat** on the moment: one pulse over the whole board, on top of every other
@@ -1169,11 +1357,11 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
   "deal": {
     "draws": [{ "id": "", "description": "", "gives": "kind | piece | place | map | task | number", "by": "even | weighted | bag | pick",
                 "when": "start | refill | task | tick | every: a setting", "reads": ["setting ids"], "shared": "between sides: true, or a stream a seat" }],
-    "checks": [{ "id": "", "description": "", "draws": ["draw ids"], "tries": "a number", "fallback": "one line: what is dealt, and why it passes", "during": "the event that says the board was dealt again, if it holds during play" }],
+    "checks": [{ "id": "", "description": "", "draws": ["draw ids"], "tries": "a number", "needs": "absent, or settled", "fallback": "one line: what is dealt, and why it passes", "during": "the event that says the board was dealt again, if it holds during play" }],
     "bounds": [{ "setting": "", "caps": "a draw id" }]
   },
   "layers": [{ "id": "", "rule": "one line", "brings": { "pieces": [], "events": [], "settings": [], "zones": [], "gauges": [], "controls": [],
-             "payouts": [], "multipliers": [], "tasks": [], "draws": [] } }],
+             "payouts": [], "multipliers": [], "tasks": [], "draws": [], "stats": [] } }],
   "ladder": [{ "stage": "", "adds": ["layer ids"], "advance": { "measure": "best-round | average-of-last | wins-over-stand-in | rounds-played", "threshold": "in the measure's unit" } }],
   "evaluation": { "tierStarts": "judged by score: { steady, sharp, masterful, legendary }", "by": "between sides: outcome | score", "paceWindowSeconds": "" },
   "signals": { "in": [{ "id": "", "type": "number | flag | outcome", "fields": { "<name>": "in place of a type: typed as a move's" }, "seat": "true when it is for one seat", "when": "on-change | sampled | at-end" }], "out": ["the same"] },
@@ -1181,15 +1369,15 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
   "moves": [{ "id": "", "description": "", "gesture": "tap | long-press | draw | drag | swipe | slice | turn | hold", "inHand": "true when built in hand",
               "fields": { "<name>": "place | places | direction | piece | number | flag" } }],
   "controls": [{ "id": "", "move": "the move it makes, or none for a switch", "key": "its letter" }],
-  "events": [{ "id": "", "description": "", "fields": { "<name>": "place | places | piece | seat | side | number | points" }, "mistake": "true when it is one",
+  "events": [{ "id": "", "description": "", "fields": { "<name>": "place | places | direction | piece | seat | side | number | points" }, "mistake": "true when it is one",
               "changes": ["arrive | leave | travel | change: the board changes it can carry"],
               "step": "true when it counts as a cascade step", "closes": "a phase id", "reveals": ["zone ids, or the board"] }],
-  "moment": { "event": "the event id", "when": "an optional condition on it", "size": "its number field", "most": "a number or a setting: the biggest" },
+  "moment": { "event": "the event id", "when": "an optional condition on it", "size": "its number field, or a places field, counted", "most": "a number or a setting: the biggest" },
   "payouts": [{ "id": "", "description": "", "on": ["event ids"], "counts": "the event's field it grows from", "growth": "flat | linear | superlinear | stepped",
                 "cap": "a number or a setting", "reads": ["setting ids"] }],
-  "multipliers": [{ "id": "", "description": "", "scales": ["payout ids"], "on": "the event, and the condition, it applies on",
+  "multipliers": [{ "id": "", "description": "", "scales": ["payout ids"], "on": "every, or event ids joined by or, and a condition after them where it has one",
                     "by": "{ percent: setting }, or { table: list setting, index: streak | step }" }],
-  "streak": "absent, or { builds: { event, when } or { grade }, grace, breaksOn: [mistake event ids] }",
+  "streak": "absent, or { builds: { event, when } or { grade }, counts: moves | events, grace: a number or a setting, breaksOn: [mistake event ids] }",
   "tasks": [{ "id": "", "description": "", "open": "how many at once", "ends": ["done | given-up | out-of-time"], "control": "given-up only", "setting": "out-of-time only",
               "graded": "par | best | none", "grades": ["from best"], "next": "dealt, or the control that asks for it" }],
   "gauges": [{ "id": "", "description": "", "most": "a number or a setting", "danger": "the value past which it means danger", "each": "round | seat | side" }],
@@ -1239,18 +1427,31 @@ A board's sizes, a zone's capacity and a gauge's most are each a number, or the 
 }
 ```
 
+### A puzzle is valid when
+
+A puzzle is **valid** when it can be played, and **ready** when it can be dealt to players. Valid asks
+little, so a first round is close. Everything that protects a player is asked at ready.
+
+- It has a board, a piece, a move and an ending.
+- The rules answer `onStart`, `canMove` and `onMove`, from a part or by hand.
+- Every id it names is declared, and no id is declared twice.
+- Where it declares a check, the rules answer `listMoves`.
+
+A valid puzzle plays wherever a round counts for nothing, as in the studio. Its rounds are scored and
+never judged, and the game cannot deal it.
+
 ### A puzzle is ready when
 
-- Every part of the puzzle is filled in.
+- It is valid, and every key of the puzzle document is filled in.
+- Its evaluation gives the tier starts.
 - The ladder has two to four stages, each layer is added by exactly one, and the last is `full`.
 - The rules know every layer, setting, relation, terrain, zone, piece, state, move, control, event,
   gauge, payout, multiplier, task, draw, check, phase, ending and signal the puzzle declares, and declare nothing it lacks. A host checks this before it runs a round.
 - The moment names one of the puzzle's events and a number field of it.
-- Every draw has a stream of its own, every check has a fallback that passes, and every place that
-  hides something has an event that reveals it.
+- Every draw has a stream of its own, every check has a fallback that passes and the rules answer
+  `onFallback`, and every place that hides something has an event that reveals it.
 - Every phase can close, every move belongs to a phase where the puzzle has phases, and every ending
   has a reason.
-- The rules answer `onStart`, `canMove` and `onMove`.
 - A puzzle between sides can list the moves a round allows, so it takes every type of stand-in, or it
   brings a stand-in of its own. It names its absent stand-in, and says how its sides are placed.
 - The puzzle keeps witness rounds, each still giving the read recorded for it, and a history line for
@@ -1263,8 +1464,25 @@ colours name its palette, every starting cue's notes are in its scale and within
 names its faces and sizes, it has a text for every host key, and it has a skin for every puzzle the
 host deals. A host checks this before it uses a theme.
 
-A puzzle that is not ready can still be edited and dressed. A puzzle with no rules yet cannot be
-played.
+A puzzle that is not ready can still be edited and dressed, and a valid one can be played. A puzzle
+with no rules yet cannot be played.
+
+### Promotion
+
+**Promotion** is the one step that lets the game deal a puzzle, and only a ready puzzle takes it. It
+also changes where the puzzle is kept.
+
+| | Where its numbers and declarations are | What its code holds |
+|---|---|---|
+| Before | In the code that lists its parts, written as briefly as its defaults allow | Everything |
+| After | In the puzzle document, written out whole, once | The list of its parts and its own hooks, and no number |
+
+So for every puzzle a player can meet, only the document holds a number, and whatever tunes a
+puzzle edits that one file. After promotion a number written in the code is refused.
+
+A promoted puzzle is built from its document and its parts. Each part must find in the document
+everything it works, and what a part would have declared for itself is not read. Promotion allows the
+game to deal a puzzle. Giving it a place in a world is a step of the world's own.
 
 ### Example
 

@@ -15,7 +15,7 @@ const KEYWORDS = new Set([
 
 /** Every hook the loop asks: named in code, they are what a reader looks for. */
 export const HOOKS = new Set([
-  "onStart", "canMove", "onMove", "onCascade", "onMoveEnd", "onTick", "onSignal", "onTaskNeeded", "onOpen", "onClose", "onTurn", "onEnd",
+  "onStart", "onFallback", "canMove", "onMove", "onCascade", "onMoveEnd", "onTick", "onSignal", "onTaskNeeded", "onOpen", "onClose", "onTurn", "onEnd",
   "whoseTurn", "pickMove", "listMoves", "worth", "pointsFor", "placing", "score", "hint", "checkSettings", "defineRules",
 ]);
 

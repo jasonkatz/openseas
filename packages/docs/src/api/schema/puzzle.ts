@@ -702,6 +702,9 @@ const deal = page({
             req("description", sentence, "What must be true of a deal."),
             req("draws", arr(ref("draw"), { min: 1, noun: "draw ids" }), "The draws it covers: the ones dealt again when a try fails."),
             req("tries", int(1), "How many times the rules deal again before they give up and use the fallback."),
+            opt("needs", lit("settled"), "What the check asks for, where it asks for less than a move worth making: only that nothing is left to happen by itself. No move is asked for, so the rules need not list their moves. It is for a puzzle where a move that sets nothing off is still a move.", {
+              absent: "Nothing is left to happen by itself, and at least one listed move sets off a step or pays.",
+            }),
             req("fallback", sentence, "What is dealt when every try fails, and why that always passes. A fallback always passes, so no round is ever dealt one that fails."),
             opt("during", ref("event"), "The event that says the board was dealt again, where the check also holds during play: when no move is left, the rules deal again and report this.", {
               absent: "The check holds only as the round starts.",
@@ -737,6 +740,7 @@ const BRINGS: readonly (readonly [string, Parameters<typeof ref>[0], string])[] 
   ["settings", "setting", "settings"],
   ["zones", "zone", "zones"],
   ["gauges", "gauge", "gauges"],
+  ["stats", "stat", "stats"],
   ["controls", "control", "controls"],
   ["payouts", "payout", "payouts"],
   ["multipliers", "multiplier", "multipliers"],
@@ -805,9 +809,9 @@ const ladder = page({
       ],
       "stage",
     ),
-    { min: 2, max: 4 },
+    { min: 1, max: 4 },
   ),
-  rules: ["A ladder has two to four stages.", "Each layer is added by exactly one stage, and no stage switches a layer off.", "The last stage is `full`, the whole puzzle. It has no `advance`. Every other stage has one."],
+  rules: ["A ladder has one to four stages. A ready puzzle's has at least two: one stage, `full`, is what a puzzle has before it says how it opens up.", "Each layer is added by exactly one stage, and no stage switches a layer off.", "The last stage is `full`, the whole puzzle. It has no `advance`. Every other stage has one."],
   examples: [fromPaths("ladder")],
 });
 
@@ -817,7 +821,8 @@ const evaluation = page({
   lede: "How a round is judged on the five tiers every puzzle shares.",
   about: ["Every round is judged as Green, Steady, Sharp, Masterful or Legendary. The tiers are the same for every puzzle, and the scale under them is the host's.", "A puzzle places its own scores on that scale by saying where four of the tiers start. Green starts at zero."],
   ideas: { title: "Judgement", path: "/domain/depth-and-judgement#judgement" },
-  need: "required",
+  need: { when: "the puzzle is ready" },
+  absent: "The puzzle is valid and not yet ready. Its rounds are scored and never judged.",
   type: obj([
     when(BETWEEN, "by", en(["outcome", "A round is judged by who won, weighted by the opponent's standing: beating a stronger opponent earns more."], ["score", "A round is placed through `tierStarts`, as a solo round is, whoever the opponent was."]), "How a round between sides is judged.", {
       never: "A solo puzzle. It is always judged by its score.",
@@ -955,7 +960,7 @@ const events = page({
       [
         req("id", id, "The event's id. The rules report it by this id.", { never: "`start`, `countdown` or `end`. Those three are the host's." }),
         req("description", sentence, "What happened."),
-        req("fields", map("<field>", "A name for the value.", fieldTypes("place", "places", "piece", "seat", "side", "number", "points")), "What it carries. An empty object for an event that carries nothing.", {
+        req("fields", map("<field>", "A name for the value.", fieldTypes("place", "places", "direction", "piece", "seat", "side", "number", "points")), "What it carries. An empty object for an event that carries nothing.", {
           never: "More than one field of type `points`.",
         }),
         opt("mistake", bool, "True when it is a mistake: something a player who plays well can always avoid. It costs points through a penalty payout, the streak, or both. What luck alone deals is never a mistake.", {
@@ -1002,14 +1007,15 @@ const moment = page({
   lede: "The one event that is the puzzle's biggest, and how big each one is.",
   about: ["Every skin plays its beat on the moment: one pulse over the whole board, stronger for a bigger moment. Which event is biggest follows from scoring, so the puzzle names it and every skin agrees."],
   ideas: { title: "The moment and the beat", path: "/domain/motion#the-moment-and-the-beat" },
-  need: "required",
+  need: { when: "the puzzle is ready" },
+  absent: "The puzzle is valid and not yet ready. No skin plays a beat.",
   type: obj([
     req("event", ref("event"), "The event."),
     opt("when", condition, "A condition on the event's fields. The beat plays only on an event that meets it.", { absent: "Every such event is a moment." }),
-    req("size", ref("event field"), "The field of the event that says how big this one is.", { must: "Name a field of `event` whose type is `number`." }),
+    req("size", ref("event field"), "The field of the event that says how big this one is.", { must: "Name a field of `event` whose type is `number`, or `places`, which are counted." }),
     req("most", amount, "The size that counts as biggest. A moment of this size or more gets the strongest pulse."),
   ]),
-  rules: ["`size` is a `number` field of the event `event` names."],
+  rules: ["`size` is a `number` or a `places` field of the event `event` names."],
   examples: [fromPaths("moment")],
 });
 
@@ -1081,7 +1087,7 @@ const payouts = page({
           "How its points rise with what it counts.",
         ),
         opt("cap", amount, "The count past which it grows no faster. A count above the cap pays as the cap does.", { absent: "It has no cap.", never: "A payout whose `growth` is `flat`." }),
-        req("reads", arr(ref("setting"), { min: 1, noun: "setting ids" }), "The settings that size it.", {
+        req("reads", arr(ref("setting"), { noun: "setting ids" }), "The settings that size it. A payout that reads none pays one point for each thing it counts, which is what a puzzle pays before it says otherwise. A ready puzzle's payout reads at least one.", {
           must: ["Name a setting of type `whole` for `flat`, `linear` and `superlinear`.", "Name a setting of type `list` for `stepped`."],
         }),
       ],
@@ -1101,7 +1107,10 @@ const multipliers = page({
   key: "multipliers",
   title: "multipliers",
   lede: "What scales the puzzle's payouts, and by how much.",
-  about: ["A multiplier scales named payouts on an event by a percent. Multipliers that meet on one event multiply together, and the result is rounded down once for the event, never once for each multiplier."],
+  about: [
+    "A multiplier scales named payouts on an event by a percent. Multipliers that meet on one event multiply together, and nothing is rounded as they do.",
+    "A multiplier indexed by the streak holds for the whole move. It is applied when the move is banked, to everything the move earned that it scales, and the move's total is rounded down there, once: never once for each multiplier, and never once for each event.",
+  ],
   ideas: { title: "Multipliers", path: "/domain/scoring#multipliers" },
   need: "required",
   type: arr(
@@ -1110,7 +1119,7 @@ const multipliers = page({
         req("id", id, "The multiplier's id."),
         req("description", sentence, "What it rewards."),
         req("scales", arr(ref("payout"), { min: 1, noun: "payout ids" }), "The payouts it scales. A payout it does not list is paid as it is."),
-        req("on", condition, "The event it applies on, and any condition on it. Written as an event's id where it is that plain."),
+        req("on", str("event ids"), "The events it applies on: `every`, or their ids joined by `or`. A [condition](/api/types#condition) may follow them after the word `when`, as in `loop when prizes > 0`."),
         req(
           "by",
           or(
@@ -1120,7 +1129,7 @@ const multipliers = page({
               description: "It scales by an entry of a list, read at a count the loop keeps. The last entry holds for every count past it.",
               type: obj([
                 req("table", ref("setting"), "The setting that holds the percents. Of type `list`."),
-                req("index", en(["streak", "The streak's count: the first entry for no streak, the next for one success in a row, and so on."], ["step", "The cascade's step: the first entry for what the move itself did, the next for the first step it set off."]), "Which count picks the entry."),
+                req("index", en(["streak", "The streak a move leaves: the first entry for the first success in a row, the next for the second, and so on. A move that leaves no streak is paid as it is."], ["step", "The cascade's step: the first entry for what the move itself did, the next for the first step it set off."]), "Which count picks the entry."),
               ]),
             },
           ),
@@ -1151,17 +1160,20 @@ const streak = page({
     req(
       "builds",
       or(
-        { label: "an event", description: "The streak grows when this event is reported and meets the condition.", type: obj([req("event", condition, "The event that builds it, by id. Where more than one does, their ids joined by `or`."), opt("when", condition, "A condition on the event.", { absent: "Every such event builds it." })]) },
+        { label: "an event", description: "The streak grows when this event is reported and meets the condition.", type: obj([req("event", str("event ids"), "The event that builds it, by id. Where more than one does, their ids joined by `or`."), opt("when", condition, "A condition on the event.", { absent: "Every such event builds it." })]) },
         { label: "a task's grade", description: "The streak grows when a task ends with this grade.", type: obj([req("grade", name, "The grade, as one of a task's `grades`.")]) },
       ),
       "What builds it.",
     ),
-    req("grace", int(0), "How many misses in a row it forgives before it breaks. A miss is a move, or a task, that builds nothing. At 0 the first miss breaks it."),
+    opt("counts", en(["moves", "A move builds it once, however many of its events would. A move that builds nothing is a miss."], ["events", "Every event that builds it counts, and is paid at the streak it leaves. A mistake breaks it there and then. Nothing is a miss."]), "What the streak counts.", { absent: "It counts moves." }),
+    req("grace", amount, "How many misses in a row it forgives before it breaks, as a number or the setting that holds it. A miss is a move, or a task, that builds nothing. At 0 the first miss breaks it."),
     req("breaksOn", arr(ref("event"), { noun: "event ids" }), "The mistakes that break it at once, whatever its grace. The list may be empty.", { must: "Name only events whose `mistake` is true." }),
   ]),
   rules: [
     "`builds` holds `event`, with or without `when`, or it holds `grade`. Never both forms.",
     "A streak built by a grade needs a task that has that grade.",
+    "A streak that counts moves is built once by a move, however many of its events would. A tick is no move, and one that builds nothing is no miss.",
+    "A streak that counts events has no misses, and its `grace` is 0.",
     "A puzzle with a streak has a multiplier whose `by.index` is `streak`, a gauge for the count, and the stat `best_streak`.",
   ],
   examples: [fromPaths("streak"), { title: "Built by a task's grade", value: { streak: { builds: { grade: "clean" }, grace: 0, breaksOn: [] } } }],
@@ -1298,20 +1310,20 @@ export const PUZZLE: RootObject = {
     { title: "Words and teaching", fields: [texts, teaching] },
   ],
   ready: {
-    intro: "A host checks all of this before it runs a round.",
+    intro: "A puzzle is **valid** when it has a board, a piece, a move and an ending, its rules answer `onStart`, `canMove` and `onMove`, every id it names is declared, and it can list its moves where it declares a check. A valid puzzle plays in the studio: its rounds are scored and never judged, and the game cannot deal it. It is **ready**, and may be promoted into the game, when all of this holds as well.",
     items: [
-      "Every required key is filled in.",
+      "Every required key is filled in, with `moment` and `evaluation` among them.",
       "The ladder has two to four stages, each layer is added by exactly one, and the last is `full`.",
+      "Every payout reads at least one setting.",
       "The rules know every part the puzzle declares, and the puzzle declares every part the rules name.",
       "The moment names one of the puzzle's events and a number field of it.",
-      "Every draw has a stream of its own, every check has a fallback that passes, and every place that hides something has an event that reveals it.",
+      "Every draw has a stream of its own, every check has a fallback that passes and the rules answer `onFallback`, and every place that hides something has an event that reveals it.",
       "Every phase can close, every move belongs to a phase where the puzzle has phases, and every ending has a reason.",
-      "The rules answer `onStart`, `canMove` and `onMove`.",
       "A puzzle between sides can list the moves a round allows, or brings a stand-in of its own. It names its absent stand-in and says how its sides are placed.",
       "The puzzle keeps witness rounds, each still giving the read recorded for it, and a history entry for its current version.",
       "Its skin has a drawing for every piece, state and kind, a cue for every cue an event names, a text for every key, a beat cue, and a motion for every board change.",
     ],
-    outro: "A puzzle that is not ready can still be edited and dressed. A puzzle with no rules yet cannot be played.",
+    outro: "A puzzle that is not ready can still be edited and dressed, and a valid one can be played. A puzzle with no rules yet cannot be played.",
   },
   example: {
     title: "Paths, in outline",

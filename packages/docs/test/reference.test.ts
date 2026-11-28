@@ -1,6 +1,9 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { budget, expand, grid, lines, puzzle, refill, swap } from "@openseas/puzzle";
+import gunnery from "@openseas/puzzle/examples/gunnery";
+import paths from "@openseas/puzzle/examples/paths";
 import { describe, expect, it } from "vitest";
 import { check } from "../src/api/schema/check.js";
 import { ALIASES, PUZZLE, ROOTS, SKIN, isPage, pageAnchor, pageView, pagesOf, rootNodes, type Field, type ObjectPage, type RootObject, type Type } from "../src/api/schema/index.js";
@@ -134,5 +137,29 @@ describe("the reference", () => {
       expect(anchors.filter((a, i) => anchors.indexOf(a) !== i), root.root).toEqual([]);
       for (const page of pagesOf(root)) for (const node of pageView(page).all) expect(node.anchor.startsWith(`${pageAnchor(page)}-`), node.anchor).toBe(true);
     }
+  });
+});
+
+/** The lowest rung is held to the same reference as a document written whole. */
+describe("a puzzle of seven lines", () => {
+  it("expands to a document the reference takes: valid, and not yet ready", () => {
+    const seven = puzzle("swap", { board: grid(6, 7), pieces: 5, parts: [swap(), lines(3), refill()], ends: budget(20) });
+    const document = JSON.parse(expand(seven)) as Record<string, unknown>;
+    expect(check(document, typeOf(PUZZLE), "swap")).toEqual([]);
+    // What it leaves for later is exactly what ready asks and valid does not.
+    expect("moment" in document || "evaluation" in document).toBe(false);
+    expect(document.ladder).toHaveLength(1);
+  });
+
+  it("and a puzzle of six parts over four stages expands to one too", () => {
+    const document = JSON.parse(expand(paths)) as Record<string, unknown>;
+    expect(check(document, typeOf(PUZZLE), "paths")).toEqual([]);
+    expect(document.ladder).toHaveLength(4);
+  });
+
+  it("and a ticking puzzle on a map, with terrain and a bag, expands to one too", () => {
+    const document = JSON.parse(expand(gunnery)) as Record<string, unknown>;
+    expect(check(document, typeOf(PUZZLE), "gunnery")).toEqual([]);
+    expect(document.round).toMatchObject({ tempo: { kind: "ticking", tickMs: 200 } });
   });
 });

@@ -1,5 +1,5 @@
 // Made from swap.puzzle.json. Never edited by hand.
-import type { GridCell, Points, Puzzle } from "@openseas/engine";
+import type { GridCell, Points, Puzzle } from "@openseas/puzzle";
 
 export interface Swap extends Puzzle {
   cell: GridCell;
@@ -22,4 +22,7 @@ export interface Swap extends Puzzle {
   payouts: "group";
   endings: "moves";
   standIns: never;
+  layers: "full";
+  counts: never;
+  tasks: never;
 }

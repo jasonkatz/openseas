@@ -4,24 +4,25 @@ import { GunneryBoard, GunneryPieceIcon, content, sfx, t, useTicked } from "@ope
 import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
-import { GUNNERY } from "../puzzles.js";
+import { GUNNERY, type StudioPuzzle } from "../puzzles.js";
 
 const gunnery = content.puzzles.gunnery;
 const waitAt = (tick: number): GunneryMove => ({ type: "wait", tick });
 
-export function GunneryPractice() {
+/** `entry` is the puzzle this page plays, and `advance` its engine's state at a later tick: the game's own, or the same puzzle on another engine (ADR 0097). */
+export function GunneryPractice({ entry = GUNNERY, advance = advanceGunnery }: { entry?: StudioPuzzle<GunneryState, GunneryMove, GunneryConfig>; advance?: (state: GunneryState, tick: number) => GunneryState } = {}) {
   const api = usePractice<GunneryState, GunneryMove, GunneryConfig>({
     puzzle: "gunnery",
-    def: GUNNERY.def,
+    def: entry.def,
     config: gunnery.config,
     roundSeconds: gunnery.roundSeconds,
     summarize: summarizeGunnery,
   });
-  const studio = useStudio(GUNNERY, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   // The clock runs on the round's own config: a lab round may have changed maxTick.
   const cfg = api.round?.config ?? gunnery.config;
-  const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceGunnery, wait: waitAt });
+  const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance, wait: waitAt });
   const shown = ticked.shown;
 
   const onArrow = useCallback(
@@ -100,6 +101,7 @@ export function GunneryPractice() {
   return (
     <PracticeShell
       puzzle="gunnery"
+      {...(entry === GUNNERY ? {} : { eyebrow: t("rungs.eyebrow") })}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}

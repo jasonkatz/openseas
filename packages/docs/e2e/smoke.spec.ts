@@ -3,7 +3,13 @@ import { PUZZLE_IDS } from "@openseas/engine";
 // The API pages are listed here, not imported: their module reads Markdown files, which only Vite can load.
 const API_PAGES = [
   { slug: "", title: "The API" },
-  { slug: "write-a-puzzle", title: "Write a puzzle" },
+  { slug: "quickstart", title: "Quickstart" },
+  { slug: "tune", title: "Tune" },
+  { slug: "own-rule", title: "Write a rule" },
+  { slug: "depth", title: "Add depth" },
+  { slug: "seats", title: "Seat more players" },
+  { slug: "write-a-puzzle", title: "The whole thing" },
+  { slug: "ship", title: "Ship it" },
   { slug: "paths", title: "Paths, in full" },
   { slug: "rules", title: "Writing rules" },
 ];
@@ -132,7 +138,7 @@ test("an address with an anchor opens at its heading", async ({ page }) => {
 
 // The rules SDK is listed here as the reference is: its three objects, and how many members each writes out in full.
 const SDK = [
-  { root: "hooks", sections: 21 },
+  { root: "hooks", sections: 22 },
   { root: "view", sections: 7 },
   { root: "context", sections: 2 },
 ];
@@ -173,7 +179,7 @@ test("an event's builder is defined in the section of emit, and the SDK's types 
   await page.goto("/api/context#e-arrive");
   await expect(page.locator("#e-arrive")).toBeInViewport();
   await expect(page.locator("#e-arrive .values")).toContainText("in place");
-  expect(await page.getByTestId("sdk-context-emit").getByTestId("sdk-inner").count()).toBe(11);
+  expect(await page.getByTestId("sdk-context-emit").getByTestId("sdk-inner").count()).toBe(14);
   await page.goto("/api/sdk");
   await expect(page.getByTestId("sdk-types")).toBeVisible();
   expect(await page.getByTestId("sdk-type").count()).toBeGreaterThan(25);

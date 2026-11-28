@@ -1,0 +1,8 @@
+/* The page a puzzle on the new engine plays on (ADR 0092). Colours are the look's tokens. */
+.rung { max-width: 30rem; }
+.rung-hud { display: flex; justify-content: space-between; margin: 0.75rem 0 0.5rem; font-variant-numeric: tabular-nums; }
+.rung-canvas { display: block; width: 100%; border-radius: 10px; border: 1px solid var(--line); touch-action: none; cursor: pointer; }
+.rung-canvas:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
+.rung-says { min-height: 1.5em; color: var(--dim); }
+.rung-actions { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+.rung pre { overflow: auto; max-height: 24rem; font-size: 0.8rem; }
