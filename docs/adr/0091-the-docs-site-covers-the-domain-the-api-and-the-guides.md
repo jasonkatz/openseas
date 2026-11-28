@@ -1,6 +1,6 @@
 # 0091. The docs site covers the domain, the API and the guides
 
-Status: Accepted. Builds on [0038](./0038-puzzle-guides-site.md), whose guides, captures and numbers from
+Status: Accepted. Decisions 1 and 6, and the reference's address in decision 3, are superseded by [0101](./0101-the-docs-site-has-four-areas.md). Builds on [0038](./0038-puzzle-guides-site.md), whose guides, captures and numbers from
 `content` it keeps, and changes where a guide lives on the site. Presents
 [0088](./0088-a-puzzles-rules-are-hooks-on-one-round-loop.md) and [0090](./0090-the-engine-keeps-the-table.md)
 without changing either.

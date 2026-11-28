@@ -333,7 +333,7 @@ export function RootRefPage({ root }: { root: RootObject }) {
       <div className="ref">
         <article className="prose ref-main">
           <header className="doc-head">
-            <Crumbs items={[{ title: t("docs.area.api"), path: "/api" }, { title: t("docs.ref.group.reference") }]} />
+            <Crumbs items={[{ title: t("docs.area.reference"), path: "/reference" }, { title: t("docs.ref.group.documents") }]} />
             <h1>{t("docs.ref.object", { name: root.root })}</h1>
             <p className="ref-type">
               <span className="type"><span className="type-name">object</span><span className="type-fact"><code>{root.file}</code></span></span>
@@ -388,7 +388,7 @@ export function RootRefPage({ root }: { root: RootObject }) {
             ))}
           </ul>
           {root.ready.outro && <p><Line text={root.ready.outro} /></p>}
-          <Pager area="api" path={rootPath(root.root)} />
+          <Pager area="reference" path={rootPath(root.root)} />
         </div>
       </div>
     </div>
@@ -419,7 +419,7 @@ export function TypesPage() {
     <div className="doc" data-testid="ref-types">
       <article className="prose">
         <header className="doc-head">
-          <Crumbs items={[{ title: t("docs.area.api"), path: "/api" }, { title: t("docs.ref.group.reference") }]} />
+          <Crumbs items={[{ title: t("docs.area.reference"), path: "/reference" }, { title: t("docs.ref.group.documents") }]} />
           <h1>{t("docs.ref.types_title")}</h1>
           <p className="lede">{t("docs.ref.types_lede")}</p>
         </header>
@@ -466,7 +466,7 @@ export function TypesPage() {
         <div className="ref-fields">
           <Values view={{ ...viewOf({ kind: "enum", values: Object.entries(FIELD_TYPES).map(([value, description]) => ({ value, description })) }, "", none) }} />
         </div>
-        <Pager area="api" path={TYPES_PATH} />
+        <Pager area="reference" path={TYPES_PATH} />
       </article>
     </div>
   );

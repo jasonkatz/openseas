@@ -275,7 +275,7 @@ export const ALIASES: readonly AliasDef[] = [
     name: "colour name",
     primitive: "string",
     description: "The name of one of the theme's colours. A skin never writes a colour's value: it names a colour, and the theme says what it is.",
-    detail: ["It is one of the seven fixed colours, the theme's own name for one of them, or one of the theme's piece colours. See the theme's [palette](/api/theme#palette)."],
+    detail: ["It is one of the seven fixed colours, the theme's own name for one of them, or one of the theme's piece colours. See the theme's [palette](/reference/theme#palette)."],
     examples: ["yours", "amber", "sky"],
   },
   {

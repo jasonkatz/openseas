@@ -673,10 +673,11 @@ What holds for all eight:
 
 ### 3.13 The docs site and its puzzle guides
 
-A separate site (ADR 0038, ADR 0091, `packages/docs`) in three areas. **Domain** is the puzzle domain
-guide a page at a time, with its glossary. **API** is the puzzle, skin and theme documents key by key
-and the rules SDK. **Puzzle guides** is one guide per puzzle, the game's seven and the eight
-prototypes alike: where a player learns a puzzle properly, while the start card in the game stays a
+A separate site (ADR 0038, ADR 0091, ADR 0101, `packages/docs`) in four areas. **Domain** is the puzzle
+domain guide a page at a time, with its glossary. **Guides** are the how-tos for writing a puzzle:
+getting started, the climb a rung at a time, writing rules and a whole example. **Reference** is only
+what drives the engine: the puzzle, skin and theme documents key by key, and the rules SDK.
+**Puzzles** is one guide per puzzle, the game's seven and the prototypes alike: where a player learns a puzzle properly, while the start card in the game stays a
 few lines. The site stands on its own and names no file of this repository. The rest of this section
 is about the guides.
 

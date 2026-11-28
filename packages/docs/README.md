@@ -1,16 +1,21 @@
 # The docs site
 
-The docs site at docs.openseas.online (ADR 0038, ADR 0091). A static Vite and React app with no server and no
-boards of its own. It has three areas.
+The docs site at docs.openseas.online (ADR 0038, ADR 0091, ADR 0101). A static Vite and React app with no
+server and no boards of its own. It has four areas.
 
 | Area | Address | What it holds | Written in |
 |---|---|---|---|
 | Domain | `/domain` | What a puzzle is, apart from any world, a page for each idea, and the glossary | `docs/puzzles/DOMAIN.md` and `docs/puzzles/CONTEXT.md`, read at build time |
-| API | `/api` | The puzzle, skin and theme objects field by field, and the rules SDK | `src/api/schema/*.ts` for the objects, `src/api/sdk/*.ts` and `content/api/sdk/engine.d.ts` for the rules SDK, `content/api/*.md` for the rest |
-| Puzzle guides | `/guides` | One page per puzzle that takes a player from a first round to expert play | `src/guides/<id>.ts`, with pictures captured from the real boards on the studio's `/play` pages (ADR 0042) |
+| Guides | `/guides` | The how-tos, read in order: getting started, the quickstart, the climb a rung at a time, writing rules, and Paths in full | `content/api/*.md` and `content/api/rungs/*.md`, listed in `src/api/pages.ts` |
+| Reference | `/reference` | Only what drives the engine: the puzzle, skin and theme objects field by field, their types, and the rules SDK, after one page on how to read them | `src/api/schema/*.ts` for the objects, `src/api/sdk/*.ts` and `content/api/sdk/engine.d.ts` for the rules SDK, `content/api/reference.md` for its front page |
+| Puzzles | `/puzzles` | One page per puzzle that takes a player from a first round to expert play | `src/guides/<id>.ts`, with pictures captured from the real boards on the studio's `/play` pages (ADR 0042) |
 
-The site stands on its own: a reader needs nothing from this repository. No page in Domain or API names an
-ADR or another file of the repo, and a test holds that.
+The site stands on its own: a reader needs nothing from this repository. No page in Domain, Guides or Reference names
+an ADR or another file of the repo, and a test holds that.
+
+Old addresses still arrive: `/api` and its how-tos go to `/guides`, its reference to `/reference/<object>`, and
+a puzzle's `/guides/<id>` and `/<id>` to `/puzzles/<id>`. `movedTo` in `src/site.ts` does it in the page, and
+`vercel.json`'s `redirects` on the host; `test/site.test.ts` holds the two to each other.
 
 ```
 pnpm --filter @openseas/docs dev        # the site, on :5175
@@ -38,9 +43,9 @@ The puzzle, skin and theme objects are typed data in `src/api/schema/` (`puzzle.
 
 | Address | Shows |
 |---|---|
-| `/api/<object>` | A top-level object, whole, on one page: its own fields, then a section for each object that belongs to it, with everything nested inside defined there |
-| `/api/<object>#<key>` | The section of one object that belongs to it. A field inside it is at `#<key>-<path>` |
-| `/api/types` | The primitive values and the named types fields share |
+| `/reference/<object>` | A top-level object, whole, on one page: its own fields, then a section for each object that belongs to it, with everything nested inside defined there |
+| `/reference/<object>#<key>` | The section of one object that belongs to it. A field inside it is at `#<key>-<path>` |
+| `/reference/types` | The primitive values and the named types fields share |
 
 - **A field** is `req`, `opt` or `when` (required in one case, refused in every other), with a type built from
   `src/api/schema/types.ts` and one description. An optional field says what leaving it out means (`absent`).
@@ -62,9 +67,9 @@ The SDK is declared in one file, `content/api/sdk/engine.d.ts`, and described as
 
 | Address | Shows |
 |---|---|
-| `/api/hooks`, `/api/view`, `/api/context` | The rules object, a view and a context, each whole on one page: a section for every hook or method, with its signature, its parameters, what it returns and when it is refused |
-| `/api/hooks#<hook>`, `/api/view#<member>`, `/api/context#<member>` | The section of one hook or method. What it holds is defined inside it, as an event's builder is in `emit`, at `#e-<name>` |
-| `/api/sdk` | The two functions, every type down to plain values, and the declarations whole |
+| `/reference/hooks`, `/reference/view`, `/reference/context` | The rules object, a view and a context, each whole on one page: a section for every hook or method, with its signature, its parameters, what it returns and when it is refused |
+| `/reference/hooks#<hook>`, `/reference/view#<member>`, `/reference/context#<member>` | The section of one hook or method. What it holds is defined inside it, as an event's builder is in `emit`, at `#e-<name>` |
+| `/reference/sdk` | The two functions, every type down to plain values, and the declarations whole |
 
 - **The declarations come first.** Change `engine.d.ts`, then the data. `test/sdk.test.ts` fails when a member
   or a type is declared and not documented, or documented and not declared, and when a signature, a

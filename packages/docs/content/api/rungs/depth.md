@@ -47,7 +47,7 @@ A round is started at a stage, and at the last one when none is named.
 const round = start(paths, { seed: 1, stage: "streak" });
 ```
 
-A part that is switched off is never asked, so the hook above does not test whether loops are on. Nothing the part declares exists yet either: the engine refuses its event and its draw, and its payouts pay nothing. A stage changes nothing but which parts are on, and the last stage, `full`, is the whole puzzle. In the document these are its [layers](/api/puzzle#layers) and its [ladder](/api/puzzle#ladder).
+A part that is switched off is never asked, so the hook above does not test whether loops are on. Nothing the part declares exists yet either: the engine refuses its event and its draw, and its payouts pay nothing. A stage changes nothing but which parts are on, and the last stage, `full`, is the whole puzzle. In the document these are its [layers](/reference/puzzle#layers) and its [ladder](/reference/puzzle#ladder).
 
 | Idea | What it is |
 |---|---|
@@ -100,7 +100,7 @@ const bounty = part<never, { last: number }>({
 });
 ```
 
-The engine keeps which tasks are open. Whenever fewer are open than the task declares, at the start of a round and as each move closes, it asks [`onTaskNeeded`](/api/hooks#ontaskneeded). A task holds whatever the rules gave it, here the kind, and any hook reads it with [`task`](/api/view#task).
+The engine keeps which tasks are open. Whenever fewer are open than the task declares, at the start of a round and as each move closes, it asks [`onTaskNeeded`](/reference/hooks#ontaskneeded). A task holds whatever the rules gave it, here the kind, and any hook reads it with [`task`](/reference/view#task).
 
 ## A gauge and a stat
 
@@ -112,7 +112,7 @@ stats: [{ id: "loops", description: "loops closed" }],
 ctx.emit("loop", { path, inside, prizes }, (e) => e.set("loops", ctx.value("loops") + 1));
 ```
 
-The engine keeps the value, and the event carries it, so a screen that sees only events can show every number. [`value`](/api/view#value) reads one back, and `read(round)` gives them all. A puzzle with a streak declares the gauge `streak` and the stat `best_streak`, and the engine keeps those two itself.
+The engine keeps the value, and the event carries it, so a screen that sees only events can show every number. [`value`](/reference/view#value) reads one back, and `read(round)` gives them all. A puzzle with a streak declares the gauge `streak` and the stat `best_streak`, and the engine keeps those two itself.
 
 ## A piece that changes
 
@@ -133,7 +133,7 @@ Paths is written on this rung as six parts over four stages, in about 330 lines.
 
 ## A puzzle that ticks
 
-Some puzzles move by themselves. In Gunnery pieces roll across a deck whether or not the player does anything. Such a puzzle sets its tempo, and a part answers [`onTick`](/api/hooks#ontick).
+Some puzzles move by themselves. In Gunnery pieces roll across a deck whether or not the player does anything. Such a puzzle sets its tempo, and a part answers [`onTick`](/reference/hooks#ontick).
 
 ```ts title=gunnery.puzzle.ts
 import { puzzle, part, ticking, grid, clock, budget } from "@openseas/puzzle";
@@ -170,7 +170,7 @@ const turrets = part({
 });
 ```
 
-A hook reads a cell with [`board.terrain`](/api/view#board-terrain) and [`board.terrainState`](/api/view#board-terrainstate), and changes one on an event, as it changes a piece. A cell off the board reads as `off`, so rules that look one step ahead of a piece need no check for the edge.
+A hook reads a cell with [`board.terrain`](/reference/view#board-terrain) and [`board.terrainState`](/reference/view#board-terrainstate), and changes one on an event, as it changes a piece. A cell off the board reads as `off`, so rules that look one step ahead of a piece need no check for the edge.
 
 A map is a board drawn by hand: a row for each row of the board, a terrain id for each cell. A puzzle keeps its maps in a setting of type `maps`, a draw picks one, and the rules lay it out on an event with `layMap`, so a screen can draw the deck from the event alone.
 

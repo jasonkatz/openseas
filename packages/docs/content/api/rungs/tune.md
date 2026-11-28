@@ -28,7 +28,7 @@ export default puzzle("cooling", {
 });
 ```
 
-A [setting](/api/puzzle#settings) is a number with a name. Wherever a number could be written, the name of a setting can be, as `grid("width", "height")` does. A bare number is a setting with that default. Give it bounds and a unit when you want a tuning panel to hold it to them.
+A [setting](/reference/puzzle#settings) is a number with a name. Wherever a number could be written, the name of a setting can be, as `grid("width", "height")` does. A bare number is a setting with that default. Give it bounds and a unit when you want a tuning panel to hold it to them.
 
 Because every number is a setting, a tuning panel can show each one and change it, and a round can be started on other values without touching the file.
 
@@ -42,9 +42,9 @@ The rules never add a point. You say what an event is worth, and the engine pays
 
 | Key | Says |
 |---|---|
-| [`payouts`](/api/puzzle#payouts) | What an event is worth: the event, what it counts, and how the points grow with the count |
-| [`multipliers`](/api/puzzle#multipliers) | What scales a payout: a step of a cascade, or a streak |
-| [`streak`](/api/puzzle#streak) | What builds the streak, and how many misses it forgives |
+| [`payouts`](/reference/puzzle#payouts) | What an event is worth: the event, what it counts, and how the points grow with the count |
+| [`multipliers`](/reference/puzzle#multipliers) | What scales a payout: a step of a cascade, or a streak |
+| [`streak`](/reference/puzzle#streak) | What builds the streak, and how many misses it forgives |
 
 The engine counts the steps of a cascade and keeps the streak. You never do.
 
@@ -56,7 +56,7 @@ console.log(round.last.banked);  // what the move added to the score
 console.log(read(round).streak);
 ```
 
-An event that carries points and has no payout pays one point for each piece it names, which is how the [quickstart](/api/quickstart) scored without saying anything.
+An event that carries points and has no payout pays one point for each piece it names, which is how the [quickstart](/guides/quickstart) scored without saying anything.
 
 ## A clock
 
@@ -70,7 +70,7 @@ A puzzle may have more than one ending: `ends: [clock("roundSeconds"), budget("m
 
 ## Conditions
 
-Some scoring carries a condition. A streak may build only on a long path, or a multiplier may apply only to a big clear. A [condition](/api/types#condition) is one comparison over an event's fields and the puzzle's settings, and nothing more.
+Some scoring carries a condition. A streak may build only on a long path, or a multiplier may apply only to a big clear. A [condition](/reference/types#condition) is one comparison over an event's fields and the puzzle's settings, and nothing more.
 
 ```ts
 streak: { builds: ["clear", "loop"], when: "path >= streakMin", grace: 1 },
@@ -81,4 +81,4 @@ It is data, like the rest of this rung. Someone who has never seen a hook can re
 
 ## What you learned
 
-Four ideas: a setting, a payout, a multiplier and a condition. When a rule of your puzzle fits none of them, the next rung is [a part of your own](/api/own-rule).
+Four ideas: a setting, a payout, a multiplier and a condition. When a rule of your puzzle fits none of them, the next rung is [a part of your own](/guides/own-rule).

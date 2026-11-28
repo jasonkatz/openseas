@@ -42,7 +42,7 @@ export default puzzle("pact", {
 |---|---|
 | Seat and side | A place at the table, and the team it plays for |
 | Phase | A stretch of a round that takes some moves and not others, such as bidding |
-| Sight | What each seat may see. A [zone](/api/puzzle#zones) says who sees its pieces, and the engine cuts every seat's copy of every event |
+| Sight | What each seat may see. A [zone](/reference/puzzle#zones) says who sees its pieces, and the engine cuts every seat's copy of every event |
 | Stand-in | A seat the engine plays when no player holds it |
 
 A hook is never handed a card its seat may not see, so no rule can leak one.

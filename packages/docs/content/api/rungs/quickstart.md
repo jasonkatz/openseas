@@ -61,7 +61,7 @@ A screen draws a round from its events alone. Each one carries what changed on t
 
 ## See all of it
 
-Nothing is hidden behind those seven lines. They make one whole [puzzle document](/api/puzzle) and one object of [hooks](/api/hooks), and that pair is all the engine ever runs. You can print both.
+Nothing is hidden behind those seven lines. They make one whole [puzzle document](/reference/puzzle) and one object of [hooks](/reference/hooks), and that pair is all the engine ever runs. You can print both.
 
 ```ts
 import { expand, explain } from "@openseas/puzzle";
@@ -88,10 +88,10 @@ Each rung adds a few ideas to the one below, and nothing you have written change
 | Rung | You write | You learn |
 |---|---|---|
 | Run and compose | This page | Round, move, board, pieces, part, ending |
-| [Tune](/api/tune) | Numbers and what pays, as data | Setting, payout, multiplier, condition |
-| [Write a rule](/api/own-rule) | A part of your own | Hook, event, draw, state |
-| [Add depth](/api/depth) | Stages a player unlocks, and more | Stage, task, gauge, tick |
-| [Seat more players](/api/seats) | Sides, turns and hidden hands | Seat, phase, sight, stand-in |
-| [The whole thing](/api/write-a-puzzle) | Every key and every hook, by hand | Everything the rungs below expand to |
+| [Tune](/guides/tune) | Numbers and what pays, as data | Setting, payout, multiplier, condition |
+| [Write a rule](/guides/own-rule) | A part of your own | Hook, event, draw, state |
+| [Add depth](/guides/depth) | Stages a player unlocks, and more | Stage, task, gauge, tick |
+| [Seat more players](/guides/seats) | Sides, turns and hidden hands | Seat, phase, sight, stand-in |
+| [The whole thing](/guides/write-a-puzzle) | Every key and every hook, by hand | Everything the rungs below expand to |
 
-When a puzzle is good enough for players, [Ship it](/api/ship) says what the game asks of it.
+When a puzzle is good enough for players, [Ship it](/guides/ship) says what the game asks of it.

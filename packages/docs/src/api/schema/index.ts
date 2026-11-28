@@ -14,8 +14,8 @@ export const rootOf = (root: string): RootObject | undefined => ROOTS.find((r) =
 /** The objects that belong to a top-level object, in the order its file is written. Each is a section of its page. */
 export const pagesOf = (root: RootObject): ObjectPage[] => root.groups.flatMap((g) => g.fields.filter(isPage));
 
-export const TYPES_PATH = "/api/types";
-export const rootPath = (root: Root): string => `/api/${root}`;
+export const TYPES_PATH = "/reference/types";
+export const rootPath = (root: Root): string => `/reference/${root}`;
 /** The anchor of an object's section on its top-level object's page. Every field inside it starts with it. */
 export const pageAnchor = (page: ObjectPage): string => page.key.toLowerCase();
 export const pagePath = (page: ObjectPage): string => `${rootPath(page.root)}#${pageAnchor(page)}`;
@@ -24,27 +24,27 @@ export const nodePath = (page: ObjectPage, node: Node): string => `${rootPath(pa
 
 /** Where the part a field names by id is declared. */
 const REF_PATHS: Record<RefTarget, string> = {
-  setting: "/api/puzzle#settings",
-  move: "/api/puzzle#moves",
-  control: "/api/puzzle#controls",
-  event: "/api/puzzle#events",
-  phase: "/api/puzzle#round-phases",
-  payout: "/api/puzzle#payouts",
-  layer: "/api/puzzle#layers",
-  piece: "/api/puzzle#pieces",
-  zone: "/api/puzzle#zones",
-  gauge: "/api/puzzle#gauges",
-  stat: "/api/puzzle#stats",
-  multiplier: "/api/puzzle#multipliers",
-  task: "/api/puzzle#tasks",
-  draw: "/api/puzzle#deal-draws",
-  check: "/api/puzzle#deal-checks",
-  "stand-in": "/api/puzzle#opponents-standins",
-  puzzle: "/api/puzzle",
-  theme: "/api/theme",
-  cue: "/api/skin#cues",
-  colour: "/api/theme#palette",
-  "event field": "/api/puzzle#events-fields",
+  setting: "/reference/puzzle#settings",
+  move: "/reference/puzzle#moves",
+  control: "/reference/puzzle#controls",
+  event: "/reference/puzzle#events",
+  phase: "/reference/puzzle#round-phases",
+  payout: "/reference/puzzle#payouts",
+  layer: "/reference/puzzle#layers",
+  piece: "/reference/puzzle#pieces",
+  zone: "/reference/puzzle#zones",
+  gauge: "/reference/puzzle#gauges",
+  stat: "/reference/puzzle#stats",
+  multiplier: "/reference/puzzle#multipliers",
+  task: "/reference/puzzle#tasks",
+  draw: "/reference/puzzle#deal-draws",
+  check: "/reference/puzzle#deal-checks",
+  "stand-in": "/reference/puzzle#opponents-standins",
+  puzzle: "/reference/puzzle",
+  theme: "/reference/theme",
+  cue: "/reference/skin#cues",
+  colour: "/reference/theme#palette",
+  "event field": "/reference/puzzle#events-fields",
 };
 export const refPath = (to: RefTarget): string => REF_PATHS[to];
 const refLabel = (to: RefTarget): string => (to === "cue" ? "cue name" : to === "event field" ? "field name" : t("docs.ref.id_of", { part: to }));

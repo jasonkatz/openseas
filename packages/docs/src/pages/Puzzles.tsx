@@ -10,7 +10,7 @@ function Card({ id }: { id: PuzzleId }) {
   const guide = GUIDES[id];
   return (
     <li>
-      <Link to={guidePath(id)} className="card" data-testid={`guide-${id}`}>
+      <Link to={guidePath(id)} className="card" data-testid={`puzzle-${id}`}>
         <span className="card-thumb">
           <img src={mediaUrl(id, guide.hero.name, "webp")} alt="" loading="lazy" decoding="async" />
         </span>
@@ -37,13 +37,13 @@ function Shelf({ heading, blurb, ids }: { heading: string; blurb: string; ids: r
   );
 }
 
-/** The list of guides: the game's own puzzles, then the prototypes. */
-export function Guides() {
+/** The Puzzles area's front page: the game's own puzzles, then the prototypes, each card leading to its guide. */
+export function Puzzles() {
   useTitle(t("docs.title"));
   return (
-    <div className="guides-home" data-testid="guides-home">
+    <div className="guides-home" data-testid="puzzles-home">
       <header className="doc-head">
-        <p className="eyebrow">{t("docs.area.guides")}</p>
+        <p className="eyebrow">{t("docs.area.puzzles")}</p>
         <h1>{t("docs.title")}</h1>
         <p className="lede">{t("docs.lede")}</p>
       </header>

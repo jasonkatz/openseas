@@ -15,7 +15,7 @@ export const FUNCTIONS: readonly Member[] = [
     params: [
       { name: "P", type: "Puzzle", description: "The puzzle's own type, made from its puzzle file and imported from `./<id>.puzzle.gen`. See [`Puzzle`](#puzzle)." },
       { name: "S", type: "any plain data", description: "The rules' own state: whatever the puzzle must remember that the engine does not already keep. Many puzzles use `{}`.", rules: [must("Be plain data: numbers, strings, booleans, `null`, and arrays and objects of them. No class, function, `Map`, `Set` or `Date`. The engine copies and compares it."), never("Hold a secret. The state is in every seat's view.")] },
-      { name: "rules", type: "Rules<P, S>", description: "The hooks. See [the rules object](/api/hooks)." },
+      { name: "rules", type: "Rules<P, S>", description: "The hooks. See [the rules object](/reference/hooks)." },
     ],
     returns: { type: "Rules<P, S>", description: "The same object, typed." },
     examples: [
@@ -41,7 +41,7 @@ export default defineRules<Swap, State>({
     kind: "function",
     signature: "zone<P extends Puzzle = Puzzle>(id: ZoneId<P>, owner?: Seat | Side): ZoneRef",
     description: "Names a zone, as a place for an event to send or deal a piece to.",
-    about: ["It names a zone and reads nothing. To read what a zone holds, use a view's or a context's [`zone`](/api/view#zone)."],
+    about: ["It names a zone and reads nothing. To read what a zone holds, use a view's or a context's [`zone`](/reference/view#zone)."],
     params: [
       { name: "id", type: "ZoneId<P>", description: "The id of one of the puzzle's zones. Written `zone<Tricks>(\"hand\", seat)`, a wrong id does not compile. Without the type, any string is taken and the engine checks it when the event is reported." },
       { name: "owner", type: "Seat | Side", optional: true, description: "Whose zone, for a zone each seat or each side has.", values: [{ value: "Seat", description: "A seat, for a zone each seat has." }, { value: "Side", description: "A side, for a zone each side has." }], absent: "The zone is the round's.", rules: [must("Be given for a zone each seat or each side has, and left out for one the round has.")] },
@@ -63,19 +63,19 @@ zone<Tricks>("won", side); // one side's, with the id checked`,
 const idRow = (name: string, of: string, where: string): Value => ({ value: name, description: `The id of one of the puzzle's ${of}, declared under ${where}.` });
 
 export const ID_TYPES: readonly Value[] = [
-  idRow("MoveId<P>", "moves", "[`moves`](/api/puzzle#moves)"),
-  idRow("EventId<P>", "events", "[`events`](/api/puzzle#events)"),
-  idRow("SignalId<P>", "signals in", "[`signals.in`](/api/puzzle#signals)"),
-  idRow("PhaseId<P>", "phases, however deep", "[`round.phases`](/api/puzzle#round-phases)"),
-  idRow("ZoneId<P>", "zones", "[`zones`](/api/puzzle#zones)"),
-  idRow("DrawId<P>", "draws", "[`deal.draws`](/api/puzzle#deal-draws)"),
-  idRow("PayoutId<P>", "payouts", "[`payouts`](/api/puzzle#payouts)"),
-  idRow("EndingId<P>", "endings", "[`round.ends`](/api/puzzle#round-ends)"),
-  idRow("StandInId<P>", "own stand-ins", "[`opponents.standIns`](/api/puzzle#opponents-standins)"),
-  idRow("TerrainId<P>", "terrain", "[`terrain`](/api/puzzle#terrain)"),
-  idRow("LayerId<P>", "layers", "[`layers`](/api/puzzle#layers)"),
-  idRow("CountId<P>", "gauges and stats", "[`gauges`](/api/puzzle#gauges) and [`stats`](/api/puzzle#stats)"),
-  idRow("TaskId<P>", "tasks", "[`tasks`](/api/puzzle#tasks)"),
+  idRow("MoveId<P>", "moves", "[`moves`](/reference/puzzle#moves)"),
+  idRow("EventId<P>", "events", "[`events`](/reference/puzzle#events)"),
+  idRow("SignalId<P>", "signals in", "[`signals.in`](/reference/puzzle#signals)"),
+  idRow("PhaseId<P>", "phases, however deep", "[`round.phases`](/reference/puzzle#round-phases)"),
+  idRow("ZoneId<P>", "zones", "[`zones`](/reference/puzzle#zones)"),
+  idRow("DrawId<P>", "draws", "[`deal.draws`](/reference/puzzle#deal-draws)"),
+  idRow("PayoutId<P>", "payouts", "[`payouts`](/reference/puzzle#payouts)"),
+  idRow("EndingId<P>", "endings", "[`round.ends`](/reference/puzzle#round-ends)"),
+  idRow("StandInId<P>", "own stand-ins", "[`opponents.standIns`](/reference/puzzle#opponents-standins)"),
+  idRow("TerrainId<P>", "terrain", "[`terrain`](/reference/puzzle#terrain)"),
+  idRow("LayerId<P>", "layers", "[`layers`](/reference/puzzle#layers)"),
+  idRow("CountId<P>", "gauges and stats", "[`gauges`](/reference/puzzle#gauges) and [`stats`](/reference/puzzle#stats)"),
+  idRow("TaskId<P>", "tasks", "[`tasks`](/reference/puzzle#tasks)"),
 ];
 
 const P = (name: string, type: string, description: string, extra: Partial<Param> = {}): Param => ({ name, type, description, ...extra });
@@ -97,8 +97,8 @@ export const TYPE_GROUPS: readonly TypeGroup[] = [
         description: "The shape every puzzle's type has. A puzzle's own type narrows each member to exactly what its file declares, which is what lets the compiler know every id.",
         detail: ["A member the puzzle declares none of is `never`: a puzzle with no zones has `zones: never`, and so `zone()` and `view.zone` cannot be called with any id."],
         fields: [
-          P("cell", "GridCell | RingCell", "The form of a cell on this puzzle's board: `GridCell` where [`board.shape`](/api/puzzle#board) is `grid`, `RingCell` where it is `rings`.", { values: [{ value: "GridCell", description: "The board is a grid." }, { value: "RingCell", description: "The board is rings." }] }),
-          P("settings", "{ [id]: number | boolean | readonly number[] | readonly (readonly string[])[] }", "Every setting by id, with the type its [`type`](/api/puzzle#settings-type) gives. See [how a setting reaches the rules](#how-a-setting-reaches-the-rules)."),
+          P("cell", "GridCell | RingCell", "The form of a cell on this puzzle's board: `GridCell` where [`board.shape`](/reference/puzzle#board) is `grid`, `RingCell` where it is `rings`.", { values: [{ value: "GridCell", description: "The board is a grid." }, { value: "RingCell", description: "The board is rings." }] }),
+          P("settings", "{ [id]: number | boolean | readonly number[] | readonly (readonly string[])[] }", "Every setting by id, with the type its [`type`](/reference/puzzle#settings-type) gives. See [how a setting reaches the rules](#how-a-setting-reaches-the-rules)."),
           P("moves", "{ [id]: object }", "Every move by id, with its fields typed. See [how a field reaches the rules](#how-a-field-reaches-the-rules)."),
           P("events", "{ [id]: object }", "Every event by id, with its fields typed. A field of type `points` is typed [`Points`](#points)."),
           P("signals", "{ [id]: unknown }", "Every signal in by id, with the type of the value it carries: one value, or an object of its fields."),
@@ -149,7 +149,7 @@ export const TYPE_GROUPS: readonly TypeGroup[] = [
         name: "Side",
         definition: "",
         description: "One side, as its number. Sides are numbered from 0.",
-        detail: ["How seats fall into sides is the puzzle's [`opponents.sides`](/api/puzzle#opponents). A solo puzzle has one side, 0. `sideOf` and `seatsOf` go between the two."],
+        detail: ["How seats fall into sides is the puzzle's [`opponents.sides`](/reference/puzzle#opponents). A solo puzzle has one side, 0. `sideOf` and `seatsOf` go between the two."],
         examples: ["0", "1"],
       },
     ],
@@ -183,7 +183,7 @@ export const TYPE_GROUPS: readonly TypeGroup[] = [
         name: "Spot",
         definition: "",
         description: "A numbered spot in a zone.",
-        fields: [P("zone", "ZoneRef", "Which zone, made with [`zone()`](#zone)."), P("spot", "number", "The spot, counted from 0. It is less than the zone's [`size`](/api/puzzle#zones).")],
+        fields: [P("zone", "ZoneRef", "Which zone, made with [`zone()`](#zone)."), P("spot", "number", "The spot, counted from 0. It is less than the zone's [`size`](/reference/puzzle#zones).")],
         examples: ["{ zone: zone(\"tray\"), spot: 2 }"],
       },
       {
@@ -231,7 +231,7 @@ export const TYPE_GROUPS: readonly TypeGroup[] = [
           { value: "\"down\"", description: "Away from row 0. On a grid." },
           { value: "\"left\"", description: "Towards column 0. On a grid." },
           { value: "\"right\"", description: "Away from column 0. On a grid." },
-          { value: "\"up-left\"", description: "Up and left at once. On a grid whose [`board.touch`](/api/puzzle#board) is 8." },
+          { value: "\"up-left\"", description: "Up and left at once. On a grid whose [`board.touch`](/reference/puzzle#board) is 8." },
           { value: "\"up-right\"", description: "Up and right. On a grid that touches on eight." },
           { value: "\"down-left\"", description: "Down and left. On a grid that touches on eight." },
           { value: "\"down-right\"", description: "Down and right. On a grid that touches on eight." },
@@ -260,7 +260,7 @@ export const TYPE_GROUPS: readonly TypeGroup[] = [
         detail: ["A piece a seat may not see reaches that seat's view with its `id` and nothing else. So every member but `id` may be `undefined`, and a rule that reads one says what it does then."],
         fields: [
           P("id", "PieceId", "Its id. Always there."),
-          P("piece", "P[\"pieces\"]", "Which of the puzzle's [`pieces`](/api/puzzle#pieces) it is, by id.", { optional: true, absent: "The piece is hidden from this view." }),
+          P("piece", "P[\"pieces\"]", "Which of the puzzle's [`pieces`](/reference/puzzle#pieces) it is, by id.", { optional: true, absent: "The piece is hidden from this view." }),
           P("kind", "number", "Its kind within its family, a whole number counted from 1.", { optional: true, absent: "The piece is hidden from this view, or its piece is not a family." }),
           P("state", "P[\"states\"]", "Its state: a name for a named state, a whole number for a count.", { optional: true, absent: "The piece is hidden from this view, or its piece has no states." }),
         ],
@@ -271,7 +271,7 @@ export const TYPE_GROUPS: readonly TypeGroup[] = [
         description: "What a piece is, for an event that puts one on the board. It has no `id`: the engine gives one.",
         fields: [
           P("piece", "P[\"pieces\"]", "Which of the puzzle's pieces it is, by id."),
-          P("kind", "number", "Its kind, a whole number from 1 up to the setting its family names.", { optional: true, absent: "The piece is not a family, and has no kind.", rules: [must("Be given for a piece whose [`family`](/api/puzzle#pieces) is set, and for no other.")] }),
+          P("kind", "number", "Its kind, a whole number from 1 up to the setting its family names.", { optional: true, absent: "The piece is not a family, and has no kind.", rules: [must("Be given for a piece whose [`family`](/reference/puzzle#pieces) is set, and for no other.")] }),
           P("state", "P[\"states\"]", "Its state.", { optional: true, absent: "The first of its named states, or 0 for a count. Left out for a piece with no states." }),
         ],
         examples: ["{ piece: \"kind\", kind: 3 }", "{ piece: \"prize\" }", "{ piece: \"timed\", kind: 2, state: 5 }"],
@@ -353,7 +353,7 @@ export const TYPE_GROUPS: readonly TypeGroup[] = [
           P("signal", "SignalId<P>", "The signal's id. Check it to tell signals apart, and `value` narrows with it."),
           P("seat", "Seat | null", "Who it is for.", {
             values: [
-              { value: "Seat", description: "One seat, where the signal's [`perSeat`](/api/puzzle#signals) is true." },
+              { value: "Seat", description: "One seat, where the signal's [`perSeat`](/reference/puzzle#signals) is true." },
               { value: "null", description: "The whole round." },
             ],
           }),
@@ -365,7 +365,7 @@ export const TYPE_GROUPS: readonly TypeGroup[] = [
         definition: "",
         description: "A task that is open: which task it is, and what it holds.",
         fields: [
-          P("task", "string", "The id of the task, one of the puzzle's [`tasks`](/api/puzzle#tasks)."),
+          P("task", "string", "The id of the task, one of the puzzle's [`tasks`](/reference/puzzle#tasks)."),
           P("holds", "{ readonly [name: string]: unknown }", "What the rules gave it when they opened it, such as the kind a bounty names. It is the rules' own, and the engine never reads it."),
         ],
       },
@@ -375,7 +375,7 @@ export const TYPE_GROUPS: readonly TypeGroup[] = [
         description: "One tick of a ticking puzzle.",
         fields: [
           P("n", "number", "Which tick this is, counted from 1. A whole number. The first tick falls one tick's length after the round starts."),
-          P("ms", "number", "The tick's time, in milliseconds since the round started. It is always `n` times the puzzle's [`tickMs`](/api/puzzle#round-tempo-tickms)."),
+          P("ms", "number", "The tick's time, in milliseconds since the round started. It is always `n` times the puzzle's [`tickMs`](/reference/puzzle#round-tempo-tickms)."),
         ],
       },
     ],

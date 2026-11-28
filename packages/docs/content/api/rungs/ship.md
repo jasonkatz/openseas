@@ -8,16 +8,16 @@ The rungs are about reaching a round you can play, quickly. Everything that prot
 | Ready | Everything below | Promotion |
 | Promoted | One command | The game may deal it to players |
 
-The seven lines of the [quickstart](/api/quickstart) are valid.
+The seven lines of the [quickstart](/guides/quickstart) are valid.
 
 ## What ready asks
 
 | It asks | Why |
 |---|---|
-| At least two stages | A new player meets a puzzle a few rules at a time. See [`ladder`](/api/puzzle#ladder) |
-| Where its tiers start | A round that counts is judged on the scale every puzzle shares. See [`evaluation`](/api/puzzle#evaluation) |
-| Its biggest moment, named | Every skin plays its beat on the same event. See [`moment`](/api/puzzle#moment) |
-| A fallback for every check | When luck fails every try, the rules lay a board that is sure to pass. See [`onFallback`](/api/hooks#onfallback) |
+| At least two stages | A new player meets a puzzle a few rules at a time. See [`ladder`](/reference/puzzle#ladder) |
+| Where its tiers start | A round that counts is judged on the scale every puzzle shares. See [`evaluation`](/reference/puzzle#evaluation) |
+| Its biggest moment, named | Every skin plays its beat on the same event. See [`moment`](/reference/puzzle#moment) |
+| A fallback for every check | When luck fails every try, the rules lay a board that is sure to pass. See [`onFallback`](/reference/hooks#onfallback) |
 | Every payout sized by a setting | So nothing a player earns is a number nobody can tune |
 | A text for every key and a skin of its own | The stock skin and words made from ids are for building, not for players |
 | Witness rounds, and a version | Recorded rounds that must keep replaying the same, so a change cannot quietly move an old score |
@@ -103,4 +103,4 @@ Promotion allows the game to deal a puzzle. Giving it a place in a world is the 
 
 ## What stays the same
 
-`expand` and `explain` work before and after. A promoted puzzle's document is what `expand` printed on the day it was promoted, and every [key of it](/api/puzzle) is the reference's.
+`expand` and `explain` work before and after. A promoted puzzle's document is what `expand` printed on the day it was promoted, and every [key of it](/reference/puzzle) is the reference's.

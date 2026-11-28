@@ -1,7 +1,7 @@
 import { CORE_PUZZLE_IDS, PROTOTYPE_PUZZLE_IDS, PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
-import { API_GROUPS, RUNGS_GROUP, apiContent, apiPath } from "./api/pages.js";
-import { ALIASES, ROOTS, TYPES_PATH, isPage, nodePath, pagePath, pageView, pagesOf, rootNodes, rootPath } from "./api/schema/index.js";
-import { FUNCTIONS, SDK_ROOTS, SDK_TYPES_PATH, TYPE_DEFS, innerAnchor, memberPagesOf, memberPath, membersOf, sdkRootPath, typeAnchor } from "./api/sdk/index.js";
+import { API_PAGES, GUIDE_GROUPS, REFERENCE_INTRO, apiContent, apiPath } from "./api/pages.js";
+import { ALIASES, ROOTS, rootOf, TYPES_PATH, isPage, nodePath, pagePath, pageView, pagesOf, rootNodes, rootPath } from "./api/schema/index.js";
+import { FUNCTIONS, SDK_ROOTS, sdkRootOf, SDK_TYPES_PATH, TYPE_DEFS, innerAnchor, memberPagesOf, memberPath, membersOf, sdkRootPath, typeAnchor } from "./api/sdk/index.js";
 import { t } from "./content.js";
 import { GLOSSARY } from "./domain/glossary.js";
 import { domainContent } from "./domain/guide.js";
@@ -9,15 +9,41 @@ import { DOMAIN_GROUPS, GLOSSARY_SLUG, domainPath } from "./domain/pages.js";
 import { GUIDES } from "./guides/index.js";
 import { firstLine } from "./md/parse.js";
 
-/** The site's three areas, in the order the top bar lists them. */
-export const AREAS = ["domain", "api", "guides"] as const;
+/**
+ * The site's four areas, in the order the top bar lists them: what a puzzle is, how to write one,
+ * the reference for every document and hook, and a page for each puzzle.
+ */
+export const AREAS = ["domain", "guides", "reference", "puzzles"] as const;
 export type Area = (typeof AREAS)[number];
 
 export const areaPath = (area: Area): string => `/${area}`;
-export const guidePath = (id: PuzzleId): string => `/guides/${id}`;
+/** A puzzle's own page, its guide from a first round to expert play. */
+export const guidePath = (id: PuzzleId): string => `/puzzles/${id}`;
 
 export function areaOf(path: string): Area | null {
   return AREAS.find((a) => path === `/${a}` || path.startsWith(`/${a}/`)) ?? null;
+}
+
+const isPuzzle = (id: string): id is PuzzleId => (PUZZLE_IDS as readonly string[]).includes(id);
+
+/**
+ * Where an old address now lives, or null. The API area was split in two: its how-tos are Guides at
+ * `/guides/<page>`, and its reference is Reference at `/reference/<object>`. The puzzle guides it sat
+ * beside moved from `/guides/<id>` to `/puzzles/<id>`, and before that they were at `/<id>`. A kept link
+ * still arrives, at the same anchor.
+ */
+export function movedTo(path: string): string | null {
+  const [area = "", slug = "", ...rest] = path.replace(/^\/+|\/+$/g, "").split("/");
+  if (rest.length > 0) return null;
+  if (area === "api") {
+    if (slug === "") return "/guides";
+    if (rootOf(slug) || sdkRootOf(slug) || slug === "types" || slug === "sdk") return `/reference/${slug}`;
+    if (API_PAGES.some((p) => p.area === "guides" && p.slug === slug)) return `/guides/${slug}`;
+    return null;
+  }
+  if (area === "guides" && isPuzzle(slug)) return guidePath(slug);
+  if (slug === "" && isPuzzle(area)) return guidePath(area);
+  return null;
 }
 
 export interface NavItem {
@@ -36,34 +62,32 @@ export interface NavGroup {
 /** An area's pages, grouped, in reading order: its side list and its previous and next links. */
 export function navOf(area: Area): NavGroup[] {
   if (area === "domain") return DOMAIN_GROUPS.map((g) => ({ title: g.title, items: g.pages.map((p) => ({ path: domainPath(p.slug), title: p.title })) }));
-  if (area === "api") {
-    const groups = API_GROUPS.map((g) => ({ title: g.title, items: g.pages.map((p): NavItem => ({ path: apiPath(p.slug), title: p.title })) }));
-    // The pages that teach come first, then the reference they lead to.
-    const cut = groups.findIndex((g) => g.title === RUNGS_GROUP) + 1;
-    const [learn, rest] = [groups.slice(0, cut), groups.slice(cut)];
-    return [...learn, referenceNav(), ...rest.map((g) => (g.title === SDK_GROUP ? { ...g, items: [...g.items, ...sdkNav()] } : g))];
+  if (area === "guides") return GUIDE_GROUPS.map((g) => ({ title: g.title, items: g.pages.map((p): NavItem => ({ path: apiPath(p), title: p.title })) }));
+  if (area === "reference") {
+    return [
+      { title: t("docs.ref.group.reference"), items: [{ path: apiPath(REFERENCE_INTRO), title: t("docs.ref.overview") }] },
+      documentsNav(),
+      { title: t("docs.sdk.group"), items: sdkNav() },
+    ];
   }
   const items = (ids: readonly PuzzleId[]): NavItem[] => ids.map((id) => ({ path: guidePath(id), title: t(`${id}.title`) }));
   return [
-    { title: t("docs.guides_heading"), items: [{ path: "/guides", title: t("docs.all_guides") }] },
+    { title: t("docs.guides_heading"), items: [{ path: "/puzzles", title: t("docs.all_guides") }] },
     { title: t("docs.core_heading"), items: items(CORE_PUZZLE_IDS) },
     { title: t("docs.prototype_heading"), items: items(PROTOTYPE_PUZZLE_IDS) },
   ];
 }
 
-/** The reference: the three top-level objects, each one page with a section for every object inside it, and the types they share. */
-function referenceNav(): NavGroup {
+/** The documents: the three top-level objects, each one page with a section for every object inside it, and the types they share. */
+function documentsNav(): NavGroup {
   return {
-    title: t("docs.ref.group.reference"),
+    title: t("docs.ref.group.documents"),
     items: [
       ...ROOTS.map((root): NavItem => ({ path: rootPath(root.root), title: root.title, children: pagesOf(root).map((p) => ({ path: pagePath(p), title: p.key, code: true })) })),
       { path: TYPES_PATH, title: t("docs.ref.types_title") },
     ],
   };
 }
-
-/** The group of prose pages the SDK's reference is listed in. */
-const SDK_GROUP = "Rules SDK";
 
 /** The rules SDK: the rules object, a view and a context, each one page with a section for every hook or member, and its types. */
 function sdkNav(): NavItem[] {
@@ -107,42 +131,42 @@ export function searchIndex(): Hit[] {
     });
   }
   for (const group of GLOSSARY) for (const term of group.terms) out.push({ title: term.name, path: `${domainPath(GLOSSARY_SLUG)}#${term.id}`, area: "domain", kind: "term", sub: term.text.replace(/[*`_]/g, "") });
-  for (const page of API_GROUPS.flatMap((g) => g.pages)) {
-    const path = apiPath(page.slug);
-    out.push({ title: page.title, path, area: "api", kind: "page", sub: page.lede.replace(/`/g, "") });
-    const content = apiContent(page.slug);
+  for (const page of API_PAGES) {
+    const path = apiPath(page);
+    out.push({ title: page.title, path, area: page.area, kind: "page", sub: page.lede.replace(/`/g, "") });
+    const content = apiContent(path);
     if (!content) continue;
     content.tokens.forEach((tok, i) => {
       if (tok.type !== "heading") return;
       const id = (tok as { id?: string }).id;
       const h = content.headings.find((x) => x.id === id);
-      if (h) out.push({ title: h.text, path: `${path}#${h.id}`, area: "api", kind: "section", sub: firstLine(content.tokens, i + 1) || page.title });
+      if (h) out.push({ title: h.text, path: `${path}#${h.id}`, area: page.area, kind: "section", sub: firstLine(content.tokens, i + 1) || page.title });
     });
   }
   for (const root of ROOTS) {
-    out.push({ title: t("docs.ref.object", { name: root.root }), path: rootPath(root.root), area: "api", kind: "page", sub: root.lede });
+    out.push({ title: t("docs.ref.object", { name: root.root }), path: rootPath(root.root), area: "reference", kind: "page", sub: root.lede });
     for (const group of root.groups) {
-      for (const f of group.fields) if (!isPage(f)) out.push({ title: `${root.root}.${f.name}`, path: `${rootPath(root.root)}#${rootNodes(root).get(f)!.anchor}`, area: "api", kind: "field", sub: clean(f.description) });
+      for (const f of group.fields) if (!isPage(f)) out.push({ title: `${root.root}.${f.name}`, path: `${rootPath(root.root)}#${rootNodes(root).get(f)!.anchor}`, area: "reference", kind: "field", sub: clean(f.description) });
     }
     for (const page of pagesOf(root)) {
-      out.push({ title: `${root.root}.${page.key}`, path: pagePath(page), area: "api", kind: "section", sub: clean(page.lede) });
-      for (const node of pageView(page).all) out.push({ title: `${page.key}.${node.path}`, path: nodePath(page, node), area: "api", kind: "field", sub: clean(node.field.description) });
+      out.push({ title: `${root.root}.${page.key}`, path: pagePath(page), area: "reference", kind: "section", sub: clean(page.lede) });
+      for (const node of pageView(page).all) out.push({ title: `${page.key}.${node.path}`, path: nodePath(page, node), area: "reference", kind: "field", sub: clean(node.field.description) });
     }
   }
-  for (const a of ALIASES) out.push({ title: a.name, path: `${TYPES_PATH}#${a.name.replace(/\s+/g, "-")}`, area: "api", kind: "type", sub: clean(a.description) });
+  for (const a of ALIASES) out.push({ title: a.name, path: `${TYPES_PATH}#${a.name.replace(/\s+/g, "-")}`, area: "reference", kind: "type", sub: clean(a.description) });
   for (const root of SDK_ROOTS) {
     const owner = root.root === "hooks" ? "" : `${root.root === "context" ? "ctx" : "view"}.`;
-    out.push({ title: root.title, path: sdkRootPath(root.root), area: "api", kind: "page", sub: clean(root.lede) });
+    out.push({ title: root.title, path: sdkRootPath(root.root), area: "reference", kind: "page", sub: clean(root.lede) });
     for (const m of membersOf(root)) {
       if (m.from) continue;
       const path = memberPath(root.root, m);
-      out.push({ title: `${owner}${m.name}`, path, area: "api", kind: m.kind === "hook" ? "hook" : "member", sub: clean(m.description) });
-      for (const group of m.members ?? []) for (const inner of group.members) out.push({ title: `${group.name}.${inner.name}`, path: `${sdkRootPath(root.root)}#${innerAnchor(group.name, inner.name)}`, area: "api", kind: "member", sub: clean(inner.description) });
+      out.push({ title: `${owner}${m.name}`, path, area: "reference", kind: m.kind === "hook" ? "hook" : "member", sub: clean(m.description) });
+      for (const group of m.members ?? []) for (const inner of group.members) out.push({ title: `${group.name}.${inner.name}`, path: `${sdkRootPath(root.root)}#${innerAnchor(group.name, inner.name)}`, area: "reference", kind: "member", sub: clean(inner.description) });
     }
   }
-  for (const fn of FUNCTIONS) out.push({ title: fn.name, path: `${SDK_TYPES_PATH}#${typeAnchor(fn.name)}`, area: "api", kind: "member", sub: clean(fn.description) });
-  for (const def of TYPE_DEFS) out.push({ title: def.name, path: `${SDK_TYPES_PATH}#${typeAnchor(def.name)}`, area: "api", kind: "type", sub: clean(def.description) });
-  for (const id of PUZZLE_IDS) out.push({ title: t(`${id}.title`), path: guidePath(id), area: "guides", kind: "guide", sub: GUIDES[id].tagline });
+  for (const fn of FUNCTIONS) out.push({ title: fn.name, path: `${SDK_TYPES_PATH}#${typeAnchor(fn.name)}`, area: "reference", kind: "member", sub: clean(fn.description) });
+  for (const def of TYPE_DEFS) out.push({ title: def.name, path: `${SDK_TYPES_PATH}#${typeAnchor(def.name)}`, area: "reference", kind: "type", sub: clean(def.description) });
+  for (const id of PUZZLE_IDS) out.push({ title: t(`${id}.title`), path: guidePath(id), area: "puzzles", kind: "guide", sub: GUIDES[id].tagline });
   index = out;
   return out;
 }
