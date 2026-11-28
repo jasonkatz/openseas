@@ -74,7 +74,8 @@ _Avoid_: rng, PRNG (that is how a stream is made)
 
 **Check**:
 A test a deal must pass before a player sees it, such as a move being possible, with its tries and a
-fallback that always passes. The loop holds it, never the rules.
+fallback that always passes. The loop holds it, never the rules. One that needs only a settled board
+asks for no move.
 _Avoid_: validation
 
 **Fallback**:
@@ -252,9 +253,19 @@ played.
 
 **Multiplier**:
 A percent that scales named payouts on an event: a setting, or an entry in a table indexed by the
-streak or by a cascade's step. Multipliers that meet multiply together, and the result is rounded
-down once for the event.
+streak or by a cascade's step. Multipliers that meet multiply together, and a move's total is rounded
+down once, when it is banked.
 _Avoid_: bonus (a bonus is a flat amount), factor
+
+**Condition**:
+One comparison on an event: a field of it or a setting, held against another or against a whole
+number. It is data the loop reads, and joins nothing with `and` or `or`.
+_Avoid_: predicate, rule (the rules are code), filter
+
+**Pending**:
+What the move being played would bank if it closed now. A hook reads it where a rule answers the
+points a move earns before the move is over.
+_Avoid_: running score, subtotal
 
 **Streak**:
 A run of successes that raises a multiplier through a table whose last entry holds. It builds on a

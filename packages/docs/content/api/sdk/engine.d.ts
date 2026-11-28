@@ -40,6 +40,8 @@ export interface View<P extends Puzzle, S> {
   readonly seat: Seat | null;
   readonly state: Readonly<S>;
   readonly settings: Settings<P>;
+  readonly score: number;
+  readonly streak: number;
   readonly phase: PhaseId<P> | null;
   readonly repeat: number;
   readonly lastSeat: Seat | null;
@@ -57,6 +59,7 @@ export interface Ctx<P extends Puzzle, S> extends Omit<View<P, S>, "seat" | "all
   readonly seats: readonly Seat[];
   readonly sides: readonly Side[];
   readonly step: number;
+  readonly pending: number;
   draw(id: DrawId<P>): Draw;
   emit<E extends EventId<P>>(id: E, fields: EventFields<P, E>, changes?: (e: Changes<P>) => void): void;
 }

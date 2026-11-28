@@ -249,9 +249,12 @@ export const ALIASES: readonly AliasDef[] = [
   {
     name: "condition",
     primitive: "string",
-    description: "A condition on an event, in plain words or as a comparison of one of its fields. The puzzle states it so that a reader, a board and a skin all know it. The rules are what hold it.",
-    detail: ["A condition is not yet a language the loop reads. Until it is, write the shortest plain statement that is true of the rules."],
-    examples: ["prizes > 0", "the path is streakMin long or more"],
+    description: "A condition on an event: one comparison of a field of the event or a setting with another, or with a whole number. The loop reads it, so a reader, a board and a skin all know exactly when it holds.",
+    detail: [
+      "It is written `<left> <op> <right>`, where the op is one of `>=`, `>`, `<=`, `<`, `==` and `!=`. Each side is a whole number, a setting's id, or a field of the event. A field that holds places counts as how many it holds.",
+      "A condition joins nothing with `and` or `or` and does no arithmetic. Where a rule needs more, the rules report a field that says so and the condition reads it.",
+    ],
+    examples: ["prizes > 0", "path >= streakMin"],
   },
   {
     name: "map",

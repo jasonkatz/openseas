@@ -356,14 +356,31 @@ A layer brings the payouts that exist only while it is on.
 ### Multipliers
 
 A **multiplier** scales named payouts on an event by a percent. The percent is either a setting, or an
-entry in a table: a list setting indexed by the streak or by a cascade's step.
+entry in a table: a list setting indexed by the streak or by a cascade's step. It names the events it
+applies on: `every`, or their ids joined by `or`, with a condition after them where it has one.
 
-Multipliers that meet on one event multiply together, and the result is rounded down once, for the
-event, never once for each multiplier.
+Multipliers that meet on one event multiply together, and nothing is rounded as they do. A multiplier
+indexed by the streak holds for the whole move, so it is applied when the move is banked, to everything
+the move earned that it scales. The move's total is rounded down there, once: never once for each
+multiplier, and never once for each event. An event still shows what it is worth, rounded down, before
+any multiplier that holds for the whole move.
 
 > Paths' loop multiplier doubles the path payout when the path closes (`loopPercent`, 200). Its streak
 > multiplies every payout. A closed path of 6 on a streak at 130%: 6 × 6 = 36, doubled to 72, then 72
 > × 130% = 93.6, rounded down to 93.
+
+> A move of Cooling clears two groups of three at once, on a streak at 110%. Each pays 3, doubled for
+> clearing together, so the two show 6 and 6. The move banks 12 × 110% = 13.2, rounded down to 13.
+
+### Conditions
+
+A **condition** is one comparison on an event: a field of the event or a setting, one of `>=`, `>`,
+`<=`, `<`, `==` and `!=`, and another field, setting or whole number. A field that holds places counts
+as how many it holds. A condition joins nothing with `and` or `or` and does no arithmetic. Where a rule
+needs more, the rules report a field that says so and the condition reads it.
+
+> Paths' streak builds on a path that is long enough: `path >= streakMin`. Its moment is a loop that
+> holds a prize: `prizes > 0`.
 
 ### Cascades
 
@@ -379,12 +396,13 @@ A puzzle has at most one **streak**: a run of successes that raises a multiplier
 
 - what **builds** it: an event, with a condition on it, such as a path of five or more, or a task's
   grade, such as clean;
-- its **grace**: how many **misses** in a row it forgives before it breaks, where a miss is a move or a
-  task that builds nothing;
+- its **grace**: how many **misses** in a row it forgives before it breaks, as a number or a setting,
+  where a miss is a move or a task that builds nothing;
 - which **mistakes** break it at once.
 
 What it raises is a multiplier whose table is indexed by the streak: a list setting with an entry for
-each success in a row, whose last entry holds.
+each success in a row, whose last entry holds. A move builds the streak once, however many of its events
+would: the streak counts moves, and tasks, never events.
 
 The rules keep the round's best streak as the stat `best_streak`, and the streak's count as a gauge.
 
@@ -595,6 +613,10 @@ rules ([Parts](#parts)), so neither could hold it alone. For each try the loop:
 2. Runs the cascade on the copy until it has run dry. Nobody sees it, and nothing it reports is paid.
 3. Tries every move the rules list. The deal passes when at least one sets off an event that counts as
    a step, or pays.
+
+A check may ask for less. One that needs only a **settled** board stops after the second step: what
+would happen by itself has happened unseen, and no move is asked for. It is for a puzzle where a move
+that sets nothing off is still a move, as a swap that lines up the next one is in Cooling.
 
 A try that fails still uses its luck, so the next try deals differently. The player is shown one event:
 the board as the try that passed left it. So a puzzle with a check answers `listMoves`: it is the only
@@ -981,6 +1003,19 @@ from a throwaway stream, so trying never shows the luck to come and never shifts
 - **A board with no move left.** Where a check holds during play, the loop deals the board again
   ([Checks](#checks)). Where running out is the puzzle's own matter, the rules report it from
   `onMoveEnd`: the round fails, the task ends, or the seat is out.
+- **Points.** The rules never add a point. The loop pays each event as it is reported and banks the
+  move at Close ([Multipliers](#multipliers)). A hook that starts with `on` may read four things of it:
+  the score banked so far, the streak, the step of the cascade, and what the move would bank if it
+  closed now. A rule that answers the score in the middle of a move, as Cooling's heat does, reads the
+  last.
+- **Steps.** Every event marked as a step that a hook reports in one asking is one step of the cascade,
+  and each carries its number, counted from 1.
+- **State.** What the rules remember that the loop does not keep is their state. A hook that starts
+  with `on` gives back the next state, or nothing to keep it, and a question only reads it. The cascade
+  a deal runs unseen leaves no state behind.
+- **Time.** A move is made at a time: whole milliseconds from the round's start, kept in the log beside
+  the move. A round with a clock refuses a move made at or after its end. The loop never ends a round
+  because time passed: a host reads the round at a time and is told whether its clock has run out.
 
 ### What every puzzle is tested by
 
@@ -1269,7 +1304,7 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
   "deal": {
     "draws": [{ "id": "", "description": "", "gives": "kind | piece | place | map | task | number", "by": "even | weighted | bag | pick",
                 "when": "start | refill | task | tick | every: a setting", "reads": ["setting ids"], "shared": "between sides: true, or a stream a seat" }],
-    "checks": [{ "id": "", "description": "", "draws": ["draw ids"], "tries": "a number", "fallback": "one line: what is dealt, and why it passes", "during": "the event that says the board was dealt again, if it holds during play" }],
+    "checks": [{ "id": "", "description": "", "draws": ["draw ids"], "tries": "a number", "needs": "absent, or settled", "fallback": "one line: what is dealt, and why it passes", "during": "the event that says the board was dealt again, if it holds during play" }],
     "bounds": [{ "setting": "", "caps": "a draw id" }]
   },
   "layers": [{ "id": "", "rule": "one line", "brings": { "pieces": [], "events": [], "settings": [], "zones": [], "gauges": [], "controls": [],
@@ -1287,9 +1322,9 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
   "moment": { "event": "the event id", "when": "an optional condition on it", "size": "its number field", "most": "a number or a setting: the biggest" },
   "payouts": [{ "id": "", "description": "", "on": ["event ids"], "counts": "the event's field it grows from", "growth": "flat | linear | superlinear | stepped",
                 "cap": "a number or a setting", "reads": ["setting ids"] }],
-  "multipliers": [{ "id": "", "description": "", "scales": ["payout ids"], "on": "the event, and the condition, it applies on",
+  "multipliers": [{ "id": "", "description": "", "scales": ["payout ids"], "on": "every, or event ids joined by or, and a condition after them where it has one",
                     "by": "{ percent: setting }, or { table: list setting, index: streak | step }" }],
-  "streak": "absent, or { builds: { event, when } or { grade }, grace, breaksOn: [mistake event ids] }",
+  "streak": "absent, or { builds: { event, when } or { grade }, grace: a number or a setting, breaksOn: [mistake event ids] }",
   "tasks": [{ "id": "", "description": "", "open": "how many at once", "ends": ["done | given-up | out-of-time"], "control": "given-up only", "setting": "out-of-time only",
               "graded": "par | best | none", "grades": ["from best"], "next": "dealt, or the control that asks for it" }],
   "gauges": [{ "id": "", "description": "", "most": "a number or a setting", "danger": "the value past which it means danger", "each": "round | seat | side" }],

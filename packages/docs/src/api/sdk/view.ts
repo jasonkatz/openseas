@@ -310,6 +310,20 @@ const phase: Member = {
   },
 };
 
+const score: Member = {
+  name: "score",
+  kind: "property",
+  signature: "readonly score: number",
+  description: "The points banked so far. A move's points are banked when it closes, so within a move this is the score before it.",
+};
+
+const streak: Member = {
+  name: "streak",
+  kind: "property",
+  signature: "readonly streak: number",
+  description: "The [streak](/api/puzzle#streak)'s count: moves, or tasks, in a row that built it. It is 0 in a puzzle with no streak. It moves when a move closes, so within a move it is the count the move is paid at.",
+};
+
 const repeat: Member = {
   name: "repeat",
   kind: "property",
@@ -359,7 +373,7 @@ export const VIEW_ROOT: SdkRoot = {
   ],
   groups: [
     { title: "Whose it is", members: [seat] },
-    { title: "The round", members: [state, settings, phase, repeat, lastSeat] },
+    { title: "The round", members: [state, settings, score, streak, phase, repeat, lastSeat] },
     { title: "The table", members: [board, zoneMember] },
     { title: "Moves", members: [allowed, tryMember] },
     { title: "Seats and sides", members: [next, sideOf, seatsOf] },
@@ -771,6 +785,12 @@ export const CONTEXT_ROOT: SdkRoot = {
           signature: "readonly step: number",
           description: "The cascade step the loop has counted for the move being played. It is 0 until an event marked [`step`](/api/puzzle#events) is reported, and grows by one for each asking of `onCascade` that reports one.",
         },
+        {
+          name: "pending",
+          kind: "property",
+          signature: "readonly pending: number",
+          description: "What the move being played would bank if it closed now: everything it has reported so far, with every multiplier, rounded down once. A rule that answers the score in the middle of a move reads it, as a heat that falls with the points a move earns does.",
+        },
         draw,
         emit,
       ],
@@ -781,6 +801,8 @@ export const CONTEXT_ROOT: SdkRoot = {
       members: [
         inherited("state", "The rules' own state, as the last `on` hook left it.", "readonly state: Readonly<S>"),
         inherited("settings", "This round's value for every setting, by id.", "readonly settings: Settings<P>"),
+        inherited("score", "The points banked so far.", "readonly score: number"),
+        inherited("streak", "The streak's count.", "readonly streak: number"),
         inherited("phase", "The open phase, innermost, or `null`.", "readonly phase: PhaseId<P> | null"),
         inherited("repeat", "Which repeat of the open phase this is, from 0.", "readonly repeat: number"),
         inherited("lastSeat", "The seat that moved last in the open phase, or `null`.", "readonly lastSeat: Seat | null"),

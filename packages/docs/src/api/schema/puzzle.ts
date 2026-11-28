@@ -702,6 +702,9 @@ const deal = page({
             req("description", sentence, "What must be true of a deal."),
             req("draws", arr(ref("draw"), { min: 1, noun: "draw ids" }), "The draws it covers: the ones dealt again when a try fails."),
             req("tries", int(1), "How many times the rules deal again before they give up and use the fallback."),
+            opt("needs", lit("settled"), "What the check asks for, where it asks for less than a move worth making: only that nothing is left to happen by itself. No move is asked for, so the rules need not list their moves. It is for a puzzle where a move that sets nothing off is still a move.", {
+              absent: "Nothing is left to happen by itself, and at least one listed move sets off a step or pays.",
+            }),
             req("fallback", sentence, "What is dealt when every try fails, and why that always passes. A fallback always passes, so no round is ever dealt one that fails."),
             opt("during", ref("event"), "The event that says the board was dealt again, where the check also holds during play: when no move is left, the rules deal again and report this.", {
               absent: "The check holds only as the round starts.",
@@ -1103,7 +1106,10 @@ const multipliers = page({
   key: "multipliers",
   title: "multipliers",
   lede: "What scales the puzzle's payouts, and by how much.",
-  about: ["A multiplier scales named payouts on an event by a percent. Multipliers that meet on one event multiply together, and the result is rounded down once for the event, never once for each multiplier."],
+  about: [
+    "A multiplier scales named payouts on an event by a percent. Multipliers that meet on one event multiply together, and nothing is rounded as they do.",
+    "A multiplier indexed by the streak holds for the whole move. It is applied when the move is banked, to everything the move earned that it scales, and the move's total is rounded down there, once: never once for each multiplier, and never once for each event.",
+  ],
   ideas: { title: "Multipliers", path: "/domain/scoring#multipliers" },
   need: "required",
   type: arr(
@@ -1112,7 +1118,7 @@ const multipliers = page({
         req("id", id, "The multiplier's id."),
         req("description", sentence, "What it rewards."),
         req("scales", arr(ref("payout"), { min: 1, noun: "payout ids" }), "The payouts it scales. A payout it does not list is paid as it is."),
-        req("on", condition, "The event it applies on, and any condition on it. Written as an event's id where it is that plain."),
+        req("on", str("event ids"), "The events it applies on: `every`, or their ids joined by `or`. A [condition](/api/types#condition) may follow them after the word `when`, as in `loop when prizes > 0`."),
         req(
           "by",
           or(
@@ -1153,17 +1159,18 @@ const streak = page({
     req(
       "builds",
       or(
-        { label: "an event", description: "The streak grows when this event is reported and meets the condition.", type: obj([req("event", condition, "The event that builds it, by id. Where more than one does, their ids joined by `or`."), opt("when", condition, "A condition on the event.", { absent: "Every such event builds it." })]) },
+        { label: "an event", description: "The streak grows when this event is reported and meets the condition.", type: obj([req("event", str("event ids"), "The event that builds it, by id. Where more than one does, their ids joined by `or`."), opt("when", condition, "A condition on the event.", { absent: "Every such event builds it." })]) },
         { label: "a task's grade", description: "The streak grows when a task ends with this grade.", type: obj([req("grade", name, "The grade, as one of a task's `grades`.")]) },
       ),
       "What builds it.",
     ),
-    req("grace", int(0), "How many misses in a row it forgives before it breaks. A miss is a move, or a task, that builds nothing. At 0 the first miss breaks it."),
+    req("grace", amount, "How many misses in a row it forgives before it breaks, as a number or the setting that holds it. A miss is a move, or a task, that builds nothing. At 0 the first miss breaks it."),
     req("breaksOn", arr(ref("event"), { noun: "event ids" }), "The mistakes that break it at once, whatever its grace. The list may be empty.", { must: "Name only events whose `mistake` is true." }),
   ]),
   rules: [
     "`builds` holds `event`, with or without `when`, or it holds `grade`. Never both forms.",
     "A streak built by a grade needs a task that has that grade.",
+    "A move builds the streak once, however many of its events would.",
     "A puzzle with a streak has a multiplier whose `by.index` is `streak`, a gauge for the count, and the stat `best_streak`.",
   ],
   examples: [fromPaths("streak"), { title: "Built by a task's grade", value: { streak: { builds: { grade: "clean" }, grace: 0, breaksOn: [] } } }],

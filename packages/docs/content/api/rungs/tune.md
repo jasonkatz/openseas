@@ -1,11 +1,8 @@
 The second rung is numbers. Everything that tunes a puzzle, and everything that pays, is written as data. No function is written on this rung.
 
-> [!PREVIEW]
-> This rung is designed and not built yet. The sample shows the shape it will take, and names in it may change.
-
 ## Numbers are settings
 
-This is a puzzle with the numbers Cooling plays with, one of the game's own. Its board is 6 by 12 with 7 kinds. A round lasts 150 seconds. Later steps of a cascade pay double, then triple. Scoring moves in a row build a streak worth a tenth more each.
+This is a puzzle with the numbers Cooling plays with, one of the game's own. Its board is 6 by 12 with 7 kinds. A round lasts 150 seconds. Later steps of a cascade pay double, then triple. Moves in a row that clear something build a streak worth a tenth more each.
 
 ```ts title=cooling.puzzle.ts
 import { puzzle, grid, swap, lines, refill, clock } from "@openseas/puzzle";
@@ -13,7 +10,7 @@ import { puzzle, grid, swap, lines, refill, clock } from "@openseas/puzzle";
 export default puzzle("cooling", {
   board: grid("width", "height"),
   pieces: "kinds",
-  parts: [swap({ along: "row" }), lines(3), refill({ from: "below" })],
+  parts: [swap({ along: "row" }), lines(3), refill()],
   ends: clock("roundSeconds"),
 
   settings: {
@@ -35,6 +32,10 @@ A [setting](/api/puzzle#settings) is a number with a name. Wherever a number cou
 
 Because every number is a setting, a tuning panel can show each one and change it, and a round can be started on other values without touching the file.
 
+```ts
+let round = start(cooling, { seed: 7, settings: { kinds: 5, roundSeconds: 60 } });
+```
+
 ## What pays
 
 The rules never add a point. You say what an event is worth, and the engine pays it.
@@ -47,12 +48,33 @@ The rules never add a point. You say what an event is worth, and the engine pays
 
 The engine counts the steps of a cascade and keeps the streak. You never do.
 
-## Conditions
-
-Some scoring carries a condition. A streak may build only on a long path, or a beat may play only on a big clear. A condition is a short comparison over an event's fields and the puzzle's settings, and nothing more.
+A group of four on the second step of a cascade, in a move made on a streak of two: 4 × 4 = 16, times 200% for the step, is 32, and the clear shows 32. The move banks 32 × 120% = 38.4, rounded down to 38. Points are rounded down once, when a move is banked. What a move banked is on the round beside its events.
 
 ```ts
-streak: { builds: { on: ["clear", "loop"], when: "path.length >= streakMin" }, grace: 1 },
+round = play(round, move, { at: 12_400 });
+console.log(round.last.banked);  // what the move added to the score
+console.log(read(round).streak);
+```
+
+An event that carries points and has no payout pays one point for each piece it names, which is how the [quickstart](/api/quickstart) scored without saying anything.
+
+## A clock
+
+A round that ends on a clock is told when each move was made, in milliseconds from the round's start. A move made at or after the end is refused. The engine has no clock of its own, so a round played again from its log is always the same round.
+
+```ts
+read(round, { at: 151_000 }).ended;  // "clock"
+```
+
+A puzzle may have more than one ending: `ends: [clock("roundSeconds"), budget("maxMoves")]`.
+
+## Conditions
+
+Some scoring carries a condition. A streak may build only on a long path, or a multiplier may apply only to a big clear. A [condition](/api/types#condition) is one comparison over an event's fields and the puzzle's settings, and nothing more.
+
+```ts
+streak: { builds: ["clear", "loop"], when: "path >= streakMin", grace: 1 },
+multipliers: { big: { scales: "group", on: "clear when size >= 5", by: "bigPercent" } },
 ```
 
 It is data, like the rest of this rung. Someone who has never seen a hook can read it, and a tuning panel can show it.
