@@ -1130,7 +1130,7 @@ const multipliers = page({
               type: obj([
                 req("table", ref("setting"), "The setting that holds the percents. Of type `list`."),
                 req("index", en(["streak", "The streak a move leaves: the first entry for the first success in a row, the next for the second, and so on. A move that leaves no streak is paid as it is."], ["step", "The cascade's step: the first entry for what the move itself did, the next for the first step it set off."], ["field", "A number the event carries, named by `field`: the first entry for one, the next for two. An event that carries none is paid as it is."]), "Which count picks the entry."),
-                opt("field", str, "With `index` at `field`: the number field of every event it scales that picks the entry.", { absent: "The index is the streak or the step." }),
+                opt("field", str("field id"), "With `index` at `field`: the number field of every event it scales that picks the entry.", { absent: "The index is the streak or the step." }),
               ]),
             },
           ),
