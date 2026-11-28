@@ -1,6 +1,6 @@
 // Deflectors, played beside the engine the studio deals. Both are dealt from the same luck, and are held to the same
 // grid, targets, queue and counts after every stretch of ticks and every move, and to the same score within what the
-// two round apart: the engine floors each beam and then the shot, the loop each beam once.
+// two round apart: the engine rounds each beam down and then the shot, the loop once a move.
 import { advanceDeflectors, createDeflectorsGame, DEFAULT_DEFLECTORS_CONFIG, deflectorsHint, reduceDeflectors, type DeflectorsConfig, type DeflectorsMove, type DeflectorsState } from "@openseas/engine";
 import { describe, expect, it } from "vitest";
 import deflectors, { type Range } from "../examples/deflectors.puzzle.js";
@@ -56,7 +56,7 @@ describe("Deflectors on the new engine, beside the engine the studio deals", () 
           picks = r.state;
           return r.value;
         };
-        // How far the score may stand from the engine's: a point either way for each lighting beam so far.
+        // How far ahead of the engine's the score may stand: a point for each lighting beam so far.
         let slack = 0;
         const level = (where: string): void => {
           const now = read(round);
@@ -65,7 +65,9 @@ describe("Deflectors on the new engine, beside the engine the studio deals", () 
           expect(range.targets, where).toEqual(shipped.targets);
           expect(range.queue, where).toEqual(shipped.queue);
           expect(range.left, where).toBe(shipped.left);
-          expect(Math.abs(now.score - shipped.score), where).toBeLessThanOrEqual(slack);
+          // The engine rounds each beam down, then the shot. The loop rounds once a move, so it is never behind.
+          expect(now.score - shipped.score, where).toBeGreaterThanOrEqual(0);
+          expect(now.score - shipped.score, where).toBeLessThanOrEqual(slack);
           expect(now.stats, where).toMatchObject({ placed: shipped.placed, binned: shipped.binned, shots: shipped.shots, lit: shipped.lit, spent: shipped.spent, bestLit: shipped.bestLit, longest: shipped.longest });
           if (now.score !== shipped.score) seen.apart++;
         };
