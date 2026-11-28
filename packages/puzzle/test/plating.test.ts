@@ -24,6 +24,8 @@ const settingsOf = (c: PlatingConfig): Record<string, Setting> => ({
   streakPercent: c.streakPercent,
 });
 const SEEDS = Number(process.env.SEEDS ?? 5);
+/** Hands the event loop back for a moment. */
+const breathe = (): Promise<void> => new Promise((done) => setTimeout(done, 0));
 const WELDS = Number(process.env.WELDS ?? 120);
 const CONFIGS: Record<string, PlatingConfig> = {
   "as shipped": DEFAULT_PLATING_CONFIG,
@@ -41,9 +43,11 @@ const shippedHull = (s: PlatingState): { covered: boolean[]; breach: boolean[] }
 
 describe("Plating on the new engine, beside the engine the game ships", () => {
   for (const [name, config] of Object.entries(CONFIGS)) {
-    it(`holds the same tray, breaches, plates, score and streak after every weld: ${name}`, () => {
+    it(`holds the same tray, breaches, plates, score and streak after every weld: ${name}`, async () => {
       const seen = { welds: 0, flawless: 0, seals: 0, widened: 0, streak: 0, roundedApart: 0, across: 0 };
       for (let seed = 1; seed <= SEEDS; seed++) {
+        // Each seed is seconds of work: let the worker answer its runner between them, or the runner times out.
+        await breathe();
         let shipped = createPlatingGame(`seed-${seed}`, config);
         let round: Round<PlaceMove> = start(plating, { seed, settings: settingsOf(config), streams: { hull: seedFromString(`carpentry:seed-${seed}`) } });
         let picks = seedFromString(`picks-${seed}`);

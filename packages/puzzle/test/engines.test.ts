@@ -6,6 +6,8 @@ import engines, { rests, type Pair, type PlaceMove } from "../examples/engines.p
 import { expand, explain, hint, nextInt, play, read, replay, seedFromString, start, view, type Round, type Setting } from "../src/index.js";
 
 const SEEDS = Number(process.env.SEEDS ?? 4);
+/** Hands the event loop back for a moment. */
+const breathe = (): Promise<void> => new Promise((done) => setTimeout(done, 0));
 const PAIRS = Number(process.env.PAIRS ?? 150);
 
 const settingsOf = (c: EnginesConfig): Record<string, Setting> => ({
@@ -40,9 +42,11 @@ const shippedInjectors = (s: EnginesState): (number | null)[][] => {
 
 describe("Engines on the new engine, beside the engine the game ships", () => {
   for (const [name, config] of Object.entries(CONFIGS)) {
-    it(`holds the same core, injectors, pairs, score and streak after every pair: ${name}`, () => {
+    it(`holds the same core, injectors, pairs, score and streak after every pair: ${name}`, async () => {
       const seen = { pairs: 0, runs: 0, fired: 0, deepest: 0, flameouts: 0, together: 0 };
       for (let seed = 1; seed <= SEEDS; seed++) {
+        // Each seed is seconds of work: let the worker answer its runner between them, or the runner times out.
+        await breathe();
         let shipped = createEnginesGame(`seed-${seed}`, config);
         let round: Round<PlaceMove> = start(engines, { seed, settings: settingsOf(config), streams: { core: seedFromString(`sailing:seed-${seed}`) } });
         let picks = seedFromString(`picks-${seed}`);

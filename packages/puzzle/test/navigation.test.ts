@@ -8,6 +8,8 @@ import { advance, expand, explain, nextInt, play, read, replay, seedFromString, 
 type Move = TurnMove | DropMove;
 const TICK = 100;
 const SEEDS = Number(process.env.SEEDS ?? 6);
+/** Hands the event loop back for a moment. */
+const breathe = (): Promise<void> => new Promise((done) => setTimeout(done, 0));
 
 const settingsOf = (c: NavigationConfig): Record<string, Setting> => ({
   rings: c.rings,
@@ -43,9 +45,11 @@ const shippedMarkers = (s: NavigationState): (number | null)[][] => {
 
 describe("Navigation on the new engine, beside the engine the game ships", () => {
   for (const [name, config] of Object.entries(CONFIGS)) {
-    it(`holds the same chart, markers, sky, score and streak, tick for tick: ${name}`, () => {
+    it(`holds the same chart, markers, sky, score and streak, tick for tick: ${name}`, async () => {
       const seen = { moves: 0, charted: 0, runs: 0, lost: 0, drops: 0, chain: 0, efficient: 0, apart: 0 };
       for (let seed = 1; seed <= SEEDS; seed++) {
+        // Each seed is seconds of work: let the worker answer its runner between them, or the runner times out.
+        await breathe();
         let shipped = createNavigationGame(`seed-${seed}`, config);
         let round: Round<Move> = start(navigation, { seed, settings: settingsOf(config), streams: { sky: seedFromString(`navigation:seed-${seed}`) } });
         let picks = seedFromString(`picks-${seed}`);
