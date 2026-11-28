@@ -5,19 +5,20 @@ import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { ASSEMBLY } from "../prototypes/assembly.js";
+import type { StudioPuzzle } from "../puzzles.js";
 
 const assembly = content.puzzles.assembly;
 
-/** Assembly (prototype, ADR 0036): the shared board in the studio's frame. */
-export function AssemblyPractice() {
+/** Assembly (prototype, ADR 0036): the shared board in the studio's frame. `entry` is the puzzle this page plays: the prototype, or the same puzzle on another engine (ADR 0097, ADR 0099). */
+export function AssemblyPractice({ entry = ASSEMBLY }: { entry?: StudioPuzzle<AssemblyState, AssemblyMove, AssemblyConfig> } = {}) {
   const api = usePractice<AssemblyState, AssemblyMove, AssemblyConfig>({
     puzzle: "assembly",
-    def: ASSEMBLY.def,
+    def: entry.def,
     config: assembly.config,
     roundSeconds: assembly.roundSeconds,
     summarize: summarizeAssembly,
   });
-  const studio = useStudio(ASSEMBLY, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const cfg = state.config;
 
@@ -30,7 +31,7 @@ export function AssemblyPractice() {
   return (
     <PracticeShell
       puzzle="assembly"
-      eyebrow={t("studio.prototype_eyebrow")}
+      eyebrow={entry === ASSEMBLY ? t("studio.prototype_eyebrow") : t("rungs.eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}
@@ -39,7 +40,7 @@ export function AssemblyPractice() {
       moves={state.moveCount}
       movesLabel={t("assembly.moves")}
       // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
-      maxMoves={cfg.maxMoves < ASSEMBLY.config.maxMoves ? cfg.maxMoves : undefined}
+      maxMoves={cfg.maxMoves < entry.config.maxMoves ? cfg.maxMoves : undefined}
       combo={state.chain}
       onStart={studio.start}
       ready={studio.ready}

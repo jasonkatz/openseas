@@ -5,19 +5,20 @@ import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { REACTOR } from "../prototypes/reactor.js";
+import type { StudioPuzzle } from "../puzzles.js";
 
 const reactor = content.puzzles.reactor;
 
-/** Reactor (prototype, ADR 0036): the shared board in the studio's frame. */
-export function ReactorPractice() {
+/** Reactor (prototype, ADR 0036): the shared board in the studio's frame. `entry` is the puzzle this page plays: the prototype, or the same puzzle on another engine (ADR 0097, ADR 0099). */
+export function ReactorPractice({ entry = REACTOR }: { entry?: StudioPuzzle<ReactorState, ReactorMove, ReactorConfig> } = {}) {
   const api = usePractice<ReactorState, ReactorMove, ReactorConfig>({
     puzzle: "reactor",
-    def: REACTOR.def,
+    def: entry.def,
     config: reactor.config,
     roundSeconds: reactor.roundSeconds,
     summarize: summarizeReactor,
   });
-  const studio = useStudio(REACTOR, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const shown = state;
   const cfg = shown.config;
@@ -31,7 +32,7 @@ export function ReactorPractice() {
   return (
     <PracticeShell
       puzzle="reactor"
-      eyebrow={t("studio.prototype_eyebrow")}
+      eyebrow={entry === REACTOR ? t("studio.prototype_eyebrow") : t("rungs.eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}
@@ -40,7 +41,7 @@ export function ReactorPractice() {
       moves={shown.moveCount}
       movesLabel={t("reactor.moves")}
       // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
-      maxMoves={cfg.maxMoves < REACTOR.config.maxMoves ? cfg.maxMoves : undefined}
+      maxMoves={cfg.maxMoves < entry.config.maxMoves ? cfg.maxMoves : undefined}
       combo={shown.combo}
       onStart={studio.start}
       ready={studio.ready}

@@ -42,6 +42,8 @@ export interface Event {
 /** A task that is open: its id and what it holds, such as the kind a bounty names. */
 export interface OpenTask { readonly task: string; readonly holds: Readonly<Record<string, unknown>> }
 export type AnyMove = { readonly move: string } & Readonly<Record<string, unknown>>;
+/** A signal in, as a host hands it on: which, and what it carries. A number or a flag is its `value`. */
+export type AnySignal = { readonly signal: string } & Readonly<Record<string, unknown>>;
 
 // ---- the puzzle document, as the guide writes it. Every key is present in an expanded puzzle.
 
@@ -55,7 +57,7 @@ export interface CheckDecl { id: string; description: string; draws: string[]; t
 export type Amount = number | string;
 export interface PayoutDecl { id: string; description: string; on: string[]; counts?: string; growth: "flat" | "linear" | "superlinear" | "stepped"; cap?: Amount; reads: string[] }
 /** `on` names the events it applies on: `every`, or ids joined by `or`, with an optional `when <condition>` after them. */
-export interface MultiplierDecl { id: string; description: string; scales: string[]; on: string; by: { percent: string } | { table: string; index: "streak" | "step" } }
+export interface MultiplierDecl { id: string; description: string; scales: string[]; on: string; by: { percent: string } | { table: string; index: "streak" | "step" } | { table: string; index: "field"; field: string } }
 /**
  * `builds.event` names one event, or several joined by `or`. `counts: "events"` is for a puzzle whose successes
  * are not moves: every event that builds it counts, nothing is a miss, and each is paid at the streak it leaves.
@@ -75,6 +77,8 @@ export type Tier = (typeof TIERS)[number];
 export interface Evaluation { tierStarts: Record<Exclude<Tier, "green">, number>; paceWindowSeconds: number }
 /** The puzzle's biggest event: which one, and the field that says how big each is. `most` is the size that counts as biggest. */
 export interface Moment { event: string; when?: string; size: string; most: Amount }
+/** A value from outside the puzzle that steers it. It is never a move, and the log keeps it. `number` and `flag` carry a `value`. */
+export interface SignalDecl { id: string; description: string; type: "number" | "flag"; when: "on-change" | "sampled" | "at-end"; min?: number; max?: Amount }
 export interface EndDecl { id: string; by: "budget" | "clock"; setting: string }
 
 export interface Document {
@@ -84,7 +88,8 @@ export interface Document {
   mechanic: string;
   verb: string;
   round: { tempo: { kind: "still" } | { kind: "ticking"; tickMs: number }; ends: EndDecl[]; logLimit: number };
-  board: { shape: "grid"; width: string; height: string; touch: 4 | 8; rim: boolean };
+  /** A ring board's cells are written with `x` the sector, counted clockwise from the top, and `y` the ring, counted from the innermost. */
+  board: { shape: "grid"; width: string; height: string; touch: 4 | 8; rim: boolean } | { shape: "rings"; rings: string; sectors: string };
   terrain: TerrainDecl[];
   zones: never[];
   settings: SettingDecl[];
@@ -92,7 +97,7 @@ export interface Document {
   deal: { draws: DrawDecl[]; checks: CheckDecl[]; bounds: never[] };
   layers: LayerDecl[];
   ladder: StageDecl[];
-  signals: { in: never[]; out: never[] };
+  signals: { in: SignalDecl[]; out: never[] };
   pieces: PieceDecl[];
   moves: MoveDecl[];
   controls: never[];
@@ -114,8 +119,12 @@ export interface Document {
 // ---- the rules: the top rung. The loop knows these and nothing about parts.
 
 export interface Board {
+  /** On rings, the sectors around a ring and the rings: a cell's `x` and `y` run over them. */
   readonly width: number;
   readonly height: number;
+  /** On rings, how many rings and sectors it has. 0 on a grid. */
+  readonly rings: number;
+  readonly sectors: number;
   places(): Cell[];
   has(place: Cell): boolean;
   at(place: Cell): Piece | null;
@@ -123,7 +132,7 @@ export interface Board {
   terrain(place: Cell): string;
   /** The state a cell's terrain is in, or null where it has none. */
   terrainState(place: Cell): string | null;
-  /** The cells on the board that touch a cell: four of them, or eight where the board counts corners. */
+  /** The cells on the board that touch a cell: four of them, or eight where the board counts corners. On rings: the two around its ring, which wraps, and the ones in and out along its sector. */
   touching(place: Cell): Cell[];
 }
 export interface Draw {
@@ -192,6 +201,8 @@ export interface Rules<M extends AnyMove = AnyMove, S = unknown> {
   onMoveEnd?(ctx: Ctx<S>): S | void;
   /** A ticking puzzle only: once for every tick, in order. */
   onTick?(ctx: Ctx<S>, tick: Tick): S | void;
+  /** A signal in arrived. It is no move: it counts toward no budget, and is no miss of the streak. */
+  onSignal?(ctx: Ctx<S>, signal: AnySignal): S | void;
   /** Fewer tasks are open than the puzzle declares: open one on an event, or report nothing when there is no room yet. */
   onTaskNeeded?(ctx: Ctx<S>): S | void;
   listMoves?(view: View<S>): M[];

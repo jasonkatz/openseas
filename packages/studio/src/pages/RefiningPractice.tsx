@@ -5,23 +5,24 @@ import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { REFINING } from "../prototypes/refining.js";
+import type { StudioPuzzle } from "../puzzles.js";
 
 const refining = content.puzzles.refining;
 const waitAt = (tick: number): RefiningMove => ({ type: "wait", tick });
 
-/** Refining (prototype, ADR 0036, ADR 0080): the shared board in the studio's frame. The outlet is drawn on the engine's clock (ADR 0015). */
-export function RefiningPractice() {
+/** Refining (prototype, ADR 0036, ADR 0080): the shared board in the studio's frame. The outlet is drawn on the engine's clock (ADR 0015). `entry` is the puzzle this page plays, and `advance` its engine's state at a later tick: the prototype's own, or the same puzzle on another engine (ADR 0097, ADR 0099). */
+export function RefiningPractice({ entry = REFINING, advance = advanceRefining }: { entry?: StudioPuzzle<RefiningState, RefiningMove, RefiningConfig>; advance?: (state: RefiningState, tick: number) => RefiningState } = {}) {
   const api = usePractice<RefiningState, RefiningMove, RefiningConfig>({
     puzzle: "refining",
-    def: REFINING.def,
+    def: entry.def,
     config: refining.config,
     roundSeconds: refining.roundSeconds,
     summarize: summarizeRefining,
   });
-  const studio = useStudio(REFINING, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const roundCfg = api.round?.config ?? refining.config;
-  const ticked = useTicked(api, { tickMs: roundCfg.tickMs, maxTick: roundCfg.maxTick, advance: advanceRefining, wait: waitAt });
+  const ticked = useTicked(api, { tickMs: roundCfg.tickMs, maxTick: roundCfg.maxTick, advance, wait: waitAt });
   const shown = ticked.shown;
   const cfg = shown.config;
 
@@ -34,7 +35,7 @@ export function RefiningPractice() {
   return (
     <PracticeShell
       puzzle="refining"
-      eyebrow={t("studio.prototype_eyebrow")}
+      eyebrow={entry === REFINING ? t("studio.prototype_eyebrow") : t("rungs.eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}

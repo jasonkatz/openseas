@@ -17,3 +17,14 @@ export function roundOf(state: object): Round<AnyMove> {
   if (!round) throw new Error("this state was not dealt by the new engine");
   return round;
 }
+
+/**
+ * A board tells a state that only carries the clock forward by its pieces being the very same array as before, and
+ * keeps playing what it was playing (a chain's waves, a draw). A mirror builds every state afresh, so where the pieces
+ * are as they were, the new state is given the old array. Only a state the mirror has just made, and no one has seen,
+ * is changed.
+ */
+export function steady<S extends object, K extends keyof S>(prev: S, next: S, key: K): S {
+  if (prev !== next && JSON.stringify(prev[key]) === JSON.stringify(next[key])) (next as Record<K, unknown>)[key] = prev[key];
+  return next;
+}

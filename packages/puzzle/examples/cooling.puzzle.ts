@@ -2,7 +2,8 @@
 // of its own for the rules no stock part gives. The tests play it beside the engine the game ships,
 // move for move, and hold the two to the same board and the same score.
 //
-// Left out: the heat a ship injects. The board keeps its own here.
+// Aboard a ship the heat is the ship's: a role wires it in as the signal `level`, and the board stops moving the
+// line itself (DOMAIN.md, Signals in).
 import { around, budget, clock, grid, groupsOf, lines, part, puzzle, refill, swap, type Cell, type Ctx, type SwapMove } from "../src/index.js";
 
 /**
@@ -56,8 +57,11 @@ const specials = part({
  * the points a move banks. Slag never lines up: it rides upward as the pieces above it clear, and comes
  * off, for a bonus, once it is above the line. Heat is kept in parts of a row small enough that a move's
  * rise and a point's fall are both whole numbers.
+ *
+ * Aboard a ship the line is the ship's heat. It comes in as the signal `level`, a number of rows, and a move
+ * no longer moves it. The board answers a new level with the move after it, as a move answers its own points.
  */
-const heat = part<never, { heat: number }>({
+const heat = part<never, { heat: number; waiting?: boolean }>({
   name: "heat",
   rule: "the heat rises with every move and falls with the points banked, and slag lifted above it comes off",
   pieces: [{ id: "slag" }],
@@ -66,15 +70,28 @@ const heat = part<never, { heat: number }>({
     { id: "heatLeastRow", type: "whole", default: 3, min: 0, max: 12, description: "rows the heat never falls below", group: "tempo", unit: "rows" },
     { id: "heatRiseMoves", type: "whole", default: 6, min: 1, max: 100, description: "moves in which the heat rises one row", group: "tempo", unit: "moves" },
     { id: "heatFallPoints", type: "whole", default: 40, min: 1, max: 1000, description: "points that bring the heat down one row", group: "tempo", unit: "points" },
+    { id: "shipHeat", type: "flag", default: false, description: "the heat is the ship's, set by the signal level, and a move leaves it where it is", group: "tempo" },
   ],
-  events: [{ id: "lift", description: "slag above the heat came off", fields: { at: "place", together: "number", points: "points" }, changes: ["leave"], step: true }],
+  signals: [{ id: "level", description: "how many rows of the board the ship's heat covers", type: "number", when: "on-change", min: 0, max: "height" }],
+  events: [
+    { id: "lift", description: "slag above the heat came off", fields: { at: "place", together: "number", points: "points" }, changes: ["leave"], step: true },
+    { id: "level", description: "the ship's heat came in", fields: { rows: "number" } },
+  ],
   hooks: {
     onStart: (ctx) => ({ heat: (ctx.settings.heatStartRow as number) * (ctx.settings.heatRiseMoves as number) * (ctx.settings.heatFallPoints as number) }),
+    onSignal: {
+      level(ctx, signal: { value: number }) {
+        if (!ctx.settings.shipHeat) return;
+        ctx.emit("level", { rows: signal.value });
+        return { heat: signal.value * (ctx.settings.heatRiseMoves as number) * (ctx.settings.heatFallPoints as number), waiting: true };
+      },
+    },
     onMoveEnd(ctx) {
       const s = ctx.settings as Record<string, number>;
+      if (ctx.state.waiting) return { heat: ctx.state.heat };
       const row = s.heatRiseMoves! * s.heatFallPoints!;
-      // Where the heat will stand if the move closes now, on what it has earned so far.
-      const next = Math.max(s.heatLeastRow! * row, Math.min(ctx.board.height * row, ctx.state.heat + s.heatFallPoints! - ctx.pending * s.heatRiseMoves!));
+      // Where the heat will stand if the move closes now, on what it has earned so far. The ship's heat stands where it was put.
+      const next = ctx.settings.shipHeat ? ctx.state.heat : Math.max(s.heatLeastRow! * row, Math.min(ctx.board.height * row, ctx.state.heat + s.heatFallPoints! - ctx.pending * s.heatRiseMoves!));
       const line = ctx.board.height - Math.floor(next / row);
       const lifted = ctx.board.places().filter((p) => p.y < line && ctx.board.at(p)?.piece === "slag");
       for (const at of lifted) ctx.emit("lift", { at, together: lifted.length }, (e) => e.leave(at));

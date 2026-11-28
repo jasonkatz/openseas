@@ -95,9 +95,9 @@ const shiftedRight = (before: string, after: string): boolean => {
   return true;
 };
 
-test("Refining plays alone on /play: a swap by key and by pointer, and early draws by key and by the lamp", async ({ page }) => {
+for (const [path, on] of [["/play/refining", ""], ["/play/rungs/refining", ", on the new engine"]] as const) test(`Refining plays alone on /play: a swap by key and by pointer, and early draws by key and by the lamp${on}`, async ({ page }) => {
   // The clock is held still so nothing is drawn between reading the tower and swapping on it.
-  await page.goto("/play/refining?seed=smoke&start=1&paused=1&hints=0");
+  await page.goto(`${path}?seed=smoke&start=1&paused=1&hints=0`);
   const canvas = page.getByTestId("refining-canvas");
   await expect(canvas).toBeVisible();
   await expect(page.getByTestId("hud-moves")).toHaveText("0");

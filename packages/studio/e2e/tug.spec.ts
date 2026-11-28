@@ -33,8 +33,8 @@ function freeFlick(board: string, skipPod = -1): { pod: number; cell: number; di
   throw new Error(`no pod can move on ${board}`);
 }
 
-test("Tug plays alone on /play: a round flicks a pod by key and by swipe", async ({ page }) => {
-  await page.goto("/play/tug");
+for (const [path, on] of [["/play/tug", ""], ["/play/rungs/tug", ", on the new engine"]] as const) test(`Tug plays alone on /play: a round flicks a pod by key and by swipe${on}`, async ({ page }) => {
+  await page.goto(`${path}`);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("tug-canvas");
   await expect(canvas).toBeVisible();

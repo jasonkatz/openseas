@@ -85,9 +85,9 @@ async function moveCursor(page: Page, cell: number): Promise<void> {
   await expect(canvas).toHaveAttribute("data-cursor", `${cell % W},${Math.floor(cell / W)}`);
 }
 
-test("Scanner plays alone on /play: a round pings by key and by tap, lights a ring, and locks what the rings prove", async ({ page }) => {
+for (const [path, on] of [["/play/scanner", ""], ["/play/rungs/scanner", ", on the new engine"]] as const) test(`Scanner plays alone on /play: a round pings by key and by tap, lights a ring, and locks what the rings prove${on}`, async ({ page }) => {
   // A pinned seed: the same sector every run. A random one left the walk to a lock to the deal.
-  await page.goto("/play/scanner?seed=smoke-scan-1");
+  await page.goto(`${path}?seed=smoke-scan-1`);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("scanner-canvas");
   await expect(canvas).toBeVisible();

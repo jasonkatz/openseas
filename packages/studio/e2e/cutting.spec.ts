@@ -24,8 +24,8 @@ async function pieces(page: Page): Promise<Rect[]> {
 
 const cutsMade = async (page: Page): Promise<number> => Number((await page.getByTestId("hud-moves").textContent())?.trim() ?? "0");
 
-test("Cutting plays alone on /play: a round cuts by key, by swipe and by two taps", async ({ page }) => {
-  await page.goto("/play/cutting");
+for (const [path, on] of [["/play/cutting", ""], ["/play/rungs/cutting", ", on the new engine"]] as const) test(`Cutting plays alone on /play: a round cuts by key, by swipe and by two taps${on}`, async ({ page }) => {
+  await page.goto(`${path}`);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("cutting-canvas");
   await expect(canvas).toBeVisible();

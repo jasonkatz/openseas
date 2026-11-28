@@ -5,6 +5,7 @@ import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { CUTTING } from "../prototypes/cutting.js";
+import type { StudioPuzzle } from "../puzzles.js";
 
 const cutting = content.puzzles.cutting;
 
@@ -13,16 +14,16 @@ function yieldPercent(state: CuttingState): number | null {
   return state.totalBest > 0 ? Math.round((100 * state.totalGot) / state.totalBest) : null;
 }
 
-/** Cutting (prototype, ADR 0036): the shared board in the studio's frame. */
-export function CuttingPractice() {
+/** Cutting (prototype, ADR 0036): the shared board in the studio's frame. `entry` is the puzzle this page plays: the prototype, or the same puzzle on another engine (ADR 0097, ADR 0099). */
+export function CuttingPractice({ entry = CUTTING }: { entry?: StudioPuzzle<CuttingState, CuttingMove, CuttingConfig> } = {}) {
   const api = usePractice<CuttingState, CuttingMove, CuttingConfig>({
     puzzle: "cutting",
-    def: CUTTING.def,
+    def: entry.def,
     config: cutting.config,
     roundSeconds: cutting.roundSeconds,
     summarize: summarizeCutting,
   });
-  const studio = useStudio(CUTTING, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const shown = state;
   const cfg = shown.config;
@@ -37,7 +38,7 @@ export function CuttingPractice() {
   return (
     <PracticeShell
       puzzle="cutting"
-      eyebrow={t("studio.prototype_eyebrow")}
+      eyebrow={entry === CUTTING ? t("studio.prototype_eyebrow") : t("rungs.eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}
@@ -46,7 +47,7 @@ export function CuttingPractice() {
       moves={shown.moveCount}
       movesLabel={t("cutting.moves")}
       // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
-      maxMoves={cfg.maxMoves < CUTTING.config.maxMoves ? cfg.maxMoves : undefined}
+      maxMoves={cfg.maxMoves < entry.config.maxMoves ? cfg.maxMoves : undefined}
       combo={shown.combo}
       onStart={studio.start}
       ready={studio.ready}

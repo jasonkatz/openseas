@@ -5,6 +5,7 @@ import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { FREEFALL } from "../prototypes/freefall.js";
+import type { StudioPuzzle } from "../puzzles.js";
 
 const freefall = content.puzzles.freefall;
 /**
@@ -15,16 +16,16 @@ const freefall = content.puzzles.freefall;
 const PACE_ROUND_SECONDS = 150;
 const paceProject = (points: number, seconds: number): number => paceScore(points, seconds, PACE_ROUND_SECONDS);
 
-/** Freefall (prototype, ADR 0036, ADR 0081): the shared board in the studio's frame. */
-export function FreefallPractice() {
+/** Freefall (prototype, ADR 0036, ADR 0081): the shared board in the studio's frame. `entry` is the puzzle this page plays: the prototype, or the same puzzle on another engine (ADR 0097, ADR 0099). */
+export function FreefallPractice({ entry = FREEFALL }: { entry?: StudioPuzzle<FreefallState, FreefallMove, FreefallConfig> } = {}) {
   const api = usePractice<FreefallState, FreefallMove, FreefallConfig>({
     puzzle: "freefall",
-    def: FREEFALL.def,
+    def: entry.def,
     config: freefall.config,
     roundSeconds: freefall.roundSeconds,
     summarize: summarizeFreefall,
   });
-  const studio = useStudio(FREEFALL, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const shown = state;
   const cfg = shown.config;
@@ -75,7 +76,7 @@ export function FreefallPractice() {
   return (
     <PracticeShell
       puzzle="freefall"
-      eyebrow={t("studio.prototype_eyebrow")}
+      eyebrow={entry === FREEFALL ? t("studio.prototype_eyebrow") : t("rungs.eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}
@@ -88,7 +89,7 @@ export function FreefallPractice() {
       moves={shown.moveCount}
       movesLabel={t("freefall.moves")}
       // The move bound only keeps the log sane; the legs and the clock end a round. A lab's tighter cap is shown.
-      maxMoves={cfg.maxMoves < FREEFALL.config.maxMoves ? cfg.maxMoves : undefined}
+      maxMoves={cfg.maxMoves < entry.config.maxMoves ? cfg.maxMoves : undefined}
       combo={last ? last.landed.reduce((n, l) => n + l.ids.length, 0) : 0}
       onStart={studio.start}
       ready={studio.ready}

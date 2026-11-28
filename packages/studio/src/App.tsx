@@ -30,8 +30,12 @@ import { PouringPractice } from "./pages/PouringPractice.jsx";
 import { RoundFrame, type FrameMode } from "./frame/RoundFrame.jsx";
 import { useMediaQuery } from "./practice/PracticeShell.jsx";
 import { STUDIO_PUZZLES, type StudioPuzzle } from "./puzzles.js";
+import { advanceDeflectorsMirror } from "./rungs/mirror/deflectors.js";
 import { advanceGunneryMirror } from "./rungs/mirror/gunnery.js";
-import { COOLING_RUNG, GUNNERY_RUNG, PATHS_RUNG } from "./rungs/mirrors.js";
+import { advanceNavigationMirror } from "./rungs/mirror/navigation.js";
+import { advanceOverloadMirror } from "./rungs/mirror/overload.js";
+import { advanceRefiningMirror } from "./rungs/mirror/refining.js";
+import { ASSEMBLY_RUNG, COOLING_RUNG, CUTTING_RUNG, DEFLECTORS_RUNG, ENGINES_RUNG, FORGING_RUNG, FREEFALL_RUNG, GUNNERY_RUNG, NAVIGATION_RUNG, OVERLOAD_RUNG, PATHS_RUNG, PLATING_RUNG, POURING_RUNG, RACKS_RUNG, REACTOR_RUNG, REFINING_RUNG, SCANNER_RUNG, TRACTOR_RUNG, TUG_RUNG } from "./rungs/mirrors.js";
 import { Router, useRoute } from "./router.jsx";
 import { fetchLink, looksLikeLinkId, type LinkLookup } from "./service/client.js";
 
@@ -71,6 +75,22 @@ const RUNGS: Record<string, { puzzle: StudioPuzzle<unknown, unknown, unknown>; p
   "/rungs/cooling": { puzzle: COOLING_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <CoolingPractice entry={COOLING_RUNG} /> },
   "/rungs/paths": { puzzle: PATHS_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <SalvagePractice entry={PATHS_RUNG} /> },
   "/rungs/gunnery": { puzzle: GUNNERY_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <GunneryPractice entry={GUNNERY_RUNG} advance={advanceGunneryMirror} /> },
+  "/rungs/engines": { puzzle: ENGINES_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <EnginesPractice entry={ENGINES_RUNG} /> },
+  "/rungs/plating": { puzzle: PLATING_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <PlatingPractice entry={PLATING_RUNG} /> },
+  "/rungs/navigation": { puzzle: NAVIGATION_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <NavigationPractice entry={NAVIGATION_RUNG} advance={advanceNavigationMirror} /> },
+  "/rungs/forging": { puzzle: FORGING_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <ForgingPractice entry={FORGING_RUNG} /> },
+  "/rungs/assembly": { puzzle: ASSEMBLY_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <AssemblyPractice entry={ASSEMBLY_RUNG} /> },
+  "/rungs/racks": { puzzle: RACKS_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <RacksPractice entry={RACKS_RUNG} /> },
+  "/rungs/cutting": { puzzle: CUTTING_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <CuttingPractice entry={CUTTING_RUNG} /> },
+  "/rungs/scanner": { puzzle: SCANNER_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <ScannerPractice entry={SCANNER_RUNG} /> },
+  "/rungs/tug": { puzzle: TUG_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <TugPractice entry={TUG_RUNG} /> },
+  "/rungs/reactor": { puzzle: REACTOR_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <ReactorPractice entry={REACTOR_RUNG} /> },
+  "/rungs/tractor": { puzzle: TRACTOR_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <TractorPractice entry={TRACTOR_RUNG} /> },
+  "/rungs/freefall": { puzzle: FREEFALL_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <FreefallPractice entry={FREEFALL_RUNG} /> },
+  "/rungs/pouring": { puzzle: POURING_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <PouringPractice entry={POURING_RUNG} /> },
+  "/rungs/overload": { puzzle: OVERLOAD_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <OverloadPractice entry={OVERLOAD_RUNG} advance={advanceOverloadMirror} /> },
+  "/rungs/refining": { puzzle: REFINING_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <RefiningPractice entry={REFINING_RUNG} advance={advanceRefiningMirror} /> },
+  "/rungs/deflectors": { puzzle: DEFLECTORS_RUNG as unknown as StudioPuzzle<unknown, unknown, unknown>, page: <DeflectorsPractice entry={DEFLECTORS_RUNG} advance={advanceDeflectorsMirror} /> },
 };
 
 const isPuzzle = (id: string): id is PuzzleId => Object.hasOwn(PAGES, id);

@@ -10,7 +10,7 @@ export function explain(p: Composed): string {
   for (const hook of Object.keys(MERGE) as (keyof PartHooks)[]) {
     const who = p.parts.filter((x) => x.hooks[hook]);
     if (who.length === 0) continue;
-    const says = (x: (typeof who)[number]): string => (hook === "canMove" || hook === "onMove" ? `${x.name} (${Object.keys(x.hooks[hook]!).join(", ")})` : x.name);
+    const says = (x: (typeof who)[number]): string => (hook === "canMove" || hook === "onMove" || hook === "onSignal" ? `${x.name} (${Object.keys(x.hooks[hook]!).join(", ")})` : x.name);
     rows.push(`${hook.padEnd(10)} ${who.map(says).join(", then ")}${who.length > 1 ? `   [${MERGE[hook]}]` : ""}`);
   }
   return rows.join("\n");

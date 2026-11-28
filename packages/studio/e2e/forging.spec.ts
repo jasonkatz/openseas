@@ -46,8 +46,8 @@ async function tap(page: Page, cell: number): Promise<void> {
   await page.mouse.click(ox + ((cell % W) + 0.5) * size, oy + (Math.floor(cell / W) + 0.5) * size);
 }
 
-test("Forging plays alone on /play: a round strikes by key and by tap, and refuses a spot the press cannot reach", async ({ page }) => {
-  await page.goto("/play/forging");
+for (const [path, on] of [["/play/forging", ""], ["/play/rungs/forging", ", on the new engine"]] as const) test(`Forging plays alone on /play: a round strikes by key and by tap, and refuses a spot the press cannot reach${on}`, async ({ page }) => {
+  await page.goto(`${path}`);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("forging-canvas");
   await expect(canvas).toBeVisible();

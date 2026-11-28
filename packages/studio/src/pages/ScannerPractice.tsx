@@ -5,19 +5,20 @@ import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { SCANNER } from "../prototypes/scanner.js";
+import type { StudioPuzzle } from "../puzzles.js";
 
 const scanner = content.puzzles.scanner;
 
-/** Scanner (prototype, ADR 0036): the shared board in the studio's frame. */
-export function ScannerPractice() {
+/** Scanner (prototype, ADR 0036): the shared board in the studio's frame. `entry` is the puzzle this page plays: the prototype, or the same puzzle on another engine (ADR 0097, ADR 0099). */
+export function ScannerPractice({ entry = SCANNER }: { entry?: StudioPuzzle<ScannerState, ScannerMove, ScannerConfig> } = {}) {
   const api = usePractice<ScannerState, ScannerMove, ScannerConfig>({
     puzzle: "scanner",
-    def: SCANNER.def,
+    def: entry.def,
     config: scanner.config,
     roundSeconds: scanner.roundSeconds,
     summarize: summarizeScanner,
   });
-  const studio = useStudio(SCANNER, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const shown = state;
   const cfg = shown.config;
@@ -30,7 +31,7 @@ export function ScannerPractice() {
   return (
     <PracticeShell
       puzzle="scanner"
-      eyebrow={t("studio.prototype_eyebrow")}
+      eyebrow={entry === SCANNER ? t("studio.prototype_eyebrow") : t("rungs.eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}
@@ -39,7 +40,7 @@ export function ScannerPractice() {
       moves={shown.moveCount}
       movesLabel={t("scanner.moves")}
       // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
-      maxMoves={cfg.maxMoves < SCANNER.config.maxMoves ? cfg.maxMoves : undefined}
+      maxMoves={cfg.maxMoves < entry.config.maxMoves ? cfg.maxMoves : undefined}
       combo={shown.combo}
       onStart={studio.start}
       ready={studio.ready}

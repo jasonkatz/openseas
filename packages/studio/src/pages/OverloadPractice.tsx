@@ -5,23 +5,24 @@ import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { OVERLOAD } from "../prototypes/overload.js";
+import type { StudioPuzzle } from "../puzzles.js";
 
 const overload = content.puzzles.overload;
 const waitAt = (tick: number): OverloadMove => ({ type: "wait", tick });
 
-/** Overload (prototype, ADR 0036): the shared board in the studio's frame. Its taps come back on the engine's clock (ADR 0015). */
-export function OverloadPractice() {
+/** Overload (prototype, ADR 0036): the shared board in the studio's frame. Its taps come back on the engine's clock (ADR 0015). `entry` is the puzzle this page plays, and `advance` its engine's state at a later tick: the prototype's own, or the same puzzle on another engine (ADR 0097, ADR 0099). */
+export function OverloadPractice({ entry = OVERLOAD, advance = advanceOverload }: { entry?: StudioPuzzle<OverloadState, OverloadMove, OverloadConfig>; advance?: (state: OverloadState, tick: number) => OverloadState } = {}) {
   const api = usePractice<OverloadState, OverloadMove, OverloadConfig>({
     puzzle: "overload",
-    def: OVERLOAD.def,
+    def: entry.def,
     config: overload.config,
     roundSeconds: overload.roundSeconds,
     summarize: summarizeOverload,
   });
-  const studio = useStudio(OVERLOAD, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const roundCfg = api.round?.config ?? overload.config;
-  const ticked = useTicked(api, { tickMs: roundCfg.tickMs, maxTick: roundCfg.maxTick, advance: advanceOverload, wait: waitAt });
+  const ticked = useTicked(api, { tickMs: roundCfg.tickMs, maxTick: roundCfg.maxTick, advance, wait: waitAt });
   const shown = ticked.shown;
   const cfg = shown.config;
 
@@ -30,7 +31,7 @@ export function OverloadPractice() {
   return (
     <PracticeShell
       puzzle="overload"
-      eyebrow={t("studio.prototype_eyebrow")}
+      eyebrow={entry === OVERLOAD ? t("studio.prototype_eyebrow") : t("rungs.eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}

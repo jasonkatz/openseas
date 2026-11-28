@@ -63,8 +63,8 @@ async function tap(page: Page, cell: number): Promise<void> {
   await page.mouse.click(ox + ((cell % W) + 0.5) * size, oy + (Math.floor(cell / W) + 0.5) * size);
 }
 
-test("Tractor plays alone on /play: a round swaps by key, by drag and by two taps", async ({ page }) => {
-  await page.goto("/play/tractor");
+for (const [path, on] of [["/play/tractor", ""], ["/play/rungs/tractor", ", on the new engine"]] as const) test(`Tractor plays alone on /play: a round swaps by key, by drag and by two taps${on}`, async ({ page }) => {
+  await page.goto(`${path}`);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("tractor-canvas");
   await expect(canvas).toBeVisible();

@@ -6,25 +6,26 @@ import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { DEFLECTORS } from "../prototypes/deflectors.js";
+import type { StudioPuzzle } from "../puzzles.js";
 
 const deflectors = content.puzzles.deflectors;
 const waitAt = (tick: number): DeflectorsMove => ({ type: "wait", tick });
 const EMITTER_KEYS = ["deflectors.legend_emitter_1", "deflectors.legend_emitter_2", "deflectors.legend_emitter_3"];
 const LENS_KEYS = ["deflectors.legend_lens_1", "deflectors.legend_lens_2", "deflectors.legend_lens_3"];
 
-/** Deflectors (prototype, ADR 0036): the shared board in the studio's frame. */
-export function DeflectorsPractice() {
+/** Deflectors (prototype, ADR 0036): the shared board in the studio's frame. `entry` is the puzzle this page plays, and `advance` its engine's state at a later tick: the prototype's own, or the same puzzle on another engine (ADR 0097, ADR 0099). */
+export function DeflectorsPractice({ entry = DEFLECTORS, advance = advanceDeflectors }: { entry?: StudioPuzzle<DeflectorsState, DeflectorsMove, DeflectorsConfig>; advance?: (state: DeflectorsState, tick: number) => DeflectorsState } = {}) {
   const api = usePractice<DeflectorsState, DeflectorsMove, DeflectorsConfig>({
     puzzle: "deflectors",
-    def: DEFLECTORS.def,
+    def: entry.def,
     config: deflectors.config,
     roundSeconds: deflectors.roundSeconds,
     summarize: summarizeDeflectors,
   });
-  const studio = useStudio(DEFLECTORS, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const cfg = api.round?.config ?? deflectors.config;
-  const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance: advanceDeflectors, wait: waitAt });
+  const ticked = useTicked(api, { tickMs: cfg.tickMs, maxTick: cfg.maxTick, advance, wait: waitAt });
   const shown = ticked.shown;
 
   const onPlace = useCallback((cell: number) => void api.apply({ type: "place", cell, tick: ticked.moveTick() }), [api, ticked]);
@@ -41,7 +42,7 @@ export function DeflectorsPractice() {
   return (
     <PracticeShell
       puzzle="deflectors"
-      eyebrow={t("studio.prototype_eyebrow")}
+      eyebrow={entry === DEFLECTORS ? t("studio.prototype_eyebrow") : t("rungs.eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}

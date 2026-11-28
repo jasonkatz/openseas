@@ -4,11 +4,12 @@ import { PelletIcon, EnginesBoard, content, sfx, t } from "@openseas/boards";
 import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
-import { ENGINES } from "../puzzles.js";
+import { ENGINES, type StudioPuzzle } from "../puzzles.js";
 
 const engines = content.puzzles.engines;
 
-export function EnginesPractice() {
+/** `entry` is the puzzle this page plays: the game's own, or the same puzzle on another engine (ADR 0097). */
+export function EnginesPractice({ entry = ENGINES }: { entry?: StudioPuzzle<EnginesState, EnginesMove, EnginesConfig> } = {}) {
   const [injectorsCleared, setInjectorsCleared] = useState(0);
   const [wipes, setWipes] = useState(0);
   const cleared = useRef({ injectors: 0, wipes: 0 });
@@ -28,13 +29,13 @@ export function EnginesPractice() {
 
   const api = usePractice<EnginesState, EnginesMove, EnginesConfig>({
     puzzle: "engines",
-    def: ENGINES.def,
+    def: entry.def,
     config: engines.config,
     roundSeconds: engines.roundSeconds,
     summarize: summarizeEngines,
     onMove,
   });
-  const studio = useStudio(ENGINES, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const shown = state;
 
@@ -77,6 +78,7 @@ export function EnginesPractice() {
 
   return (
     <PracticeShell
+      {...(entry === ENGINES ? {} : { eyebrow: t("rungs.eyebrow") })}
       puzzle="engines"
       phase={api.phase}
       outcome={api.outcome}
@@ -85,7 +87,7 @@ export function EnginesPractice() {
       score={shown.score}
       moves={shown.moveCount}
       // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
-      maxMoves={shown.config.maxMoves < ENGINES.config.maxMoves ? shown.config.maxMoves : undefined}
+      maxMoves={shown.config.maxMoves < entry.config.maxMoves ? shown.config.maxMoves : undefined}
       combo={shown.combo}
       onStart={startRound(studio.start)}
       ready={studio.ready}

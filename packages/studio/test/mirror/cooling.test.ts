@@ -16,6 +16,8 @@ const boardOf = (s: CoolingState): NewPiece[][] =>
 const CONFIGS: Record<string, CoolingConfig> = {
   "as shipped": { ...DEFAULT_COOLING_CONFIG, shipHeat: false },
   "few kinds, many specials": { ...DEFAULT_COOLING_CONFIG, shipHeat: false, pieceKinds: 4, specialChancePerMille: { charge: 60, magnet: 50, slag: 90 }, cascadeMultipliers: [1, 3, 5, 7], streakStepPercent: 25, streakMaxPercent: 225, streakGrace: 0 },
+  // Aboard, the ship's heat comes in between swaps as heat moves, which the new engine takes as its signal `level`.
+  "aboard, with the ship's heat": { ...DEFAULT_COOLING_CONFIG, shipHeat: true, specialChancePerMille: { charge: 12, magnet: 8, slag: 120 } },
 };
 
 describe("the Cooling board's state from the new engine, beside the shipped engine's", () => {
@@ -34,6 +36,13 @@ describe("the Cooling board's state from the new engine, beside the shipped engi
           return r.value;
         };
         for (let m = 0; m < 100; m++) {
+          if (config.shipHeat && pick(4) === 0) {
+            const heat = { type: "heat", row: pick(config.height + 1) } as const;
+            shipped = COOLING_DEF.reduce(shipped, heat);
+            mirror = COOLING_MIRROR.reduce(mirror, heat);
+            expect(b(mirror), `seed ${seed}, heat ${m + 1}`).toEqual(a(shipped));
+            continue;
+          }
           let col = pick(config.width - 1), row = pick(config.height);
           for (let t = 0; t < 40 && pick(4) > 0 && previewSwap(shipped, col, row).cells.length === 0; t++) (col = pick(config.width - 1)), (row = pick(config.height));
           shipped = COOLING_DEF.reduce(shipped, { type: "swap", col, row });

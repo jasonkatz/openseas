@@ -4,7 +4,7 @@
 import { createCoolingGame, DEFAULT_COOLING_CONFIG, previewSwap, reduceCooling, Special, type CoolingConfig, type CoolingState } from "@openseas/engine";
 import { describe, expect, it } from "vitest";
 import cooling from "../examples/cooling.puzzle.js";
-import { expand, explain, nextInt, play, read, replay, seedFromString, start, type NewPiece, type Round, type Setting } from "../src/index.js";
+import { expand, explain, nextInt, play, read, replay, seedFromString, signal, start, type NewPiece, type Round, type Setting } from "../src/index.js";
 
 const SPECIALS: Record<number, string> = { [Special.Charge]: "charge", [Special.Magnet]: "magnet", [Special.Slag]: "slag" };
 const pieceOf = (kind: number): NewPiece => (kind in SPECIALS ? { piece: SPECIALS[kind]! } : { piece: "kind", kind: kind + 1 });
@@ -27,6 +27,7 @@ function settingsOf(c: CoolingConfig): Record<string, Setting> {
     heatLeastRow: c.minHeatRow,
     heatRiseMoves: c.heatRisePerMoves,
     heatFallPoints: c.heatDropPerPoints,
+    shipHeat: c.shipHeat,
     streakGrace: c.streakGrace,
     cascadePercent: c.cascadeMultipliers.map((m) => m * 100),
     streakPercent: streak,
@@ -88,6 +89,63 @@ describe("Cooling on the new engine, beside the engine the game ships", () => {
   }
 });
 
+describe("Cooling aboard a ship, its heat a signal from outside the board", () => {
+  it("holds the same board, score, streak and heat when the ship's heat comes in between moves", () => {
+    const config: CoolingConfig = { ...DEFAULT_COOLING_CONFIG, shipHeat: true, specialChancePerMille: { charge: 12, magnet: 8, slag: 120 } };
+    const seen = { levels: 0, lifts: 0, signalled: 0 };
+    for (let seed = 1; seed <= 8; seed++) {
+      let shipped = createCoolingGame(`seed-${seed}`, config);
+      let round: Round = start(cooling, { seed, settings: settingsOf(config), board: boardOf(shipped), streams: { rise: shipped.rng } });
+      let picks = seedFromString(`ship-${seed}`);
+      const pick = (n: number): number => {
+        const r = nextInt(picks, n);
+        picks = r.state;
+        return r.value;
+      };
+      for (let m = 0; m < 80; m++) {
+        const where = `seed ${seed}, entry ${m + 1}`;
+        if (pick(4) === 0) {
+          // The ship's turn sets the heat: no move, so the streak, the clock and the budget stand as they were.
+          const row = pick(config.height + 1);
+          const before = read(round);
+          shipped = reduceCooling(shipped, { type: "heat", row });
+          round = signal(round, { signal: "level", value: row }, { at: round.state.time });
+          expect(round.last.events.map((e) => e.event), where).toEqual(["level"]);
+          expect([read(round).movesMade, read(round).streak, read(round).score], where).toEqual([before.movesMade, before.streak, before.score]);
+          seen.levels++;
+        } else {
+          let col = pick(config.width - 1), row = pick(config.height);
+          for (let t = 0; t < 40 && pick(4) > 0 && previewSwap(shipped, col, row).cells.length === 0; t++) (col = pick(config.width - 1)), (row = pick(config.height));
+          shipped = reduceCooling(shipped, { type: "swap", col, row });
+          round = play(round, { move: "swap", a: { x: col, y: config.height - 1 - row }, b: { x: col + 1, y: config.height - 1 - row } });
+          expect(round.last.refused, where).toBeNull();
+          expect(round.last.banked, where).toBe(shipped.lastMove!.points);
+          const lifts = round.last.events.filter((e) => e.event === "lift").length;
+          seen.lifts += lifts;
+          if (lifts > 0 && round.log.at(-2) && "signal" in round.log.at(-2)!) seen.signalled++;
+        }
+        const now = read(round);
+        expect(now.score, where).toBe(shipped.score);
+        expect(now.streak, where).toBe(shipped.combo);
+        expect((now.state as { heat: { heat: number } }).heat.heat, where).toBe(shipped.heat);
+        expect(now.board.map((r) => r.map((p) => ({ piece: p!.piece, ...(p!.kind === undefined ? {} : { kind: p!.kind }) }))), where).toEqual(boardOf(shipped));
+      }
+      // The log keeps the signals beside the moves, so a round dealt from the seed alone replays with them.
+      const own = round.log.reduce((r, e) => ("signal" in e ? signal(r, e.signal, { at: e.at }) : play(r, e.move as never, { at: e.at })), start(cooling, { seed, settings: settingsOf(config) }));
+      expect(own.log.filter((e) => "signal" in e).length).toBeGreaterThan(0);
+      expect(replay(cooling, String(seed), settingsOf(config), own.log).state).toEqual(own.state);
+    }
+    expect(seen.levels).toBeGreaterThan(50);
+    expect(seen.lifts, "slag lifted under the ship's heat").toBeGreaterThan(0);
+  });
+
+  it("takes no level while the board keeps its own heat", () => {
+    const round = signal(start(cooling, { seed: 1 }), { signal: "level", value: 9 });
+    expect(round.last.events).toEqual([]);
+    expect(() => signal(round, { signal: "level", value: 13 })).toThrow("signal level: 13 is not a whole number from 0 to height");
+  });
+});
+
 describe("Cooling as a puzzle of its own", () => {
   it("deals, plays and replays from its seed, settings and log", () => {
     for (let seed = 1; seed <= 6; seed++) {
@@ -130,6 +188,7 @@ describe("Cooling as a puzzle of its own", () => {
       onMove     swap (swap), then specials (swap)   [every part with a say on the move, in order]
       onCascade  lines, then refill   [parts in order: the first to report anything ends the step]
       onMoveEnd  heat
+      onSignal   heat (level)
       listMoves  swap"
     `);
   });
