@@ -1,0 +1,1154 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Paths on the new engine, beside the engine the game ships > holds the same board, streak, bounty, counts and luck after every move: a small board, at the stage full 1`] = `
+{
+  "blowups": 176,
+  "bounties": 35,
+  "defused": 80,
+  "floor": 105,
+  "inside": 0,
+  "loops": 76,
+  "moves": 800,
+  "netted": 134,
+  "reshuffles": 16,
+  "roundedApart": 3,
+}
+`;
+
+exports[`Paths on the new engine, beside the engine the game ships > holds the same board, streak, bounty, counts and luck after every move: a small board, at the stage loops 1`] = `
+{
+  "blowups": 0,
+  "bounties": 83,
+  "defused": 0,
+  "floor": 33,
+  "inside": 2,
+  "loops": 102,
+  "moves": 800,
+  "netted": 184,
+  "reshuffles": 0,
+  "roundedApart": 1,
+}
+`;
+
+exports[`Paths on the new engine, beside the engine the game ships > holds the same board, streak, bounty, counts and luck after every move: a small board, at the stage paths 1`] = `
+{
+  "blowups": 0,
+  "bounties": 0,
+  "defused": 0,
+  "floor": 0,
+  "inside": 0,
+  "loops": 0,
+  "moves": 800,
+  "netted": 0,
+  "reshuffles": 0,
+  "roundedApart": 0,
+}
+`;
+
+exports[`Paths on the new engine, beside the engine the game ships > holds the same board, streak, bounty, counts and luck after every move: a small board, at the stage streak 1`] = `
+{
+  "blowups": 0,
+  "bounties": 0,
+  "defused": 0,
+  "floor": 58,
+  "inside": 0,
+  "loops": 0,
+  "moves": 800,
+  "netted": 0,
+  "reshuffles": 0,
+  "roundedApart": 2,
+}
+`;
+
+exports[`Paths on the new engine, beside the engine the game ships > holds the same board, streak, bounty, counts and luck after every move: as shipped, at the stage full 1`] = `
+{
+  "blowups": 40,
+  "bounties": 3,
+  "defused": 54,
+  "floor": 12,
+  "inside": 2,
+  "loops": 37,
+  "moves": 800,
+  "netted": 54,
+  "reshuffles": 21,
+  "roundedApart": 0,
+}
+`;
+
+exports[`Paths on the new engine, beside the engine the game ships > holds the same board, streak, bounty, counts and luck after every move: as shipped, at the stage loops 1`] = `
+{
+  "blowups": 0,
+  "bounties": 3,
+  "defused": 0,
+  "floor": 11,
+  "inside": 5,
+  "loops": 33,
+  "moves": 800,
+  "netted": 60,
+  "reshuffles": 0,
+  "roundedApart": 0,
+}
+`;
+
+exports[`Paths on the new engine, beside the engine the game ships > holds the same board, streak, bounty, counts and luck after every move: as shipped, at the stage paths 1`] = `
+{
+  "blowups": 0,
+  "bounties": 0,
+  "defused": 0,
+  "floor": 0,
+  "inside": 0,
+  "loops": 0,
+  "moves": 800,
+  "netted": 0,
+  "reshuffles": 0,
+  "roundedApart": 0,
+}
+`;
+
+exports[`Paths on the new engine, beside the engine the game ships > holds the same board, streak, bounty, counts and luck after every move: as shipped, at the stage streak 1`] = `
+{
+  "blowups": 0,
+  "bounties": 0,
+  "defused": 0,
+  "floor": 26,
+  "inside": 0,
+  "loops": 0,
+  "moves": 800,
+  "netted": 0,
+  "reshuffles": 0,
+  "roundedApart": 3,
+}
+`;
+
+exports[`Paths on the new engine, beside the engine the game ships > holds the same board, streak, bounty, counts and luck after every move: few kinds, many prizes, fast timers, at the stage full 1`] = `
+{
+  "blowups": 208,
+  "bounties": 86,
+  "defused": 154,
+  "floor": 150,
+  "inside": 9,
+  "loops": 52,
+  "moves": 800,
+  "netted": 211,
+  "reshuffles": 17,
+  "roundedApart": 2,
+}
+`;
+
+exports[`Paths on the new engine, beside the engine the game ships > holds the same board, streak, bounty, counts and luck after every move: few kinds, many prizes, fast timers, at the stage loops 1`] = `
+{
+  "blowups": 0,
+  "bounties": 135,
+  "defused": 0,
+  "floor": 51,
+  "inside": 19,
+  "loops": 63,
+  "moves": 800,
+  "netted": 244,
+  "reshuffles": 0,
+  "roundedApart": 5,
+}
+`;
+
+exports[`Paths on the new engine, beside the engine the game ships > holds the same board, streak, bounty, counts and luck after every move: few kinds, many prizes, fast timers, at the stage paths 1`] = `
+{
+  "blowups": 0,
+  "bounties": 0,
+  "defused": 0,
+  "floor": 0,
+  "inside": 0,
+  "loops": 0,
+  "moves": 800,
+  "netted": 0,
+  "reshuffles": 0,
+  "roundedApart": 0,
+}
+`;
+
+exports[`Paths on the new engine, beside the engine the game ships > holds the same board, streak, bounty, counts and luck after every move: few kinds, many prizes, fast timers, at the stage streak 1`] = `
+{
+  "blowups": 0,
+  "bounties": 0,
+  "defused": 0,
+  "floor": 90,
+  "inside": 0,
+  "loops": 0,
+  "moves": 800,
+  "netted": 0,
+  "reshuffles": 0,
+  "roundedApart": 6,
+}
+`;
+
+exports[`Paths, on its own > expands to a whole document 1`] = `
+"{
+  "id": "paths",
+  "version": "0.1",
+  "history": [
+    {
+      "version": "0.1",
+      "description": "First version"
+    }
+  ],
+  "mechanic": "A timed piece pays more the later it is cleared, and ruins its neighbours if it runs out; a posted kind pays a bonus for a long path of it; draw a path through touching pieces of one kind to clear them: a path of n scores n × n; long paths in a row multiply; prizes sink as you clear beneath them, and pay a little at the floor; a closed path takes whatever is inside it and every prize at once",
+  "verb": "trace",
+  "round": {
+    "tempo": {
+      "kind": "still"
+    },
+    "ends": [
+      {
+        "id": "clock",
+        "by": "clock",
+        "setting": "roundSeconds"
+      },
+      {
+        "id": "moves",
+        "by": "budget",
+        "setting": "maxMoves"
+      }
+    ],
+    "logLimit": 1000
+  },
+  "board": {
+    "shape": "grid",
+    "width": "width",
+    "height": "height",
+    "touch": 8,
+    "rim": false
+  },
+  "terrain": [],
+  "zones": [],
+  "settings": [
+    {
+      "id": "width",
+      "type": "whole",
+      "min": 3,
+      "max": 12,
+      "description": "columns on the board",
+      "group": "board",
+      "unit": "cells",
+      "default": 7
+    },
+    {
+      "id": "height",
+      "type": "whole",
+      "min": 3,
+      "max": 12,
+      "description": "rows on the board",
+      "group": "board",
+      "unit": "cells",
+      "default": 8
+    },
+    {
+      "id": "kinds",
+      "type": "whole",
+      "min": 2,
+      "max": 8,
+      "description": "kinds of piece dealt",
+      "group": "board",
+      "default": 5
+    },
+    {
+      "id": "roundSeconds",
+      "type": "whole",
+      "min": 1,
+      "max": 3600,
+      "description": "seconds in a round",
+      "group": "tempo",
+      "unit": "seconds",
+      "default": 120
+    },
+    {
+      "id": "maxMoves",
+      "type": "whole",
+      "min": 1,
+      "max": 100000,
+      "description": "moves in a round",
+      "group": "tempo",
+      "unit": "moves",
+      "default": 600
+    },
+    {
+      "id": "timerEvery",
+      "type": "whole",
+      "default": 8,
+      "min": 1,
+      "max": 1000,
+      "description": "moves between one timed piece and the next",
+      "group": "deal",
+      "unit": "moves"
+    },
+    {
+      "id": "timerFuse",
+      "type": "whole",
+      "default": 6,
+      "min": 1,
+      "max": 100,
+      "description": "moves a timed piece lasts",
+      "group": "tempo",
+      "unit": "moves"
+    },
+    {
+      "id": "timerPoints",
+      "type": "whole",
+      "default": 60,
+      "min": 0,
+      "max": 100000,
+      "description": "points for clearing a timed piece, for every move it has counted and one more",
+      "group": "scoring",
+      "unit": "points"
+    },
+    {
+      "id": "bountyLength",
+      "type": "whole",
+      "default": 7,
+      "min": 2,
+      "max": 144,
+      "description": "the shortest path of the posted kind that fills the bounty",
+      "group": "scoring",
+      "unit": "pieces"
+    },
+    {
+      "id": "bountyBonus",
+      "type": "whole",
+      "default": 200,
+      "min": 0,
+      "max": 100000,
+      "description": "points for filling the bounty",
+      "group": "scoring",
+      "unit": "points"
+    },
+    {
+      "id": "pathMin",
+      "type": "whole",
+      "default": 3,
+      "min": 2,
+      "max": 5,
+      "description": "the shortest path that clears",
+      "group": "scoring",
+      "unit": "pieces"
+    },
+    {
+      "id": "pathPoints",
+      "type": "whole",
+      "default": 1,
+      "min": 0,
+      "max": 1000,
+      "description": "points a path earns, times its length squared",
+      "group": "scoring",
+      "unit": "points"
+    },
+    {
+      "id": "streakMin",
+      "type": "whole",
+      "default": 5,
+      "min": 2,
+      "max": 20,
+      "description": "a path this long builds the streak",
+      "group": "scoring",
+      "unit": "pieces"
+    },
+    {
+      "id": "streakPercent",
+      "type": "list",
+      "default": [
+        100,
+        115,
+        130,
+        145,
+        160,
+        180,
+        200
+      ],
+      "min": 100,
+      "max": 1000,
+      "description": "what the streak multiplies by, an entry for each long path in a row",
+      "group": "scoring",
+      "entries": {
+        "least": 1,
+        "most": 16
+      }
+    },
+    {
+      "id": "startPrizes",
+      "type": "whole",
+      "default": 2,
+      "min": 0,
+      "max": 12,
+      "description": "prizes on the opening board",
+      "group": "deal",
+      "unit": "pieces"
+    },
+    {
+      "id": "prizePermille",
+      "type": "whole",
+      "default": 35,
+      "min": 0,
+      "max": 500,
+      "description": "chance in a thousand that a new piece is a prize, below the most",
+      "group": "deal"
+    },
+    {
+      "id": "maxPrizes",
+      "type": "whole",
+      "default": 3,
+      "min": 1,
+      "max": 12,
+      "description": "the most prizes on the board at once",
+      "group": "deal",
+      "unit": "pieces"
+    },
+    {
+      "id": "prizeFloorPoints",
+      "type": "whole",
+      "default": 30,
+      "min": 0,
+      "max": 100000,
+      "description": "points for a prize that sinks to the floor",
+      "group": "scoring",
+      "unit": "points"
+    },
+    {
+      "id": "loopMin",
+      "type": "whole",
+      "default": 4,
+      "min": 3,
+      "max": 12,
+      "description": "the shortest path that can close",
+      "group": "scoring",
+      "unit": "pieces"
+    },
+    {
+      "id": "loopPercent",
+      "type": "whole",
+      "default": 200,
+      "min": 100,
+      "max": 1000,
+      "description": "what closing multiplies a path's own points by",
+      "group": "scoring",
+      "unit": "percent"
+    },
+    {
+      "id": "insidePoints",
+      "type": "whole",
+      "default": 10,
+      "min": 0,
+      "max": 10000,
+      "description": "points for each piece inside a loop",
+      "group": "scoring",
+      "unit": "points"
+    },
+    {
+      "id": "prizeLoopPoints",
+      "type": "whole",
+      "default": 50,
+      "min": 0,
+      "max": 100000,
+      "description": "points a loop earns for its prizes, times their number squared",
+      "group": "scoring",
+      "unit": "points"
+    }
+  ],
+  "relations": [],
+  "deal": {
+    "draws": [
+      {
+        "id": "timer",
+        "description": "which new piece comes in timed",
+        "gives": "place",
+        "by": "even",
+        "when": {
+          "every": "timerEvery"
+        },
+        "reads": [
+          "timerEvery"
+        ]
+      },
+      {
+        "id": "posted",
+        "description": "the kind the bounty names, never the one it named last",
+        "gives": "kind",
+        "by": "even",
+        "when": "task",
+        "reads": [
+          "kinds"
+        ]
+      },
+      {
+        "id": "debris",
+        "description": "the kind of each new piece",
+        "gives": "kind",
+        "by": "even",
+        "when": "refill",
+        "reads": [
+          "kinds"
+        ]
+      },
+      {
+        "id": "prize",
+        "description": "where the opening prizes lie, and whether a new piece is a prize while there are fewer than the most",
+        "gives": "piece",
+        "by": "weighted",
+        "when": "refill",
+        "reads": [
+          "startPrizes",
+          "prizePermille",
+          "maxPrizes"
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "id": "path",
+        "description": "a path can be drawn",
+        "draws": [
+          "debris"
+        ],
+        "tries": 50,
+        "fallback": "makes every plain piece one kind, so a path can always be drawn",
+        "during": "reshuffle"
+      }
+    ],
+    "bounds": []
+  },
+  "layers": [
+    {
+      "id": "paths",
+      "rule": "draw a path through touching pieces of one kind to clear them: a path of n scores n × n",
+      "brings": {
+        "draws": [
+          "debris"
+        ],
+        "events": [
+          "fill",
+          "clear",
+          "refill",
+          "reshuffle"
+        ],
+        "settings": [
+          "pathMin",
+          "pathPoints"
+        ],
+        "stats": [
+          "paths",
+          "longest"
+        ],
+        "payouts": [
+          "path"
+        ]
+      }
+    },
+    {
+      "id": "streak",
+      "rule": "long paths in a row multiply",
+      "brings": {
+        "settings": [
+          "streakMin",
+          "streakPercent"
+        ],
+        "gauges": [
+          "streak"
+        ],
+        "stats": [
+          "best_streak"
+        ],
+        "multipliers": [
+          "streak"
+        ],
+        "streak": [
+          "streak"
+        ]
+      }
+    },
+    {
+      "id": "prizes",
+      "rule": "prizes sink as you clear beneath them, and pay a little at the floor",
+      "brings": {
+        "draws": [
+          "prize"
+        ],
+        "pieces": [
+          "prize"
+        ],
+        "events": [
+          "prize_floor",
+          "swept"
+        ],
+        "settings": [
+          "startPrizes",
+          "prizePermille",
+          "maxPrizes",
+          "prizeFloorPoints"
+        ],
+        "stats": [
+          "prizes_floor"
+        ],
+        "payouts": [
+          "prize_floor"
+        ]
+      }
+    },
+    {
+      "id": "loops",
+      "rule": "a closed path takes whatever is inside it and every prize at once",
+      "brings": {
+        "events": [
+          "loop"
+        ],
+        "settings": [
+          "loopMin",
+          "loopPercent",
+          "insidePoints",
+          "prizeLoopPoints"
+        ],
+        "stats": [
+          "loops",
+          "prizes_netted"
+        ],
+        "payouts": [
+          "inside",
+          "prize_loop"
+        ],
+        "multipliers": [
+          "loop"
+        ]
+      }
+    },
+    {
+      "id": "bounty",
+      "rule": "a posted kind pays a bonus for a long path of it",
+      "brings": {
+        "draws": [
+          "posted"
+        ],
+        "events": [
+          "bounty",
+          "posted"
+        ],
+        "settings": [
+          "bountyLength",
+          "bountyBonus"
+        ],
+        "stats": [
+          "bounties"
+        ],
+        "payouts": [
+          "bounty"
+        ],
+        "tasks": [
+          "bounty"
+        ]
+      }
+    },
+    {
+      "id": "timers",
+      "rule": "a timed piece pays more the later it is cleared, and ruins its neighbours if it runs out",
+      "brings": {
+        "draws": [
+          "timer"
+        ],
+        "pieces": [
+          "timed",
+          "ruined"
+        ],
+        "events": [
+          "defuse",
+          "burn",
+          "blowup",
+          "arm"
+        ],
+        "settings": [
+          "timerEvery",
+          "timerFuse",
+          "timerPoints"
+        ],
+        "stats": [
+          "defused",
+          "blowups"
+        ],
+        "payouts": [
+          "defuse"
+        ]
+      }
+    }
+  ],
+  "ladder": [
+    {
+      "stage": "paths",
+      "adds": [
+        "paths"
+      ],
+      "advance": {
+        "measure": "best-round",
+        "threshold": 120
+      }
+    },
+    {
+      "stage": "streak",
+      "adds": [
+        "streak",
+        "prizes"
+      ],
+      "advance": {
+        "measure": "best-round",
+        "threshold": 280
+      }
+    },
+    {
+      "stage": "loops",
+      "adds": [
+        "loops",
+        "bounty"
+      ],
+      "advance": {
+        "measure": "best-round",
+        "threshold": 780
+      }
+    },
+    {
+      "stage": "full",
+      "adds": [
+        "timers"
+      ]
+    }
+  ],
+  "signals": {
+    "in": [],
+    "out": []
+  },
+  "pieces": [
+    {
+      "id": "kind",
+      "family": "kinds"
+    },
+    {
+      "id": "timed",
+      "of": "kind",
+      "states": {
+        "count": "timerFuse"
+      }
+    },
+    {
+      "id": "ruined"
+    },
+    {
+      "id": "prize"
+    }
+  ],
+  "moves": [
+    {
+      "id": "trace",
+      "description": "draw a path through touching pieces of one kind",
+      "gesture": "draw",
+      "fields": {
+        "path": "places",
+        "closed": "flag"
+      }
+    }
+  ],
+  "controls": [],
+  "events": [
+    {
+      "id": "defuse",
+      "description": "a timed piece was cleared in time",
+      "fields": {
+        "place": "place",
+        "late": "number",
+        "points": "points"
+      },
+      "changes": []
+    },
+    {
+      "id": "burn",
+      "description": "the timed pieces left on the board counted down",
+      "fields": {
+        "pieces": "places"
+      },
+      "changes": [
+        "change"
+      ]
+    },
+    {
+      "id": "blowup",
+      "description": "a timed piece ran out and ruined the pieces round it",
+      "fields": {
+        "place": "place",
+        "ruined": "places"
+      },
+      "changes": [
+        "change"
+      ],
+      "mistake": true
+    },
+    {
+      "id": "arm",
+      "description": "a new piece came in timed",
+      "fields": {
+        "place": "place"
+      },
+      "changes": [
+        "change"
+      ]
+    },
+    {
+      "id": "bounty",
+      "description": "the bounty was filled",
+      "fields": {
+        "kind": "number",
+        "points": "points"
+      },
+      "changes": []
+    },
+    {
+      "id": "posted",
+      "description": "a bounty was posted",
+      "fields": {
+        "kind": "number"
+      },
+      "changes": []
+    },
+    {
+      "id": "fill",
+      "description": "a fresh board was dealt",
+      "fields": {},
+      "changes": [
+        "leave",
+        "arrive"
+      ]
+    },
+    {
+      "id": "clear",
+      "description": "a path cleared",
+      "fields": {
+        "path": "places",
+        "points": "points"
+      },
+      "changes": [
+        "leave"
+      ],
+      "step": true
+    },
+    {
+      "id": "refill",
+      "description": "pieces fell and new ones came in at the top",
+      "fields": {},
+      "changes": [
+        "travel",
+        "arrive"
+      ]
+    },
+    {
+      "id": "reshuffle",
+      "description": "no path was left, so the plain pieces were dealt again where they stood",
+      "fields": {},
+      "changes": [
+        "leave",
+        "arrive"
+      ]
+    },
+    {
+      "id": "prize_floor",
+      "description": "prizes reached the floor and were taken",
+      "fields": {
+        "prizes": "places",
+        "points": "points"
+      },
+      "changes": [
+        "leave"
+      ]
+    },
+    {
+      "id": "swept",
+      "description": "ruined pieces reached the floor and were swept off",
+      "fields": {
+        "pieces": "places"
+      },
+      "changes": [
+        "leave"
+      ]
+    },
+    {
+      "id": "loop",
+      "description": "a path closed, and took what was inside it and every prize",
+      "fields": {
+        "path": "places",
+        "inside": "places",
+        "prizes": "places",
+        "points": "points"
+      },
+      "changes": [
+        "leave"
+      ],
+      "step": true
+    }
+  ],
+  "payouts": [
+    {
+      "id": "defuse",
+      "description": "a timed piece cleared, for every move it had counted and one more",
+      "on": [
+        "defuse"
+      ],
+      "counts": "late",
+      "growth": "linear",
+      "reads": [
+        "timerPoints"
+      ]
+    },
+    {
+      "id": "bounty",
+      "description": "filling the bounty",
+      "on": [
+        "bounty"
+      ],
+      "growth": "flat",
+      "reads": [
+        "bountyBonus"
+      ]
+    },
+    {
+      "id": "path",
+      "description": "a path's length squared",
+      "on": [
+        "clear",
+        "loop"
+      ],
+      "counts": "path",
+      "growth": "superlinear",
+      "reads": [
+        "pathPoints"
+      ]
+    },
+    {
+      "id": "prize_floor",
+      "description": "each prize that reaches the floor",
+      "on": [
+        "prize_floor"
+      ],
+      "counts": "prizes",
+      "growth": "linear",
+      "reads": [
+        "prizeFloorPoints"
+      ]
+    },
+    {
+      "id": "inside",
+      "description": "each piece inside a loop",
+      "on": [
+        "loop"
+      ],
+      "counts": "inside",
+      "growth": "linear",
+      "reads": [
+        "insidePoints"
+      ]
+    },
+    {
+      "id": "prize_loop",
+      "description": "the prizes a loop takes, squared",
+      "on": [
+        "loop"
+      ],
+      "counts": "prizes",
+      "growth": "superlinear",
+      "reads": [
+        "prizeLoopPoints"
+      ]
+    }
+  ],
+  "multipliers": [
+    {
+      "id": "streak",
+      "description": "the streak multiplies everything a move banks",
+      "scales": [
+        "path",
+        "inside",
+        "prize_loop",
+        "prize_floor",
+        "bounty",
+        "defuse"
+      ],
+      "on": "every",
+      "by": {
+        "table": "streakPercent",
+        "index": "streak"
+      }
+    },
+    {
+      "id": "loop",
+      "description": "closing multiplies a path's own points",
+      "scales": [
+        "path"
+      ],
+      "on": "loop",
+      "by": {
+        "percent": "loopPercent"
+      }
+    }
+  ],
+  "streak": {
+    "builds": {
+      "event": "clear or loop",
+      "when": "path >= streakMin"
+    },
+    "grace": 1,
+    "breaksOn": [
+      "blowup"
+    ]
+  },
+  "tasks": [
+    {
+      "id": "bounty",
+      "description": "a long path of the posted kind",
+      "open": 1,
+      "ends": [
+        "done"
+      ],
+      "graded": "none",
+      "grades": []
+    }
+  ],
+  "gauges": [
+    {
+      "id": "streak",
+      "description": "long paths in a row"
+    }
+  ],
+  "stats": [
+    {
+      "id": "defused",
+      "description": "timed pieces cleared in time"
+    },
+    {
+      "id": "blowups",
+      "description": "timed pieces that ran out"
+    },
+    {
+      "id": "bounties",
+      "description": "bounties filled"
+    },
+    {
+      "id": "paths",
+      "description": "paths traced"
+    },
+    {
+      "id": "longest",
+      "description": "the longest path traced"
+    },
+    {
+      "id": "best_streak",
+      "description": "the longest streak"
+    },
+    {
+      "id": "prizes_floor",
+      "description": "prizes taken at the floor"
+    },
+    {
+      "id": "loops",
+      "description": "loops closed"
+    },
+    {
+      "id": "prizes_netted",
+      "description": "prizes taken by a loop"
+    }
+  ],
+  "texts": [
+    {
+      "key": "name"
+    },
+    {
+      "key": "how_to"
+    },
+    {
+      "key": "stage.paths"
+    },
+    {
+      "key": "stage.paths_intro"
+    },
+    {
+      "key": "stage.streak"
+    },
+    {
+      "key": "stage.streak_intro"
+    },
+    {
+      "key": "stage.loops"
+    },
+    {
+      "key": "stage.loops_intro"
+    },
+    {
+      "key": "stage.full"
+    },
+    {
+      "key": "stage.full_intro"
+    },
+    {
+      "key": "piece.kind_1"
+    },
+    {
+      "key": "piece.kind_2"
+    },
+    {
+      "key": "piece.kind_3"
+    },
+    {
+      "key": "piece.kind_4"
+    },
+    {
+      "key": "piece.kind_5"
+    },
+    {
+      "key": "piece.kind_6"
+    },
+    {
+      "key": "piece.kind_7"
+    },
+    {
+      "key": "piece.kind_8"
+    },
+    {
+      "key": "piece.timed"
+    },
+    {
+      "key": "piece.ruined"
+    },
+    {
+      "key": "piece.prize"
+    },
+    {
+      "key": "reason.round_over"
+    },
+    {
+      "key": "reason.unknown_move"
+    },
+    {
+      "key": "reason.off_board"
+    },
+    {
+      "key": "reason.too_short"
+    },
+    {
+      "key": "reason.twice"
+    },
+    {
+      "key": "reason.not_joinable"
+    },
+    {
+      "key": "reason.not_touching"
+    },
+    {
+      "key": "reason.not_same_kind"
+    },
+    {
+      "key": "reason.cannot_close"
+    }
+  ],
+  "teaching": {
+    "preview": false,
+    "hint": true
+  }
+}
+"
+`;

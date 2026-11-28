@@ -3,8 +3,9 @@
 // one seat on a grid. Each later rung widens these and narrows nothing.
 
 export type Cell = { readonly x: number; readonly y: number };
-export interface Piece { readonly id: number; readonly piece: string; readonly kind?: number }
-export type NewPiece = { readonly piece: string; readonly kind?: number };
+/** A piece's state is one of its named forms, or a number it shows, such as the moves a fuse has left. */
+export interface Piece { readonly id: number; readonly piece: string; readonly kind?: number; readonly state?: number | string }
+export type NewPiece = { readonly piece: string; readonly kind?: number; readonly state?: number | string };
 export type Setting = number | boolean | readonly number[];
 export type Settings = Readonly<Record<string, Setting>>;
 
@@ -24,15 +25,21 @@ export interface Event {
   /** Which step of the cascade it is part of, counted from 1. Only on an event that counts as a step. */
   readonly step?: number;
   readonly changes: readonly Change[];
+  /** Gauges and stats it set, each to its new value. */
+  readonly sets?: readonly { readonly id: string; readonly value: number }[];
+  /** Tasks it opened, each with what the task holds, and tasks it finished. */
+  readonly tasks?: readonly ({ readonly task: string; readonly opened: Readonly<Record<string, unknown>> } | { readonly task: string; readonly done: true })[];
 }
+/** A task that is open: its id and what it holds, such as the kind a bounty names. */
+export interface OpenTask { readonly task: string; readonly holds: Readonly<Record<string, unknown>> }
 export type AnyMove = { readonly move: string } & Readonly<Record<string, unknown>>;
 
 // ---- the puzzle document, as the guide writes it. Every key is present in an expanded puzzle.
 
 export interface SettingDecl { id: string; type: "whole" | "list" | "flag"; default: Setting; min?: number; max?: number; description: string; group: "board" | "deal" | "tempo" | "scoring"; unit?: string; entries?: { least: number; most: number } }
-export interface MoveDecl { id: string; description: string; gesture: string; fields: Record<string, "place" | "number" | "flag"> }
-export interface EventDecl { id: string; description: string; fields: Record<string, "place" | "places" | "number" | "points">; changes: ChangeKind[]; step?: true }
-export interface DrawDecl { id: string; description: string; gives: "kind" | "piece" | "number"; by: "even" | "weighted"; when: "start" | "refill"; reads: string[] }
+export interface MoveDecl { id: string; description: string; gesture: string; fields: Record<string, "place" | "places" | "number" | "flag"> }
+export interface EventDecl { id: string; description: string; fields: Record<string, "place" | "places" | "number" | "flag" | "points">; changes: ChangeKind[]; step?: true; mistake?: true }
+export interface DrawDecl { id: string; description: string; gives: "kind" | "piece" | "place" | "number"; by: "even" | "weighted"; when: "start" | "refill" | "task" | { every: string }; reads: string[] }
 /** `needs: "settled"` asks only that nothing is left to happen by itself. Left out, a check also asks for a move worth making. */
 export interface CheckDecl { id: string; description: string; draws: string[]; tries: number; needs?: "settled"; fallback: string; during?: string }
 /** A number, or the id of the setting that holds it. */
@@ -42,7 +49,13 @@ export interface PayoutDecl { id: string; description: string; on: string[]; cou
 export interface MultiplierDecl { id: string; description: string; scales: string[]; on: string; by: { percent: string } | { table: string; index: "streak" | "step" } }
 /** `builds.event` names one event, or several joined by `or`. */
 export interface StreakDecl { builds: { event: string; when?: string }; grace: Amount; breaksOn: string[] }
-export interface PieceDecl { id: string; family?: string }
+/** `of` names the piece it is based on. `states` is the number it shows, up to a count, or its named forms. */
+export interface PieceDecl { id: string; family?: string; of?: string; states?: { count: Amount } | { named: string[] } }
+export interface GaugeDecl { id: string; description: string; most?: Amount; danger?: Amount }
+export interface StatDecl { id: string; description: string }
+export interface TaskDecl { id: string; description: string; open: number; ends: ("done")[]; graded: "none"; grades: string[] }
+export interface LayerDecl { id: string; rule: string; brings: Record<string, string[]> }
+export interface StageDecl { stage: string; adds: string[]; advance?: { measure: "best-round" | "average" | "wins" | "rounds"; threshold: number } }
 export interface EndDecl { id: string; by: "budget" | "clock"; setting: string }
 
 export interface Document {
@@ -58,8 +71,8 @@ export interface Document {
   settings: SettingDecl[];
   relations: never[];
   deal: { draws: DrawDecl[]; checks: CheckDecl[]; bounds: never[] };
-  layers: { id: string; rule: string; brings: Record<string, string[]> }[];
-  ladder: { stage: string; adds: string[] }[];
+  layers: LayerDecl[];
+  ladder: StageDecl[];
   signals: { in: never[]; out: never[] };
   pieces: PieceDecl[];
   moves: MoveDecl[];
@@ -68,9 +81,9 @@ export interface Document {
   payouts: PayoutDecl[];
   multipliers: MultiplierDecl[];
   streak?: StreakDecl;
-  tasks: never[];
-  gauges: never[];
-  stats: never[];
+  tasks: TaskDecl[];
+  gauges: GaugeDecl[];
+  stats: StatDecl[];
   texts: { key: string }[];
   teaching: { preview: boolean; hint: boolean };
 }
@@ -83,14 +96,22 @@ export interface Board {
   places(): Cell[];
   has(place: Cell): boolean;
   at(place: Cell): Piece | null;
+  /** The cells on the board that touch a cell: four of them, or eight where the board counts corners. */
+  touching(place: Cell): Cell[];
 }
 export interface Draw { even(n: number): number; chance(permille: number): boolean }
 export interface Changes {
   arrive(at: Cell, piece: NewPiece, from?: string): this;
   leave(at: Cell): this;
   travel(from: Cell, to: Cell): this;
-  /** The piece on a cell becomes another, in place. It keeps its id. */
-  change(at: Cell, to: NewPiece): this;
+  /** The piece on a cell changes, in place, and keeps its id. Naming a piece makes it that piece. Naming only a kind or a state changes that alone. */
+  change(at: Cell, to: Partial<NewPiece>): this;
+  /** Sets a gauge or a stat the puzzle declares. */
+  set(id: string, value: number): this;
+  /** Opens a task the puzzle declares, with what it holds. */
+  open(task: string, holds?: Record<string, unknown>): this;
+  /** Finishes the open task of that id: the one opened first, where several are open. */
+  done(task: string): this;
 }
 /** What a question is asked with. Answering changes nothing. */
 export interface View<S = unknown> {
@@ -100,8 +121,14 @@ export interface View<S = unknown> {
   readonly state: S;
   /** The points banked so far. */
   readonly score: number;
-  /** Scoring entries in a row. */
+  /** Moves in a row that built the streak. */
   readonly streak: number;
+  /** Whether a layer is on at the round's stage. */
+  on(layer: string): boolean;
+  /** What a gauge or a stat stands at. One nothing has set stands at 0. */
+  value(id: string): number;
+  /** The open task of that id, the one opened first, or null. */
+  task(id: string): OpenTask | null;
 }
 /** What a hook that starts with "on" is given. It changes the round only by reporting events. */
 export interface Ctx<S = unknown> extends View<S> {
@@ -122,6 +149,8 @@ export interface Rules<M extends AnyMove = AnyMove, S = unknown> {
   onMove(ctx: Ctx<S>, seat: 0, move: M): S | void;
   onCascade?(ctx: Ctx<S>): S | void;
   onMoveEnd?(ctx: Ctx<S>): S | void;
+  /** Fewer tasks are open than the puzzle declares: open one on an event, or report nothing when there is no room yet. */
+  onTaskNeeded?(ctx: Ctx<S>): S | void;
   listMoves?(view: View<S>): M[];
   hint?(view: View<S>): M | null;
   pointsFor?(event: Event, paid: number): number;

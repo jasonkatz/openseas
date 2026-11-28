@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import flat from "../examples/swap.flat.js";
 import sparks from "../examples/sparks.puzzle.js";
 import swap from "../examples/swap.puzzle.js";
-import { budget, expand, explain, grid, groupsOf, hint, lines, listMoves, part, play, puzzle, read, refill, replay, seenAfter, seenEmpty, start, swap as swapPart, type AnyMove, type Puzzle, type Round } from "../src/index.js";
+import { budget, expand, explain, grid, groupsOf, hint, lines, listMoves, part, play, puzzle, read, refill, replay, seenAfter, seenEmpty, start, swap as swapPart, view, type AnyMove, type Puzzle, type Round } from "../src/index.js";
 
 /** Plays a round to its end: a listed move picked by `pick`, or the hint, so runs differ and still score. */
 function playOut<M extends AnyMove>(p: Puzzle<M>, seed: number | string, picks: readonly number[] = [], settings: Record<string, number> = {}): Round<M>[] {
@@ -169,11 +169,7 @@ describe("the deal's check, held by the loop", () => {
   });
 });
 
-const viewBoard = (r: Round): Parameters<typeof groupsOf>[0] => {
-  const board = read(r).board;
-  const has = (p: { x: number; y: number }): boolean => p.y >= 0 && p.y < board.length && p.x >= 0 && p.x < board[0]!.length;
-  return { width: board[0]!.length, height: board.length, has, at: (p) => (has(p) ? board[p.y]![p.x]! : null), places: () => board.flatMap((row, y) => row.map((_, x) => ({ x, y }))) };
-};
+const viewBoard = (r: Round): Parameters<typeof groupsOf>[0] => view(r).board;
 
 describe("a board drawn from events alone", () => {
   it("holds what the round holds after every event of every round", () => {

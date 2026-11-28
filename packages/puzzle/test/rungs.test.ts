@@ -1,6 +1,6 @@
 // Rungs 2 and 3 as the docs site teaches them: each sample on its pages, run as written.
 import { describe, expect, it } from "vitest";
-import { around, budget, clock, grid, holds, lines, listMoves, part, play, puzzle, read, refill, start, swap, whenProblem, type AnyMove, type Round, type SwapMove } from "../src/index.js";
+import { around, budget, clock, grid, holds, lines, listMoves, part, play, puzzle, read, refill, start, swap, view, whenProblem, type AnyMove, type Round, type SwapMove } from "../src/index.js";
 
 const tuned = () =>
   puzzle("cooling", {
@@ -109,11 +109,7 @@ describe("rung 2: numbers and what pays, as data", () => {
   });
 });
 
-const boardOf = (r: Round): Parameters<NonNullable<ReturnType<typeof tuned>["rules"]["listMoves"]>>[0]["board"] => {
-  const board = read(r).board;
-  const has = (p: { x: number; y: number }): boolean => p.y >= 0 && p.y < board.length && p.x >= 0 && p.x < board[0]!.length;
-  return { width: board[0]!.length, height: board.length, has, at: (p) => (has(p) ? board[p.y]![p.x]! : null), places: () => board.flatMap((row, y) => row.map((_, x) => ({ x, y }))) };
-};
+const boardOf = (r: Round) => view(r).board;
 
 describe("rung 3: a part of one's own", () => {
   const charge = part({

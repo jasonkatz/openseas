@@ -55,10 +55,11 @@ export const touching = (a: Cell, b: Cell): boolean => Math.abs(a.x - b.x) + Mat
 /** A number written in place, or the name of the setting that holds it. A name is given its value among the puzzle's settings. */
 const held = (value: number | string, id: string, rest: Omit<SettingNeed, "id" | "default">): SettingNeed => (typeof value === "number" ? { id, default: value, ...rest } : { id: value, ...rest });
 
-export const grid = (width: number | string, height: number | string): BoardSpec => {
+/** A grid. `touch` says which cells touch a cell: the four beside it, or with 8 the corners too. */
+export const grid = (width: number | string, height: number | string, opts: { touch?: 4 | 8 } = {}): BoardSpec => {
   const w = held(width, "width", { type: "whole", min: 3, max: 12, description: "columns on the board", group: "board", unit: "cells" });
   const h = held(height, "height", { type: "whole", min: 3, max: 12, description: "rows on the board", group: "board", unit: "cells" });
-  return { board: { shape: "grid", width: w.id, height: h.id, touch: 4, rim: false }, settings: [w, h] };
+  return { board: { shape: "grid", width: w.id, height: h.id, touch: opts.touch ?? 4, rim: false }, settings: [w, h] };
 };
 /** The round ends when this many moves have been made. */
 export const budget = (moves: number | string): EndSpec => {
