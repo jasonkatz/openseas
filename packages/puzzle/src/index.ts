@@ -5,3 +5,4 @@ export * from "./loop.js";
 export * from "./puzzle.js";
 export * from "./stock.js";
 export * from "./expand.js";
+export * from "./seen.js";

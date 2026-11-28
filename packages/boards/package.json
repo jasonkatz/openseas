@@ -33,6 +33,10 @@
     "./drawing": {
       "types": "./src/kit/drawing.ts",
       "default": "./src/kit/drawing.ts"
+    },
+    "./stock": {
+      "types": "./src/look/stock.ts",
+      "default": "./src/look/stock.ts"
     }
   },
   "scripts": {

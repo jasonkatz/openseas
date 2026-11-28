@@ -9,6 +9,7 @@ export { CUE_NAMES, CUE_PARAMS, LIMITS, NOTES, PROBES, SCALE, PUZZLE_SHIPPED_CUE
 export { usePuzzleCues } from "./usePuzzleCues.js";
 export { SHIPPED_PIECES, drawingOf, overridePieces, pieceOverrideRevision, piecePaint, subscribePieces } from "./look/pieces.js";
 export { paintDrawing, paintLayer } from "./kit/drawing.js";
+export { STOCK_KINDS, STOCK_PIECES, stockPiece } from "./look/stock.js";
 export { ROUNDEST, THINNEST, cueProblems, drawingProblems, type LookProblem } from "./look/rules.js";
 export { LatencyMeter } from "./metrics.js";
 export { softwareRendered } from "./surface.js";

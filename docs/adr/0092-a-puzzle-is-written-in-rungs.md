@@ -94,6 +94,11 @@ levels of the API are rungs and the API is never called a ladder in the guide or
   a ladder have one stage and a payout read no setting. A document `expand` prints passes it.
 - The docs site's API area starts with rung 1 and has a page a rung. Rungs 2 to 5 are marked as not
   built, and their samples are held to nothing until they are.
+- Rungs 0 and 1 are built with this ADR: `packages/puzzle`, and Swap at `/rungs/swap` in the studio, on a
+  canvas drawn from the round's events alone in a stock skin of eight outlines
+  (`packages/boards/data/stock.json`). The page is not a puzzle of the studio's registry: it has no
+  tuning panel, no cues and no guide, and gains each as the rung that gives it is built. A reason a move
+  is refused with is a text key, never a sentence, so it goes through the message table.
 - Build order: rungs 0 and 1 with Swap in the studio, rungs 2 and 3 with Cooling compared against its
   shipped engine, rung 4 with Paths and Gunnery, promotion, then rung 5 with Pouring. Each rung is
   proved by a real puzzle before the next begins.

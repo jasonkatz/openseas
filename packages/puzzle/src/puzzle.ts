@@ -29,6 +29,8 @@ export interface Part<M extends AnyMove = never> {
   readonly draws?: readonly DrawDecl[];
   readonly checks?: readonly CheckDecl[];
   readonly payouts?: readonly PayoutDecl[];
+  /** The text keys it needs words for, such as each reason it refuses a move with. */
+  readonly texts?: readonly string[];
   readonly hooks: PartHooks;
   /** Only a type: the moves this part brings. */
   readonly __moves?: M;
@@ -97,6 +99,9 @@ export function mergeHooks<M extends AnyMove>(parts: readonly Part<any>[]): Rule
   return rules;
 }
 
+/** The reasons the loop itself refuses a move with. Every puzzle has words for them. */
+export const LOOP_REASONS = ["reason.round_over", "reason.unknown_move", "reason.off_board"] as const;
+
 function gather<T extends { id: string }>(what: string, sources: readonly (readonly [string, readonly T[] | undefined])[]): T[] {
   const by = new Map<string, string>();
   const out: T[] = [];
@@ -158,7 +163,7 @@ export function puzzle<const P extends readonly Part<any>[]>(id: string, spec: S
     tasks: [],
     gauges: [],
     stats: [],
-    texts: [{ key: "name" }, { key: "how_to" }, { key: "stage.full" }, { key: "stage.full_intro" }, ...Array.from({ length: kinds.max }, (_, i) => ({ key: `piece.kind_${i + 1}` })), ...pieces.filter((p) => !p.family).map((p) => ({ key: `piece.${p.id}` }))],
+    texts: [{ key: "name" }, { key: "how_to" }, { key: "stage.full" }, { key: "stage.full_intro" }, ...Array.from({ length: kinds.max }, (_, i) => ({ key: `piece.kind_${i + 1}` })), ...pieces.filter((p) => !p.family).map((p) => ({ key: `piece.${p.id}` })), ...LOOP_REASONS.map((key) => ({ key })), ...gather("text", parts.map((p) => [p.name, (p.texts ?? []).map((id) => ({ id }))] as const)).map((x) => ({ key: x.id }))],
     teaching: { preview: false, hint: Boolean(rules.listMoves || rules.hint) },
   };
   return { document, rules, parts };

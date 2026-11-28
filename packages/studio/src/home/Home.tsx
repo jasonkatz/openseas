@@ -397,6 +397,12 @@ export function Home() {
               <span className="tile-blurb">{t("studio.home.voyage_blurb")}</span>
             </Link>
           </li>
+          <li>
+            <Link to="/rungs/swap" className="practice-tile live" data-testid="tile-rung-swap">
+              <span className="tile-title">{t("rungs.home")}</span>
+              <span className="tile-blurb">{t("rungs.home_blurb")}</span>
+            </Link>
+          </li>
         </ul>
       </section>
 

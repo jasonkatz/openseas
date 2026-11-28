@@ -285,6 +285,9 @@ importers:
       '@openseas/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@openseas/puzzle':
+        specifier: workspace:*
+        version: link:../puzzle
       react:
         specifier: ^19.1.0
         version: 19.3.0

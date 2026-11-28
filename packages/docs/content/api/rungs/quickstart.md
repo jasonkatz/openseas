@@ -1,7 +1,7 @@
 A puzzle is a board, some pieces, something a player does and a way for a round to end. Say those four things and it plays. Everything else the engine knows about has a default, and stays out of your way until you want to change it.
 
 > [!PREVIEW]
-> The engine is being built to this design, a rung at a time. This page is the first two rungs. They ran in a prototype as written here, and they are what is being built now. Names may still move.
+> The engine is being built to this design, a rung at a time. This page is the first two rungs, and they are built: everything on it runs as written, and this Swap plays in the studio. Names may still move while the rungs above are built.
 
 ## A whole puzzle
 
@@ -26,7 +26,7 @@ export default puzzle("swap", {
 | `parts: […]` | What a player does and what follows from it, as three stock parts |
 | `ends: budget(20)` | A round is twenty moves |
 
-A **part** is a mechanic with everything it needs: what it declares, and the code that works it. `swap` brings the move and refuses a bad one with a reason. `lines` finds every line and clears it. `refill` deals the board, lets pieces rise into the gaps and brings new ones in.
+A **part** is a mechanic with everything it needs: what it declares, and the code that works it. `swap` brings the move and refuses a bad one with a reason. A reason is a text key, so a skin gives it its words. `lines` finds every line and clears it. `refill` deals the board, lets pieces rise into the gaps and brings new ones in.
 
 ## Play a round
 
@@ -39,7 +39,7 @@ import swap from "./swap.puzzle";
 let round = start(swap, { seed: 7 });
 round = play(round, { move: "swap", a: { x: 4, y: 0 }, b: { x: 4, y: 1 } });
 
-console.log(round.last.refused); // null, or the reason the move was not allowed
+console.log(round.last.refused); // null, or the text key of the reason, such as "reason.side_by_side"
 console.log(round.last.events);  // what happened: a swap, then each clear and each rise
 console.log(read(round).score);
 ```

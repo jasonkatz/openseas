@@ -60,15 +60,16 @@ export type SwapMove = { readonly move: "swap"; readonly a: Cell; readonly b: Ce
 /** Swap two touching pieces. */
 export const swap = (): Part<SwapMove> => {
   const canSwap = (view: { board: Board }, { a, b }: SwapMove): string | null => {
-    if (!touching(a, b)) return "pick two pieces side by side";
+    if (!touching(a, b)) return "reason.side_by_side";
     const pa = view.board.at(a), pb = view.board.at(b);
-    if (!pa || !pb) return "there is no piece there";
-    if (pa.piece === pb.piece && pa.kind === pb.kind) return "those two are the same kind";
+    if (!pa || !pb) return "reason.no_piece";
+    if (pa.piece === pb.piece && pa.kind === pb.kind) return "reason.same_kind";
     return null;
   };
   return part<SwapMove>({
     name: "swap",
     rule: "swap two touching pieces",
+    texts: ["reason.side_by_side", "reason.no_piece", "reason.same_kind"],
     moves: [{ id: "swap", description: "swap two pieces side by side", gesture: "drag", fields: { a: "place", b: "place" } }],
     events: [{ id: "swap", description: "two pieces traded places", fields: { a: "place", b: "place" }, changes: ["travel"] }],
     hooks: {

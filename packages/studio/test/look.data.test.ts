@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { CUE_NAMES, CUE_PARAMS, LIMITS, SHIPPED_CUES, cueFrom } from "@openseas/boards/cues";
 import { SHIPPED_PIECES } from "@openseas/boards/pieces";
+import { STOCK_KINDS, STOCK_PIECES, stockPiece } from "@openseas/boards/stock";
+import { PALETTE } from "@openseas/boards/look";
 import { cueProblems, drawingProblems } from "@openseas/boards/rules";
 import { PUZZLE_IDS } from "@openseas/engine";
 import { CueDataSchema, DrawingSchema, type CueData, type Drawing } from "@openseas/protocol";
@@ -78,6 +80,23 @@ describe("the shipped pieces (boards/data/pieces)", () => {
         expect(() => drawingProblems(d)).not.toThrow();
       }
     }
+  });
+});
+
+describe("the stock skin (boards/data/stock.json)", () => {
+  it("has eight outlines, each a drawing that breaks no rule of the look, in a colour of the palette", () => {
+    expect(STOCK_KINDS).toBe(8);
+    const seen = new Set<string>();
+    for (let kind = 1; kind <= STOCK_KINDS; kind++) {
+      const { drawing, color } = stockPiece(kind);
+      expect(DrawingSchema.parse(drawing), `kind-${kind}`).toEqual(drawing);
+      expect(drawingProblems(drawing), `kind-${kind}`).toEqual([]);
+      expect(color in PALETTE, `kind-${kind}`).toBe(true);
+      // No two share an outline: a board must read with every piece in one colour.
+      seen.add(JSON.stringify(drawing.layers.map(({ name: _, ...shape }) => shape)));
+    }
+    expect(seen.size).toBe(STOCK_KINDS);
+    expect(Object.keys(STOCK_PIECES)).toEqual(Array.from({ length: 8 }, (_, i) => `kind-${i + 1}`));
   });
 });
 

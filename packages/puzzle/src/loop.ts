@@ -29,7 +29,11 @@ export interface Round<M extends AnyMove = AnyMove> {
   readonly settings: Settings;
   readonly state: State;
   readonly log: readonly M[];
-  /** What the last call reported: the events of a move, or why it was refused. */
+  /**
+   * What the last call reported: the events of a move, or why it was refused. A reason is a text key,
+   * never a sentence: the loop's own are `reason.round_over`, `reason.unknown_move` and `reason.off_board`,
+   * and a part declares its own among its texts. A skin gives each its words.
+   */
   readonly last: { readonly events: readonly Event[]; readonly refused: string | null };
 }
 
@@ -209,16 +213,16 @@ export function start<M extends AnyMove>(puzzle: Puzzle<M>, opts: { seed: string
   return { puzzle, seed, settings, state: s, log: [], last: { events, refused: null } };
 }
 
-export function play<M extends AnyMove>(round: Round<M>, move: M): Round<M> {
+export function play<M extends AnyMove>(round: Round<M>, move: NoInfer<M>): Round<M> {
   const puzzle = round.puzzle as Puzzle;
   const doc = puzzle.document;
   const refuse = (refused: string): Round<M> => ({ ...round, last: { events: [], refused } });
-  if (round.state.ended) return refuse("the round is over");
+  if (round.state.ended) return refuse("reason.round_over");
   // Check: the loop refuses what it can before the rules are asked.
   const decl = doc.moves.find((m) => m.id === move.move);
-  if (!decl) return refuse(`${move.move} is not a move of this puzzle`);
+  if (!decl) return refuse("reason.unknown_move");
   const board = boardOf(round.state);
-  for (const [name, type] of Object.entries(decl.fields)) if (type === "place" && !board.has(move[name] as Cell)) return refuse(`${name} is not a place on the board`);
+  for (const [name, type] of Object.entries(decl.fields)) if (type === "place" && !board.has(move[name] as Cell)) return refuse("reason.off_board");
   const reason = puzzle.rules.canMove(viewOf(round.settings, round.state), move);
   if (reason) return refuse(reason);
   // Move, Cascade, Move end.

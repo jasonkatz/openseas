@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import flat from "../examples/swap.flat.js";
 import sparks from "../examples/sparks.puzzle.js";
 import swap from "../examples/swap.puzzle.js";
-import { budget, expand, explain, grid, groupsOf, hint, lines, listMoves, part, play, puzzle, read, refill, replay, start, swap as swapPart, type AnyMove, type Puzzle, type Round } from "../src/index.js";
+import { budget, expand, explain, grid, groupsOf, hint, lines, listMoves, part, play, puzzle, read, refill, replay, seenAfter, seenEmpty, start, swap as swapPart, type AnyMove, type Puzzle, type Round } from "../src/index.js";
 
 /** Plays a round to its end: a listed move picked by `pick`, or the hint, so runs differ and still score. */
 function playOut<M extends AnyMove>(p: Puzzle<M>, seed: number | string, picks: readonly number[] = [], settings: Record<string, number> = {}): Round<M>[] {
@@ -74,16 +74,16 @@ describe("rung 0 and 1: the seven-line Swap", () => {
     expect(end.movesMade).toBe(20);
     expect(end.score).toBeGreaterThan(0);
     expect(end.board.flat().every(Boolean)).toBe(true);
-    expect(play(rounds.at(-1)!, rounds.at(-1)!.log[0]!).last.refused).toBe("the round is over");
+    expect(play(rounds.at(-1)!, rounds.at(-1)!.log[0]!).last.refused).toBe("reason.round_over");
   });
 
   it("refuses a move with the rules' own reason, and changes nothing", () => {
     const r = start(swap, { seed: 1 });
     const far = play(r, { move: "swap", a: { x: 0, y: 0 }, b: { x: 3, y: 3 } });
-    expect(far.last.refused).toBe("pick two pieces side by side");
+    expect(far.last.refused).toBe("reason.side_by_side");
     expect(far.state).toBe(r.state);
     expect(far.log).toBe(r.log);
-    expect(play(r, { move: "swap", a: { x: 0, y: 0 }, b: { x: -1, y: 0 } }).last.refused).toBe("b is not a place on the board");
+    expect(play(r, { move: "swap", a: { x: 0, y: 0 }, b: { x: -1, y: 0 } }).last.refused).toBe("reason.off_board");
   });
 
   it("refuses a setting out of its bounds, and one the puzzle does not declare", () => {
@@ -174,6 +174,22 @@ const viewBoard = (r: Round): Parameters<typeof groupsOf>[0] => {
   const has = (p: { x: number; y: number }): boolean => p.y >= 0 && p.y < board.length && p.x >= 0 && p.x < board[0]!.length;
   return { width: board[0]!.length, height: board.length, has, at: (p) => (has(p) ? board[p.y]![p.x]! : null), places: () => board.flatMap((row, y) => row.map((_, x) => ({ x, y }))) };
 };
+
+describe("a board drawn from events alone", () => {
+  it("holds what the round holds after every event of every round", () => {
+    for (const p of [swap, sparks] as Puzzle[]) {
+      for (const seed of SEEDS.slice(0, 40)) {
+        const rounds = playOut(p, seed);
+        const first = read(rounds[0]!).board;
+        let seen = seenEmpty(first[0]!.length, first.length);
+        for (const r of rounds) {
+          for (const e of r.last.events) seen = seenAfter(seen, e);
+          expect(seen, `seed ${seed}, move ${r.log.length}`).toEqual(read(r).board);
+        }
+      }
+    }
+  });
+});
 
 describe("nothing is hidden", () => {
   it("expands to a whole document, the same every time", () => {

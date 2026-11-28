@@ -33,6 +33,9 @@ import { STUDIO_PUZZLES } from "./puzzles.js";
 import { Router, useRoute } from "./router.jsx";
 import { fetchLink, looksLikeLinkId, type LinkLookup } from "./service/client.js";
 
+/** A puzzle on the new engine (ADR 0092) is its own chunk too: no puzzle's page loads that engine. */
+const SwapRung = lazy(() => import("./rungs/SwapRung.jsx").then((m) => ({ default: m.SwapRung })));
+
 /** The voyage bench is its own chunk: the puzzle pages never load the ship simulator or its charts. */
 const VoyageBench = lazy(() => import("./pages/VoyageBench.jsx").then((m) => ({ default: m.VoyageBench })));
 
@@ -91,6 +94,12 @@ function Lanes() {
   }
   const id = path.slice(1);
   if (isPuzzle(id)) return <Puzzle id={id} mode={desktop ? "studio" : "play"} />;
+  if (path === "/rungs/swap")
+    return (
+      <Suspense fallback={<p className="page muted">{t("app.loading")}</p>}>
+        <SwapRung />
+      </Suspense>
+    );
   if (path === "/voyage")
     return (
       <Suspense fallback={<p className="page muted">{t("app.loading")}</p>}>

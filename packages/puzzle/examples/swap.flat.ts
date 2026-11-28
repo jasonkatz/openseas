@@ -14,10 +14,10 @@ const rules = defineRules<Swap>({
   },
 
   canMove(view, { a, b }) {
-    if (!touching(a, b)) return "pick two pieces side by side";
+    if (!touching(a, b)) return "reason.side_by_side";
     const pa = view.board.at(a), pb = view.board.at(b);
-    if (!pa || !pb) return "there is no piece there";
-    if (pa.kind === pb.kind) return "those two are the same kind";
+    if (!pa || !pb) return "reason.no_piece";
+    if (pa.kind === pb.kind) return "reason.same_kind";
     return null;
   },
 
