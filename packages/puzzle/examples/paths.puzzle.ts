@@ -194,7 +194,7 @@ export function pathsWith(opts: { luck?: "one" } = {}) {
     rule: "a closed path takes whatever is inside it and every prize at once",
     settings: [
       whole("loopMin", 4, 3, 12, "the shortest path that can close", "scoring", "pieces"),
-      whole("loopPercent", 200, 100, 1000, "what closing multiplies a path's own points by", "scoring", "percent"),
+      whole("loopPercent", 200, 100, 1000, "what closing multiplies a path's own points by", "scoring"),
       whole("insidePoints", 10, 0, 10_000, "points for each piece inside a loop", "scoring", "points"),
       whole("prizeLoopPoints", 50, 0, 100_000, "points a loop earns for its prizes, times their number squared", "scoring", "points"),
     ],
@@ -226,8 +226,8 @@ export function pathsWith(opts: { luck?: "one" } = {}) {
     draws: own([{ id: "posted", description: "the kind the bounty names, never the one it named last", gives: "kind" as const, by: "even" as const, when: "task" as const, reads: ["kinds"] }]),
     tasks: [{ id: "bounty", description: "a long path of the posted kind", open: 1, ends: ["done"], graded: "none", grades: [] }],
     events: [
-      { id: "bounty", description: "the bounty was filled", fields: { kind: "number", points: "points" }, changes: [] },
-      { id: "posted", description: "a bounty was posted", fields: { kind: "number" }, changes: [] },
+      { id: "bounty", description: "the bounty was filled", fields: { kind: "number", points: "points" } },
+      { id: "posted", description: "a bounty was posted", fields: { kind: "number" } },
     ],
     payouts: [{ id: "bounty", description: "filling the bounty", on: ["bounty"], growth: "flat", reads: ["bountyBonus"] }],
     stats: [{ id: "bounties", description: "bounties filled" }],
@@ -265,7 +265,7 @@ export function pathsWith(opts: { luck?: "one" } = {}) {
     ],
     draws: own([{ id: "timer", description: "which new piece comes in timed", gives: "place" as const, by: "even" as const, when: { every: "timerEvery" }, reads: ["timerEvery"] }]),
     events: [
-      { id: "defuse", description: "a timed piece was cleared in time", fields: { place: "place", late: "number", points: "points" }, changes: [] },
+      { id: "defuse", description: "a timed piece was cleared in time", fields: { place: "place", late: "number", points: "points" } },
       { id: "burn", description: "the timed pieces left on the board counted down", fields: { pieces: "places" }, changes: ["change"] },
       { id: "blowup", description: "a timed piece ran out and ruined the pieces round it", fields: { place: "place", ruined: "places" }, changes: ["change"], mistake: true },
       { id: "arm", description: "a new piece came in timed", fields: { place: "place" }, changes: ["change"] },

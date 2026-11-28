@@ -47,6 +47,9 @@ export interface View<P extends Puzzle, S> {
   readonly lastSeat: Seat | null;
   readonly board: Board<P>;
   zone(id: ZoneId<P>, owner?: Seat | Side): readonly Piece<P>[];
+  on(layer: LayerId<P>): boolean;
+  value(id: CountId<P>): number;
+  task(id: TaskId<P>): OpenTask | null;
   allowed(move: Move<P>): string | null;
   try(move: Move<P>): Tried<P, S>;
   next(seat: Seat): Seat;
@@ -75,6 +78,9 @@ export interface Changes<P extends Puzzle> {
   peek(piece: PieceId): Piece<P>;
   sitOut(seat: Seat, phase?: PhaseId<P>): this;
   pay(payout: PayoutId<P>, to: Seat | Side): this;
+  set(id: CountId<P>, value: number): this;
+  open(task: TaskId<P>, holds?: { readonly [name: string]: unknown }): this;
+  done(task: TaskId<P>): this;
   gather(into: ZoneRef, ...from: ZoneRef[]): this;
   shuffle(zone: ZoneRef): this;
 }
@@ -114,6 +120,9 @@ export interface Puzzle {
   readonly payouts: string;
   readonly endings: string;
   readonly standIns: string;
+  readonly layers: string;
+  readonly counts: string;
+  readonly tasks: string;
 }
 
 export type MoveId<P extends Puzzle> = keyof P["moves"] & string;
@@ -126,6 +135,9 @@ export type PayoutId<P extends Puzzle> = P["payouts"];
 export type EndingId<P extends Puzzle> = P["endings"];
 export type StandInId<P extends Puzzle> = P["standIns"];
 export type TerrainId<P extends Puzzle> = P["terrain"];
+export type LayerId<P extends Puzzle> = P["layers"];
+export type CountId<P extends Puzzle> = P["counts"];
+export type TaskId<P extends Puzzle> = P["tasks"];
 
 export type Seat = number;
 export type Side = number;
@@ -160,6 +172,7 @@ export type Event<P extends Puzzle, E extends EventId<P> = EventId<P>> = { [K in
 export type EventFields<P extends Puzzle, E extends EventId<P>> = { readonly [K in keyof P["events"][E] as P["events"][E][K] extends Points ? never : K]: P["events"][E][K] };
 export type Signal<P extends Puzzle, G extends SignalId<P> = SignalId<P>> = { [K in G]: { readonly signal: K; readonly seat: Seat | null; readonly value: P["signals"][K] } }[G];
 
+export interface OpenTask { readonly task: string; readonly holds: { readonly [name: string]: unknown } }
 export interface Tick { readonly n: number; readonly ms: number }
 export interface Tried<P extends Puzzle, S> { readonly events: readonly Event<P>[]; readonly points: number; readonly view: View<P, S> }
 export interface Outcome { readonly reason: string; readonly placing: readonly (readonly Side[])[] }

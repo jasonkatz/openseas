@@ -287,7 +287,8 @@ _Avoid_: error, fail (a fail is an ending)
 
 **Task**:
 A unit of work the deal sets within a round, such as a slab to cut or a clamp to fill, which ends when
-it is done, given up or out of time.
+it is done, given up or out of time. An open task **holds** whatever the rules gave it when they opened
+it, such as the kind a bounty names.
 _Avoid_: goal, objective, job
 
 **Grade**:

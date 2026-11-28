@@ -19,6 +19,7 @@ export type RefTarget =
   | "piece"
   | "zone"
   | "gauge"
+  | "stat"
   | "multiplier"
   | "task"
   | "draw"

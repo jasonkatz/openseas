@@ -73,6 +73,9 @@ export const ID_TYPES: readonly Value[] = [
   idRow("EndingId<P>", "endings", "[`round.ends`](/api/puzzle#round-ends)"),
   idRow("StandInId<P>", "own stand-ins", "[`opponents.standIns`](/api/puzzle#opponents-standins)"),
   idRow("TerrainId<P>", "terrain", "[`terrain`](/api/puzzle#terrain)"),
+  idRow("LayerId<P>", "layers", "[`layers`](/api/puzzle#layers)"),
+  idRow("CountId<P>", "gauges and stats", "[`gauges`](/api/puzzle#gauges) and [`stats`](/api/puzzle#stats)"),
+  idRow("TaskId<P>", "tasks", "[`tasks`](/api/puzzle#tasks)"),
 ];
 
 const P = (name: string, type: string, description: string, extra: Partial<Param> = {}): Param => ({ name, type, description, ...extra });
@@ -108,6 +111,9 @@ export const TYPE_GROUPS: readonly TypeGroup[] = [
           P("payouts", "string", "The ids of its payouts, as a union."),
           P("endings", "string", "The ids of its endings, as a union."),
           P("standIns", "string", "The ids of its own stand-ins, as a union."),
+          P("layers", "string", "The ids of its layers, as a union."),
+          P("counts", "string", "The ids of its gauges and its stats, as one union."),
+          P("tasks", "string", "The ids of its tasks, as a union."),
         ],
       },
     ],
@@ -352,6 +358,15 @@ export const TYPE_GROUPS: readonly TypeGroup[] = [
             ],
           }),
           P("value", "P[\"signals\"][id]", "What it carries: a number, a boolean, an [`Outcome`](#outcome), or an object of its fields."),
+        ],
+      },
+      {
+        name: "OpenTask",
+        definition: "",
+        description: "A task that is open: which task it is, and what it holds.",
+        fields: [
+          P("task", "string", "The id of the task, one of the puzzle's [`tasks`](/api/puzzle#tasks)."),
+          P("holds", "{ readonly [name: string]: unknown }", "What the rules gave it when they opened it, such as the kind a bounty names. It is the rules' own, and the engine never reads it."),
         ],
       },
       {

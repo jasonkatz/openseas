@@ -426,8 +426,7 @@ exports[`Paths, on its own > expands to a whole document 1`] = `
       "min": 100,
       "max": 1000,
       "description": "what closing multiplies a path's own points by",
-      "group": "scoring",
-      "unit": "percent"
+      "group": "scoring"
     },
     {
       "id": "insidePoints",
@@ -554,9 +553,6 @@ exports[`Paths, on its own > expands to a whole document 1`] = `
           "best_streak"
         ],
         "multipliers": [
-          "streak"
-        ],
-        "streak": [
           "streak"
         ]
       }
@@ -756,8 +752,7 @@ exports[`Paths, on its own > expands to a whole document 1`] = `
         "place": "place",
         "late": "number",
         "points": "points"
-      },
-      "changes": []
+      }
     },
     {
       "id": "burn",
@@ -797,16 +792,14 @@ exports[`Paths, on its own > expands to a whole document 1`] = `
       "fields": {
         "kind": "number",
         "points": "points"
-      },
-      "changes": []
+      }
     },
     {
       "id": "posted",
       "description": "a bounty was posted",
       "fields": {
         "kind": "number"
-      },
-      "changes": []
+      }
     },
     {
       "id": "fill",

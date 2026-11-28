@@ -8,6 +8,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./examples/*": {
+      "types": "./examples/*.puzzle.ts",
+      "default": "./examples/*.puzzle.ts"
     }
   },
   "scripts": {

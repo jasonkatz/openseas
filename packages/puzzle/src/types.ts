@@ -38,7 +38,7 @@ export type AnyMove = { readonly move: string } & Readonly<Record<string, unknow
 
 export interface SettingDecl { id: string; type: "whole" | "list" | "flag"; default: Setting; min?: number; max?: number; description: string; group: "board" | "deal" | "tempo" | "scoring"; unit?: string; entries?: { least: number; most: number } }
 export interface MoveDecl { id: string; description: string; gesture: string; fields: Record<string, "place" | "places" | "number" | "flag"> }
-export interface EventDecl { id: string; description: string; fields: Record<string, "place" | "places" | "number" | "flag" | "points">; changes: ChangeKind[]; step?: true; mistake?: true }
+export interface EventDecl { id: string; description: string; fields: Record<string, "place" | "places" | "number" | "flag" | "points">; changes?: ChangeKind[]; step?: true; mistake?: true }
 export interface DrawDecl { id: string; description: string; gives: "kind" | "piece" | "place" | "number"; by: "even" | "weighted"; when: "start" | "refill" | "task" | { every: string }; reads: string[] }
 /** `needs: "settled"` asks only that nothing is left to happen by itself. Left out, a check also asks for a move worth making. */
 export interface CheckDecl { id: string; description: string; draws: string[]; tries: number; needs?: "settled"; fallback: string; during?: string }

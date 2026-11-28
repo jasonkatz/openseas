@@ -61,7 +61,7 @@ export const API_GROUPS: readonly ApiGroup[] = [
     pages: [
       { slug: "tune", title: "Tune", lede: "Every number that tunes a puzzle and everything that pays, written as data. No function yet.", source: tune },
       { slug: "own-rule", title: "Write a rule", lede: "A part of your own for the rule no stock part gives: an event, a hook or two, and how it sits beside the others.", source: ownRule },
-      { slug: "depth", title: "Add depth", lede: "The stages a player unlocks, how a round is judged, and tasks, gauges, ticks and a hint, one key at a time.", source: depth },
+      { slug: "depth", title: "Add depth", lede: "The stages a player unlocks, and tasks, gauges, stats and pieces that change, one key at a time.", source: depth },
       { slug: "seats", title: "Seat more players", lede: "Sides, turns, phases and hidden hands, the seats the engine plays itself, and the way out for a puzzle that fits nothing.", source: seats },
       { slug: "write-a-puzzle", title: "The whole thing", lede: "The same small puzzle with every key and every hook written by hand: what every rung below expands to. Ten short steps.", source: write },
       { slug: "ship", title: "Ship it", lede: "What a puzzle needs to play, what the game asks before it deals one to players, and what promotion changes.", source: ship },

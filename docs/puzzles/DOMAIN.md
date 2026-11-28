@@ -296,6 +296,7 @@ own, shown as gauges.
 ### Stats
 
 A **stat** is a count the rules keep about a round, shown when it ends: the longest path, loops closed.
+A hook sets a stat on an event, and the loop keeps it. One that nothing has set stands at 0.
 
 ### Gauges
 
@@ -303,6 +304,9 @@ A **gauge** is a number a player watches while the round is played, besides the 
 rising line, cuts left, a crate's countdown. A puzzle declares each gauge with an id, a description, its
 most where it has one (a number or a setting), the point past which it means danger, such as heat
 past half or pings past par, and whether there is one for the round, for each seat or for each side. `read(round)` gives every gauge's value.
+
+A hook sets a gauge on an event, as it sets a stat, so the event carries the new value and a screen
+that sees only events can show it. The streak's count is the loop's own gauge, and no hook sets it.
 
 > Paths watches `prizes`, the prizes on the board out of at most `maxPrizes`, and `streak`, the long
 > paths in a row.
@@ -439,6 +443,9 @@ shown, since it would show what expertise takes; the player learns how well they
 grade when it ends.
 
 A task's grade can build the streak, and a payout can pay on a task ending with a given grade.
+
+A task is opened on an event, with what it **holds**: whatever the rules must remember of it, such as
+the kind a bounty names. It is finished on an event too. A hook reads the open task by its id.
 
 ### Difficulty
 
@@ -633,7 +640,9 @@ as it is, so it must pass. A puzzle that is valid and not yet ready may leave th
 that names the check, and no player is ever dealt a board that fails.
 
 A check can also hold during play. At the close of an entry, when no listed move is worth making, the
-loop deals the board again the same way, and the check's event says so.
+loop deals the board again the same way, and the check's event says so. This time the rules deal onto
+the board as it stands. Whatever they leave alone stays where it is, so a puzzle chooses what is dealt
+again: Paths deals its plain pieces again and leaves a prize and a timed piece standing.
 
 > Paths checks that a path can be drawn, at the start and after every refill, in up to 50 tries. Its
 > fallback lays a path of `pathMin` pieces of one kind. When no path is left during play, the board is
@@ -676,8 +685,12 @@ waits on the host. Nothing a player is shown is ever false.
 ### Layers
 
 A **layer** is a named group of rules that is either on or off. It brings the pieces, events,
-settings, zones, gauges, controls, payouts, multipliers, tasks and draws that exist only while it is on. What a layer's rules cause elsewhere, such as a par rising
+settings, zones, gauges, stats, controls, payouts, multipliers, tasks and draws that exist only while it is on. What a layer's rules cause elsewhere, such as a par rising
 because there is more to plan around, is not the layer's concern.
+
+Until a round's stage reaches a layer, an event or a draw the layer brings is refused, and its payouts
+and multipliers pay nothing. Where a layer brings the streak's gauge, no streak is kept until that
+layer is on. Any hook may ask whether a layer is on.
 
 ### The ladder
 
@@ -965,11 +978,14 @@ A hook added to this list later comes with a default, so no puzzle already writt
 
 ### What a hook reports through
 
-A hook that starts with `on` reports events, and on an event it may do four more things. Each is
+A hook that starts with `on` reports events, and on an event it may do seven more things. Each is
 refused when it names something the puzzle does not declare.
 
 | On an event | Does | Refused when |
 |---|---|---|
+| Set | Sets a gauge or a stat to a value | It is not declared, or it is the streak, which the loop keeps |
+| Open | Opens a task, with what it holds | As many are open as the task declares |
+| Done | Finishes the open task of that id, the oldest first | None is open |
 | Deal | Puts a piece from a draw straight into a place, unseen by the hook | The draw or the place is not declared |
 | Peek | Reads a piece the table cannot see | The event is not declared to reveal that place |
 | Sit out | A seat sits out of a phase, or is out of the round | The seat or the phase is not there |
@@ -1002,7 +1018,10 @@ from a throwaway stream, so trying never shows the luck to come and never shifts
   seat moves is its delay, which the loop keeps.
 - **Tasks.** The loop keeps which tasks are open, grades each one, pays on the grade and meets the
   stock ending. The rules deal a task in `onTaskNeeded` and say on an event when one is done, wherever
-  that happens, a cascade included.
+  that happens, a cascade included. At the start, and at Close after any check, the loop asks
+  `onTaskNeeded` while fewer are open than the task declares, and stops when the rules open none.
+- **Gauges and stats.** The loop keeps what each one stands at. The rules set one on an event and read
+  it back by its id. The streak's count and the round's best streak are the loop's own.
 - **What a seat sees.** Every question is asked with only what its seat may see ([Sight](#sight)): its
   view. The hooks that start with `on` see the table, and read a hidden piece only by peeking.
 - **A board with no move left.** Where a check holds during play, the loop deals the board again
@@ -1055,7 +1074,7 @@ Three things are parts, and all three are written the same way.
 
 A part a stage switches on is a layer ([Layers](#layers)): the layer's id is the part's name, and it
 brings what the part declares. A part that is off is never asked, so its hooks do not test whether
-it is on. A part no stage names is on from the first round.
+it is on. A puzzle lists its parts, all on from the first round, or its stages, and never both.
 
 ### What the loop runs
 
@@ -1093,7 +1112,7 @@ gaps and fills them. That is why merging needs only these rules.
 
 | When the loop | It asks |
 |---|---|
-| Tells the rules something happened: a start, a move, the end of a move | Every part with that hook, in the order the puzzle lists its parts |
+| Tells the rules something happened: a start, a move, the end of a move | Every part with that hook, in the order the puzzle lists its parts. A puzzle may name the parts to be asked first |
 | Runs one step of a cascade | The parts in order, stopping at the first that reports anything. Its report is the step |
 | Asks whether a move is allowed | Every part with a say on that move, in order. The first reason given refuses it |
 | Asks for the moves a seat can make | Every part, and the answers are joined |
@@ -1106,6 +1125,9 @@ gaps and fills them. That is why merging needs only these rules.
 - **State.** What a part remembers is kept under its name, and no other part reads it.
 - **One part shaping another's deal** goes through an option of the part that deals, such as a refill
   told to mix in a special piece. No part reaches into another.
+- **A part may ask whether another layer is on.** It is for the part that deals what a later layer
+  brings: Paths' refill deals a prize only once the prizes layer is on. An option could not say it,
+  since an option is fixed when the puzzle is written and a stage is chosen when a round starts.
 
 ### The reducer
 
@@ -1141,6 +1163,10 @@ does. A board plays from events, never by comparing one state with the next.
 > Paths: `clear` and `loop` carry the leaves of the pieces they take. `refill` carries the travels of
 > pieces falling and the arrivals of new ones from above the board. `blowup` carries the changes of a
 > timed piece and its neighbours to `ruined`.
+
+A change that names a piece makes it that piece, whole: it keeps its id and nothing else, so a timed
+piece that is ruined keeps no kind and no count. A change that names only a kind or a state changes
+that alone.
 
 ### Playing it out
 
@@ -1313,7 +1339,7 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
     "bounds": [{ "setting": "", "caps": "a draw id" }]
   },
   "layers": [{ "id": "", "rule": "one line", "brings": { "pieces": [], "events": [], "settings": [], "zones": [], "gauges": [], "controls": [],
-             "payouts": [], "multipliers": [], "tasks": [], "draws": [] } }],
+             "payouts": [], "multipliers": [], "tasks": [], "draws": [], "stats": [] } }],
   "ladder": [{ "stage": "", "adds": ["layer ids"], "advance": { "measure": "best-round | average-of-last | wins-over-stand-in | rounds-played", "threshold": "in the measure's unit" } }],
   "evaluation": { "tierStarts": "judged by score: { steady, sharp, masterful, legendary }", "by": "between sides: outcome | score", "paceWindowSeconds": "" },
   "signals": { "in": [{ "id": "", "type": "number | flag | outcome", "fields": { "<name>": "in place of a type: typed as a move's" }, "seat": "true when it is for one seat", "when": "on-change | sampled | at-end" }], "out": ["the same"] },

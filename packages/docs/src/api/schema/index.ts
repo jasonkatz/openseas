@@ -34,6 +34,7 @@ const REF_PATHS: Record<RefTarget, string> = {
   piece: "/api/puzzle#pieces",
   zone: "/api/puzzle#zones",
   gauge: "/api/puzzle#gauges",
+  stat: "/api/puzzle#stats",
   multiplier: "/api/puzzle#multipliers",
   task: "/api/puzzle#tasks",
   draw: "/api/puzzle#deal-draws",

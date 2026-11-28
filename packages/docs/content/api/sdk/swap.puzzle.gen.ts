@@ -22,4 +22,7 @@ export interface Swap extends Puzzle {
   payouts: "group";
   endings: "moves";
   standIns: never;
+  layers: "full";
+  counts: never;
+  tasks: never;
 }

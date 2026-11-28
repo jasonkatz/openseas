@@ -24,4 +24,7 @@ export interface Tricks extends Puzzle {
   payouts: "contract" | "bags" | "leftover";
   endings: "target";
   standIns: "careful" | "bold";
+  layers: "full";
+  counts: never;
+  tasks: never;
 }

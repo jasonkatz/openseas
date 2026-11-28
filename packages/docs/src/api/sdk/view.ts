@@ -324,6 +324,52 @@ const streak: Member = {
   description: "The [streak](/api/puzzle#streak)'s count: moves, or tasks, in a row that built it. It is 0 in a puzzle with no streak. It moves when a move closes, so within a move it is the count the move started on.",
 };
 
+const on: Member = {
+  name: "on",
+  kind: "method",
+  signature: "on(layer: LayerId<P>): boolean",
+  description: "Whether a [layer](/api/puzzle#layers) is on at the stage the round is played at.",
+  about: [
+    "A part that a stage switches on is never asked while it is off, so no part tests whether it is on itself. `on` is for the part that deals what a later layer brings: a refill that deals a prize only once the prizes layer is on.",
+    "A stage is chosen when a round starts and holds for the whole round, so the answer never changes within one.",
+  ],
+  params: [{ name: "layer", type: "LayerId<P>", description: "The id of one of the puzzle's layers. A part's layer has the part's name." }],
+  returns: {
+    type: "boolean",
+    description: "Whether the layer is on.",
+    values: [
+      { value: "true", description: "The round's stage has reached the layer. Everything it brings exists." },
+      { value: "false", description: "It has not. An event or a draw the layer brings is refused." },
+    ],
+  },
+};
+
+const value: Member = {
+  name: "value",
+  kind: "method",
+  signature: "value(id: CountId<P>): number",
+  description: "What a [gauge](/api/puzzle#gauges) or a [stat](/api/puzzle#stats) stands at.",
+  about: ["The engine keeps every gauge and stat. The rules set one on an event with [`set`](/api/context#e-set) and read it back here, so a count is never kept twice."],
+  params: [{ name: "id", type: "CountId<P>", description: "The id of one of the puzzle's gauges or stats." }],
+  returns: { type: "number", description: "Its value. One that nothing has set stands at 0. The gauge `streak` is the streak's count, and the stat `best_streak` is the longest it has stood." },
+};
+
+const task: Member = {
+  name: "task",
+  kind: "method",
+  signature: "task(id: TaskId<P>): OpenTask | null",
+  description: "The open [task](/api/puzzle#tasks) of that id.",
+  params: [{ name: "id", type: "TaskId<P>", description: "The id of one of the puzzle's tasks." }],
+  returns: {
+    type: "OpenTask | null",
+    description: "The task, with what it holds. See [`OpenTask`](/api/sdk#opentask).",
+    values: [
+      { value: "OpenTask", description: "The one opened first, where several of that id are open." },
+      { value: "null", description: "None is open." },
+    ],
+  },
+};
+
 const repeat: Member = {
   name: "repeat",
   kind: "property",
@@ -373,7 +419,7 @@ export const VIEW_ROOT: SdkRoot = {
   ],
   groups: [
     { title: "Whose it is", members: [seat] },
-    { title: "The round", members: [state, settings, score, streak, phase, repeat, lastSeat] },
+    { title: "The round", members: [state, settings, score, streak, on, value, task, phase, repeat, lastSeat] },
     { title: "The table", members: [board, zoneMember] },
     { title: "Moves", members: [allowed, tryMember] },
     { title: "Seats and sides", members: [next, sideOf, seatsOf] },
@@ -607,7 +653,7 @@ const emit: Member = {
               type: "Change<P>",
               description: "What it becomes. See [`Change`](/api/sdk#change).",
               values: [
-                { value: "{ piece?, kind?, state? }", description: "The piece on the cell becomes this. Whatever is left out stays as it was, and the piece keeps its id." },
+                { value: "{ piece?, kind?, state? }", description: "The piece on the cell becomes this, and keeps its id. Naming a `piece` makes it that piece, whole: a kind or a state left out is gone. Naming only a kind or a state changes that alone." },
                 { value: "{ terrain }", description: "The cell's terrain becomes this, whatever stands on it." },
               ],
             },
@@ -620,8 +666,43 @@ const emit: Member = {
     {
       title: "On an event",
       name: "e",
-      note: "An event may do four more things. Each is refused when it names something the puzzle does not declare.",
+      note: "An event may do seven more things. Each is refused when it names something the puzzle does not declare.",
       members: [
+        {
+          name: "set",
+          kind: "method",
+          signature: "set(id: CountId<P>, value: number): this",
+          description: "Sets a gauge or a stat to a value.",
+          about: ["The event carries what it set, so a screen that sees only events can show every number. Read the old value with [`value`](/api/view#value) to add to it."],
+          params: [
+            { name: "id", type: "CountId<P>", description: "The id of one of the puzzle's gauges or stats." },
+            { name: "value", type: "number", description: "What it stands at from now on." },
+          ],
+          returns: { type: "this", description: "The builder, to chain." },
+          refused: ["The puzzle declares no such gauge or stat.", "It is `streak` or `best_streak`, which the engine keeps.", "It belongs to a layer that is off."],
+        },
+        {
+          name: "open",
+          kind: "method",
+          signature: "open(task: TaskId<P>, holds?: { readonly [name: string]: unknown }): this",
+          description: "Opens a task, with what it holds.",
+          about: ["It is what [`onTaskNeeded`](/api/hooks#ontaskneeded) reports. The event that opens a task is the one a board shows it on."],
+          params: [
+            { name: "task", type: "TaskId<P>", description: "The id of one of the puzzle's tasks." },
+            { name: "holds", type: "{ readonly [name: string]: unknown }", optional: true, description: "Whatever the rules must remember of this task, such as the kind a bounty names.", absent: "The task holds nothing." },
+          ],
+          returns: { type: "this", description: "The builder, to chain." },
+          refused: ["The puzzle declares no such task.", "As many are open as the task's [`open`](/api/puzzle#tasks) allows."],
+        },
+        {
+          name: "done",
+          kind: "method",
+          signature: "done(task: TaskId<P>): this",
+          description: "Finishes the open task of that id.",
+          params: [{ name: "task", type: "TaskId<P>", description: "The id of the task. Where several of that id are open, the one opened first is finished." }],
+          returns: { type: "this", description: "The builder, to chain." },
+          refused: ["No task of that id is open."],
+        },
         {
           name: "deal",
           kind: "method",
@@ -803,6 +884,9 @@ export const CONTEXT_ROOT: SdkRoot = {
         inherited("settings", "This round's value for every setting, by id.", "readonly settings: Settings<P>"),
         inherited("score", "The points banked so far.", "readonly score: number"),
         inherited("streak", "The streak's count.", "readonly streak: number"),
+        inherited("on", "Whether a layer is on at the round's stage.", "on(layer: LayerId<P>): boolean"),
+        inherited("value", "What a gauge or a stat stands at.", "value(id: CountId<P>): number"),
+        inherited("task", "The open task of that id, or `null`.", "task(id: TaskId<P>): OpenTask | null"),
         inherited("phase", "The open phase, innermost, or `null`.", "readonly phase: PhaseId<P> | null"),
         inherited("repeat", "Which repeat of the open phase this is, from 0.", "readonly repeat: number"),
         inherited("lastSeat", "The seat that moved last in the open phase, or `null`.", "readonly lastSeat: Seat | null"),

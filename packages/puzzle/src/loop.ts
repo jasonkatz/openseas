@@ -70,8 +70,8 @@ function here(g: Game, what: string, noun: string, id: string): void {
   if (layer) throw new Error(`${noun} ${id} belongs to the layer ${layer}, which the stage ${g.stage} has not reached`);
 }
 const there = (g: Game, what: string, id: string): boolean => !g.off[what]?.has(id);
-/** The puzzle's streak, once the stage has reached the layer that keeps it. */
-const streakOf = (g: Game): Document["streak"] => (there(g, "streak", "streak") ? g.doc.streak : undefined);
+/** The puzzle's streak. Where a layer brings the gauge that shows it, no streak is kept until the stage has reached that layer. */
+const streakOf = (g: Game): Document["streak"] => (there(g, "gauges", "streak") ? g.doc.streak : undefined);
 
 /** One line of a round's log: a move, and when it was made, in milliseconds from the round's start. */
 export interface Entry<M extends AnyMove = AnyMove> { readonly at: number; readonly move: M }
@@ -298,7 +298,7 @@ function ctxOf(g: Game, s: State, out: Event[], tally: Tally): Ctx {
       },
     };
     build?.(b);
-    for (const c of changes) if (!decl.changes.includes(c.change)) throw new Error(`event ${id} does not declare the change ${c.change}`);
+    for (const c of changes) if (!decl.changes?.includes(c.change)) throw new Error(`event ${id} does not declare the change ${c.change}`);
     // One event's changes happen together: everything that leaves or travels is lifted first.
     const lifted = changes.flatMap((c) => (c.change === "travel" ? [{ to: c.to, piece: s.cells[at(c.from)]! }] : []));
     for (const c of changes) if (c.change === "leave" || c.change === "travel") s.cells[at(c.change === "leave" ? c.at : c.from)] = null;

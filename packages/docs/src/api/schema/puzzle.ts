@@ -740,6 +740,7 @@ const BRINGS: readonly (readonly [string, Parameters<typeof ref>[0], string])[] 
   ["settings", "setting", "settings"],
   ["zones", "zone", "zones"],
   ["gauges", "gauge", "gauges"],
+  ["stats", "stat", "stats"],
   ["controls", "control", "controls"],
   ["payouts", "payout", "payouts"],
   ["multipliers", "multiplier", "multipliers"],

@@ -277,7 +277,7 @@ export function puzzle<const P extends readonly Part<any>[], Q extends Part<any>
   /** What a part brings as a layer: everything it declares, by what it is. The default payout of an event it brings is its too. */
   const brings = (p: Part<any>): Record<string, string[]> => {
     const events = ids(p.events);
-    const all: Record<string, string[]> = { draws: ids(p.draws), pieces: ids(p.pieces), events, settings: ids(p.settings), gauges: ids(p.gauges), stats: ids(p.stats), payouts: [...ids(p.payouts), ...payouts.filter((x) => events.includes(x.id) && !ids(p.payouts).includes(x.id) && !mine.includes(x)).map((x) => x.id)], multipliers: ids(p.multipliers), tasks: ids(p.tasks), streak: p.streak ? ["streak"] : [] };
+    const all: Record<string, string[]> = { draws: ids(p.draws), pieces: ids(p.pieces), events, settings: ids(p.settings), gauges: ids(p.gauges), stats: ids(p.stats), payouts: [...ids(p.payouts), ...payouts.filter((x) => events.includes(x.id) && !ids(p.payouts).includes(x.id) && !mine.includes(x)).map((x) => x.id)], multipliers: ids(p.multipliers), tasks: ids(p.tasks) };
     return Object.fromEntries(Object.entries(all).filter(([, v]) => v.length > 0));
   };
   const layers: LayerDecl[] = staged
