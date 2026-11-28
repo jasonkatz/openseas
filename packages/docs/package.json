@@ -21,6 +21,7 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@openseas/puzzle": "workspace:*",
     "@playwright/test": "^1.56.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.1.0",
