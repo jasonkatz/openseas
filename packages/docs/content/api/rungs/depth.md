@@ -1,4 +1,4 @@
-A player meets a puzzle a few rules at a time. On the fourth rung a puzzle says how it opens up, and takes on whatever else it needs, one key at a time: a task, a gauge, a stat, a piece that changes.
+A player meets a puzzle a few rules at a time. On the fourth rung a puzzle says how it opens up, and takes on whatever else it needs, one key at a time: a task, a gauge, a stat, a piece that changes, a tempo that ticks, terrain and a map.
 
 ## Stages
 
@@ -131,6 +131,94 @@ A change that names only a state or a kind changes that alone. One that names a 
 
 Paths is written on this rung as six parts over four stages, in about 330 lines. A test plays it beside the engine the game ships for it, from the same boards at every stage, and holds the two to the same board, streak, bounty and counts after every move.
 
+## A puzzle that ticks
+
+Some puzzles move by themselves. In Gunnery pieces roll across a deck whether or not the player does anything. Such a puzzle sets its tempo, and a part answers [`onTick`](/api/hooks#ontick).
+
+```ts title=gunnery.puzzle.ts
+import { puzzle, part, ticking, grid, clock, budget } from "@openseas/puzzle";
+
+export default puzzle("gunnery", {
+  board: grid("width", "height"),
+  tempo: ticking(200),
+  parts: [deck, arrows, turrets, rolling, feed],
+  ends: [clock("roundSeconds"), budget("maxMoves")],
+  // ...
+});
+```
+
+A tick's length is the puzzle's own, in milliseconds, and no setting changes it. Ticks are counted from 1, and tick `n` falls at `n` times that length. The engine asks every part that has `onTick`, in the order the puzzle lists them, then runs the cascade and closes the tick as it closes a move.
+
+A tick is never in the log. A move carries the time it was made, and the engine plays every tick due by then before it checks the move. So a round played again from its log ticks alike, however the time between moves was cut up. A host that only wants time to pass calls `advance(round, { at })`.
+
+## Terrain and a map
+
+A cell's terrain is what the cell is, apart from the piece on it. A part declares terrain as it declares pieces, with states where it has them.
+
+```ts
+const turrets = part({
+  name: "turrets",
+  rule: "a full turret fires by itself, and every turret firing is a broadside",
+  terrain: [{ id: "turret", states: ["empty", "one", "two", "full", "jammed"] }],
+  events: [{ id: "fire", description: "a full turret fired", fields: { at: "place" }, changes: ["change"] }],
+  hooks: {
+    onTick(ctx, tick) {
+      // for each turret whose time has come:
+      ctx.emit("fire", { at }, (e) => e.change(at, { terrain: "turret", state: "empty" }));
+    },
+  },
+});
+```
+
+A hook reads a cell with [`board.terrain`](/api/view#board-terrain) and [`board.terrainState`](/api/view#board-terrainstate), and changes one on an event, as it changes a piece. A cell off the board reads as `off`, so rules that look one step ahead of a piece need no check for the edge.
+
+A map is a board drawn by hand: a row for each row of the board, a terrain id for each cell. A puzzle keeps its maps in a setting of type `maps`, a draw picks one, and the rules lay it out on an event with `layMap`, so a screen can draw the deck from the event alone.
+
+```ts
+const deck = part({
+  name: "deck",
+  rule: "pieces roll across a deck drawn by hand",
+  settings: [{ id: "decks", type: "maps", description: "the decks a round may be played on", group: "board" }],
+  terrain: [{ id: "wall" }, { id: "crate" }, { id: "feeder" }, { id: "hatch" }],
+  draws: [{ id: "deck", description: "which deck the round is played on", gives: "map", by: "pick", when: "start", reads: ["decks"] }],
+  events: [{ id: "deck", description: "the deck was laid out", fields: { map: "number" }, changes: ["change"] }],
+  hooks: {
+    onStart(ctx) {
+      const map = ctx.draw("deck").even(ctx.settings.decks.length);
+      ctx.emit("deck", { map }, (e) => layMap(e, ctx.settings.decks[map]));
+    },
+  },
+});
+```
+
+`mapOf` turns rows of text into a map, a character a cell. The engine refuses a map that does not fit the board, or that names terrain the puzzle does not declare, before a round starts.
+
+## A bag
+
+A bag is luck with a bound. It is filled from a list of counts, shuffled, and dealt out to the last item before it is filled again, so every run of that length holds the same pieces.
+
+```ts
+draws: [{ id: "feed", description: "the next piece out of the bag", gives: "piece", by: "bag", when: "tick", reads: ["bag"] }],
+// ...and where the feeder drops a piece:
+const next = ctx.draw("feed").next();
+```
+
+`next()` gives the item's number, counted from 0, among those the list counts. The engine keeps the bag, so a round played again deals alike.
+
+## A streak that counts events
+
+A streak counts moves unless it says otherwise. In a ticking puzzle successes come by themselves, two in one tick or none for many, so Gunnery's counts events.
+
+```ts
+streak: { builds: "loaded", counts: "events", breaksOn: ["jam"] },
+```
+
+Every full load builds it and is paid at the streak it leaves. A jam breaks it there and then. Nothing is a miss, so it takes no grace.
+
+## Gunnery, whole
+
+Gunnery is written on this rung as five parts in about 280 lines. A test plays it beside the engine the game ships for it, on the same decks from the same bags, and holds the two to the same pieces, turrets, feed, score and streak after every tick and every move.
+
 ## Still to come
 
 > [!PREVIEW]
@@ -138,10 +226,9 @@ Paths is written on this rung as six parts over four stages, in about 330 lines.
 
 | Add | For |
 |---|---|
-| A ticking tempo | A puzzle whose rules move by themselves, whether or not anyone moves |
 | Tiers | Where a score sits on the scale every puzzle shares. It is the puzzle's [evaluation](/api/puzzle#evaluation) |
 | A graded task | A task with a par, graded when it is done |
 
 ## What you learned
 
-Five ideas, each taken alone: a stage, a layer, a task, a gauge and a piece that changes. Every still puzzle for one player can be written on this rung or below it.
+Nine ideas, each taken alone: a stage, a layer, a task, a gauge, a piece that changes, a tick, terrain, a map and a bag. Every puzzle for one player can be written on this rung or below it.

@@ -9,15 +9,20 @@
 // banked at Close. A multiplier indexed by the streak holds for the whole entry, so it is applied there.
 import { nextInt, seedFromString, type PrngState } from "./prng.js";
 import { holds } from "./when.js";
-import type { AnyMove, Board, Cell, Change, Changes, CheckDecl, Ctx, Document, Event, NewPiece, OpenTask, Piece, Puzzle, Rules, Setting, Settings, View } from "./types.js";
+import { DIRECTIONS } from "./types.js";
+import type { AnyMove, Board, Cell, Change, Changes, CheckDecl, Ctx, Document, Event, Ground, MapRows, NewPiece, OpenTask, Piece, Puzzle, Rules, Setting, Settings, View } from "./types.js";
 
 interface State {
   width: number;
   height: number;
   cells: (Piece | null)[];
+  /** The terrain of each cell. Null is a plain cell. */
+  ground: (Ground | null)[];
   nextId: number;
   /** One stream for each draw, made from the seed and the draw's id. */
   streams: Record<string, PrngState>;
+  /** What is left in each bag, by its draw's id, next first. */
+  bags: Record<string, readonly number[]>;
   /** The round's seed, and what streams are seeded under: the seed, or `<seed>/try` on a copy. */
   seed: string;
   streamKey: string;
@@ -25,6 +30,8 @@ interface State {
   moves: number;
   /** When the last entry was made, in milliseconds from the round's start. */
   time: number;
+  /** The last tick that has run. 0 before any has, and in a still puzzle. */
+  tick: number;
   step: number;
   stepHit: boolean;
   /** Entries in a row that built the streak, and misses in a row since one did. */
@@ -92,7 +99,7 @@ export interface Round<M extends AnyMove = AnyMove> {
   readonly last: { readonly events: readonly Event[]; readonly refused: string | null; readonly banked: number };
 }
 
-const clone = (s: State): State => ({ ...s, cells: [...s.cells], streams: { ...s.streams }, values: { ...s.values }, tasks: [...s.tasks] });
+const clone = (s: State): State => ({ ...s, cells: [...s.cells], ground: [...s.ground], streams: { ...s.streams }, bags: { ...s.bags }, values: { ...s.values }, tasks: [...s.tasks] });
 /** A copy that draws from throwaway streams, so trying a move never shows or shifts the luck to come. */
 const scratch = (s: State): State => ({ ...clone(s), streams: {}, streamKey: `${s.seed}/try` });
 
@@ -107,6 +114,8 @@ function boardOf(s: State, touch: 4 | 8 = 4): Board {
     has,
     places: () => Array.from({ length: s.width * s.height }, (_, i) => ({ x: i % s.width, y: Math.floor(i / s.width) })),
     at: (p) => (has(p) ? s.cells[p.y * s.width + p.x]! : null),
+    terrain: (p) => (has(p) ? (s.ground[p.y * s.width + p.x]?.terrain ?? "plain") : "off"),
+    terrainState: (p) => (has(p) ? (s.ground[p.y * s.width + p.x]?.state ?? null) : null),
   };
 }
 
@@ -114,9 +123,10 @@ function settingsOf(doc: Document, given: Record<string, Setting> = {}): Setting
   const out: Record<string, Setting> = {};
   for (const d of doc.settings) {
     const v = given[d.id] ?? d.default;
-    const right = d.type === "flag" ? typeof v === "boolean" : d.type === "list" ? Array.isArray(v) : typeof v === "number";
-    if (!right) throw new Error(`setting ${d.id}: ${JSON.stringify(v)} is not a ${d.type === "flag" ? "flag" : d.type === "list" ? "list" : "whole number"}`);
-    for (const n of typeof v === "number" ? [v] : typeof v === "boolean" ? [] : v) {
+    const isMaps = Array.isArray(v) && v.length > 0 && v.every((m) => Array.isArray(m) && m.every((row) => Array.isArray(row) && row.every((id) => typeof id === "string")));
+    const right = d.type === "flag" ? typeof v === "boolean" : d.type === "maps" ? isMaps : d.type === "list" ? Array.isArray(v) && !isMaps : typeof v === "number";
+    if (!right) throw new Error(`setting ${d.id}: ${JSON.stringify(v)} is not a ${d.type === "flag" ? "flag" : d.type === "maps" ? "list of maps" : d.type === "list" ? "list" : "whole number"}`);
+    for (const n of typeof v === "number" ? [v] : d.type === "list" ? (v as readonly number[]) : []) {
       if (!Number.isInteger(n)) throw new Error(`setting ${d.id}: ${n} is not a whole number`);
       if ((d.min !== undefined && n < d.min) || (d.max !== undefined && n > d.max)) throw new Error(`setting ${d.id}: ${n} is outside ${d.min ?? "any"} to ${d.max ?? "any"}`);
     }
@@ -147,9 +157,11 @@ function total(terms: readonly Term[]): number {
  * The streak a move leaves, before any mistake breaks it: one more when the move built it, the same within
  * its grace, and none past it.
  */
-function streakAfter(g: Game, tally: Tally, s: { streak: number; misses: number }): { streak: number; misses: number } {
+function streakAfter(g: Game, tally: Tally, s: { streak: number; misses: number }, move = true): { streak: number; misses: number } {
   const streak = streakOf(g);
   if (!streak) return { streak: 0, misses: 0 };
+  // A streak that counts events is kept as each is reported. A tick is no move, so one that builds nothing is no miss.
+  if (streak.counts === "events" || (!move && !tally.built)) return { streak: s.streak, misses: s.misses };
   if (tally.built) return { streak: s.streak + 1, misses: 0 };
   const misses = s.misses + 1;
   return { streak: misses > amount(g.settings, streak.grace) ? 0 : s.streak, misses };
@@ -159,9 +171,9 @@ function streakAfter(g: Game, tally: Tally, s: { streak: number; misses: number 
  * A move is paid at the streak it leaves. The table's first entry is for the first success in a row, its
  * last entry holds, and a move that leaves no streak is paid as it is.
  */
-function bank(g: Game, tally: Tally, s: { streak: number; misses: number }): number {
+function bank(g: Game, tally: Tally, s: { streak: number; misses: number }, move = true): number {
   const { doc, settings } = g;
-  const streak = streakAfter(g, tally, s).streak;
+  const streak = streakAfter(g, tally, s, move).streak;
   return total(
     tally.terms.map((t) => {
       let { num, den } = t;
@@ -188,7 +200,7 @@ function applies(on: string, when: string | undefined, id: string, fields: Reado
 }
 
 /** What an event's payouts and multipliers make of it, a share for each payout that pays on it. */
-function termsOf(g: Game, id: string, fields: Readonly<Record<string, unknown>>, step: number): Term[] {
+function termsOf(g: Game, id: string, fields: Readonly<Record<string, unknown>>, step: number, streakNow: number | null): Term[] {
   const { doc, settings } = g;
   const terms: Term[] = [];
   for (const p of doc.payouts) {
@@ -207,7 +219,9 @@ function termsOf(g: Game, id: string, fields: Readonly<Record<string, unknown>>,
       if (!m.scales.includes(p.id) || !there(g, "multipliers", m.id) || !applies(m.on, undefined, id, fields, settings)) continue;
       if ("percent" in m.by) (num *= settings[m.by.percent] as number), (den *= 100);
       else if (m.by.index === "step") (num *= entry(settings[m.by.table], step - 1)), (den *= 100);
-      else held.push(m.id);
+      else if (streakNow === null) held.push(m.id);
+      // A streak that counts events has already counted this one: it is paid at the streak it leaves, now.
+      else (num *= streakNow === 0 ? 100 : entry(settings[m.by.table], streakNow - 1)), (den *= 100);
     }
     terms.push({ num, den, held });
   }
@@ -251,7 +265,28 @@ function ctxOf(g: Game, s: State, out: Event[], tally: Tally): Ctx {
       s.streams[id] = r.state;
       return r.value;
     };
-    return { even: next, chance: (permille) => next(1000) < permille };
+    return {
+      even: next,
+      chance: (permille) => next(1000) < permille,
+      pick: (list) => list[next(list.length)]!,
+      next() {
+        const decl = doc.deal.draws.find((d) => d.id === id)!;
+        if (decl.by !== "bag") throw new Error(`draw ${id} is not from a bag`);
+        let bag = s.bags[id] ?? [];
+        if (bag.length === 0) {
+          // A fresh bag holds each item as often as the list the draw reads says, and is shuffled from its last place down.
+          const fresh = (settings[decl.reads[0]!] as readonly number[]).flatMap((count, item) => Array.from({ length: count }, () => item));
+          if (fresh.length === 0) throw new Error(`draw ${id}: its bag is empty`);
+          for (let i = fresh.length - 1; i > 0; i--) {
+            const j = next(i + 1);
+            [fresh[i], fresh[j]] = [fresh[j]!, fresh[i]!];
+          }
+          bag = fresh;
+        }
+        s.bags[id] = bag.slice(1);
+        return bag[0]!;
+      },
+    };
   };
   ctx.emit = (id, fields, build) => {
     const decl = doc.events.find((e) => e.id === id);
@@ -259,6 +294,8 @@ function ctxOf(g: Game, s: State, out: Event[], tally: Tally): Ctx {
     here(g, "events", "event", id);
     const at = (p: Cell): number => p.y * s.width + p.x;
     const changes: Change[] = [];
+    /** Changes to pieces, worked out once everything that travels has landed. */
+    const late: { change: { change: "change"; at: Cell; piece?: Piece }; to: Partial<NewPiece> }[] = [];
     const sets: { id: string; value: number }[] = [];
     const tasks: NonNullable<Event["tasks"]>[number][] = [];
     const b: Changes = {
@@ -266,12 +303,17 @@ function ctxOf(g: Game, s: State, out: Event[], tally: Tally): Ctx {
       leave: (from) => (changes.push({ change: "leave", at: from }), b),
       travel: (from, to) => (changes.push({ change: "travel", from, to }), b),
       change(where, to) {
-        const old = s.cells[at(where)];
-        if (!old) throw new Error(`event ${id} changes the piece at ${where.x},${where.y}, and no piece is there`);
-        // Naming a piece makes it that piece, whole. Naming less changes that alone.
-        const next: Record<string, unknown> = to.piece === undefined ? { ...old, ...to } : { id: old.id, ...to };
-        for (const k of Object.keys(next)) if (next[k] === undefined) delete next[k];
-        changes.push({ change: "change", at: where, piece: next as unknown as Piece });
+        if ("terrain" in to) {
+          const decl = doc.terrain.find((t) => t.id === to.terrain);
+          if (!decl && to.terrain !== "plain") throw new Error(`event ${id} changes a cell to the terrain ${to.terrain}, which the puzzle does not have`);
+          if (to.state !== undefined && !decl?.states?.includes(to.state)) throw new Error(`event ${id} changes a cell to ${to.terrain} in the state ${to.state}, which it does not have`);
+          const state = to.state ?? decl?.states?.[0];
+          changes.push({ change: "change", at: where, terrain: to.terrain, ...(state === undefined ? {} : { state }) });
+          return b;
+        }
+        const change = { change: "change" as const, at: where };
+        changes.push(change as Change);
+        late.push({ change, to });
         return b;
       },
       set(what, value) {
@@ -303,19 +345,34 @@ function ctxOf(g: Game, s: State, out: Event[], tally: Tally): Ctx {
     const lifted = changes.flatMap((c) => (c.change === "travel" ? [{ to: c.to, piece: s.cells[at(c.from)]! }] : []));
     for (const c of changes) if (c.change === "leave" || c.change === "travel") s.cells[at(c.change === "leave" ? c.at : c.from)] = null;
     for (const l of lifted) s.cells[at(l.to)] = l.piece;
-    for (const c of changes) if (c.change === "arrive" || c.change === "change") s.cells[at(c.at)] = c.piece;
+    for (const { change, to } of late) {
+      const old = s.cells[at(change.at)];
+      if (!old) throw new Error(`event ${id} changes the piece at ${change.at.x},${change.at.y}, and no piece is there`);
+      // Naming a piece makes it that piece, whole. Naming less changes that alone.
+      const next: Record<string, unknown> = to.piece === undefined ? { ...old, ...to } : { id: old.id, ...to };
+      for (const k of Object.keys(next)) if (next[k] === undefined) delete next[k];
+      change.piece = next as unknown as Piece;
+      s.cells[at(change.at)] = next as unknown as Piece;
+    }
+    for (const c of changes) {
+      if (c.change === "arrive") s.cells[at(c.at)] = c.piece;
+      else if (c.change === "change" && "terrain" in c) s.ground[at(c.at)] = c.terrain === "plain" ? null : { terrain: c.terrain, ...(c.state === undefined ? {} : { state: c.state }) };
+    }
     for (const x of sets) s.values[x.id] = x.value;
     for (const t of tasks) {
       if ("opened" in t) s.tasks.push({ task: t.task, holds: t.opened });
       else s.tasks.splice(s.tasks.findIndex((x) => x.task === t.task), 1);
     }
-    let event: Event = { event: id, fields, changes, ...(sets.length ? { sets } : {}), ...(tasks.length ? { tasks } : {}) };
+    let event: Event = { event: id, fields, changes, ...(sets.length ? { sets } : {}), ...(tasks.length ? { tasks } : {}), ...(doc.round.tempo.kind === "ticking" ? { tick: s.tick } : {}) };
+    const streak = streakOf(g);
+    const byEvent = streak?.counts === "events";
+    if (streak && byEvent && applies(streak.builds.event, streak.builds.when, id, fields, settings)) s.best = Math.max(s.best, ++s.streak);
     if (decl.step) {
       s.stepHit = true;
       event = { ...event, step: s.step + 1 };
     }
     if (Object.values(decl.fields).includes("points")) {
-      let terms = termsOf(g, id, fields, Math.max(1, s.step + (decl.step ? 1 : 0)));
+      let terms = termsOf(g, id, fields, Math.max(1, s.step + (decl.step ? 1 : 0)), byEvent ? s.streak : null);
       let paid = total(terms);
       if (rules.pointsFor) {
         const worth = Math.floor(rules.pointsFor({ ...event, points: paid }, paid));
@@ -326,8 +383,9 @@ function ctxOf(g: Game, s: State, out: Event[], tally: Tally): Ctx {
       tally.terms.push(...terms);
       event = { ...event, points: paid };
     }
-    const streak = streakOf(g);
-    if (streak) {
+    if (streak && byEvent) {
+      if (streak.breaksOn.includes(id)) s.streak = 0;
+    } else if (streak) {
       if (applies(streak.builds.event, streak.builds.when, id, fields, settings)) tally.built = true;
       if (streak.breaksOn.includes(id)) tally.broke = true;
     }
@@ -356,11 +414,11 @@ function cascade(g: Game, s: State, out: Event[], ctx: Ctx): boolean {
   }
 }
 
-/** Move, Cascade and Move end. Move end is asked when the cascade has run dry, and again only if what it reported set the cascade off. */
-function apply(g: Game, s: State, move: AnyMove, out: Event[], tally: Tally): void {
+/** Move or Tick, then Cascade and Move end. Move end is asked when the cascade has run dry, and again only if what it reported set the cascade off. */
+function apply(g: Game, s: State, first: (ctx: Ctx) => unknown, out: Event[], tally: Tally): void {
   const ctx = ctxOf(g, s, out, tally);
   s.step = 0;
-  ask(s, () => g.puzzle.rules.onMove(ctx, 0, move));
+  ask(s, () => first(ctx));
   cascade(g, s, out, ctx);
   for (;;) {
     const before = out.length;
@@ -372,7 +430,7 @@ function apply(g: Game, s: State, move: AnyMove, out: Event[], tally: Tally): vo
 /** What a move would report, played on a copy. */
 function tryMove(g: Game, s: State, move: AnyMove): Event[] {
   const out: Event[] = [];
-  apply(g, scratch(s), move, out, newTally());
+  apply(g, scratch(s), (ctx) => g.puzzle.rules.onMove(ctx, 0, move), out, newTally());
   return out;
 }
 /** A move is worth making when it sets off an event that counts as a step, or pays. */
@@ -411,6 +469,8 @@ function lay(g: Game, s: State, out: Event[], id: string, pieces: (cell: Cell) =
  */
 function deal(g: Game, s: State, out: Event[], check: CheckDecl | undefined, again: boolean): void {
   const rules = g.puzzle.rules;
+  // With no check to hold, the rules deal straight onto the round, and what they report is what is seen.
+  if (!check) return ask(s, () => rules.onStart(ctxOf(g, s, out, newTally())));
   const tries = check?.tries ?? 1;
   // One more turn than the tries: the last is the fallback's.
   for (let t = 0; t <= tries; t++) {
@@ -425,7 +485,7 @@ function deal(g: Game, s: State, out: Event[], check: CheckDecl | undefined, aga
     if (check && !fallback) cascade(g, trial, unseen, ctx);
     s.streams = trial.streams; // a failed try still used its luck, so the next try differs
     if (check && check.needs !== "settled" && !fallback && stuck(g, trial)) continue;
-    if (!again) s.rules = began;
+    if (!again) Object.assign(s, { rules: began, ground: trial.ground, bags: trial.bags, values: trial.values });
     const id = again ? check!.during! : first;
     if (id) lay(g, s, out, id, boardOf(trial).at, again ? "in place" : "above");
     return;
@@ -471,7 +531,15 @@ export function start<M extends AnyMove>(puzzle: Puzzle<M>, opts: StartOptions):
   const width = amount(settings, doc.board.width);
   const height = amount(settings, doc.board.height);
   const seed = String(opts.seed);
-  const s: State = { width, height, cells: Array.from({ length: width * height }, () => null), nextId: 1, streams: {}, seed, streamKey: seed, points: 0, moves: 0, time: 0, step: 0, stepHit: false, streak: 0, misses: 0, best: 0, values: {}, tasks: [], rules: undefined, ended: null };
+  for (const d of doc.settings) {
+    if (d.type !== "maps") continue;
+    (settings[d.id] as readonly MapRows[]).forEach((map, i) => {
+      if (map.length !== height || map.some((row) => row.length !== width)) throw new Error(`setting ${d.id}: map ${i} is not ${width} by ${height}`);
+      const unknown = map.flat().find((id) => id !== "plain" && !doc.terrain.some((t) => t.id === id));
+      if (unknown) throw new Error(`setting ${d.id}: map ${i} names the terrain ${unknown}, which the puzzle does not have`);
+    });
+  }
+  const s: State = { width, height, cells: Array.from({ length: width * height }, () => null), ground: Array.from({ length: width * height }, () => null), nextId: 1, streams: {}, bags: {}, seed, streamKey: seed, points: 0, moves: 0, time: 0, tick: 0, step: 0, stepHit: false, streak: 0, misses: 0, best: 0, values: {}, tasks: [], rules: undefined, ended: null };
   const asks = doc.deal.checks.find((c) => c.needs !== "settled");
   if (asks && !puzzle.rules.listMoves) throw new Error(`${doc.id} declares the check ${asks.id}, so its rules must answer listMoves`);
   const events: Event[] = [];
@@ -502,9 +570,44 @@ function timeUp(doc: Document, settings: Settings, at: number): string | null {
   return null;
 }
 
+/** Close: the points are banked and the streak kept, then the check that holds during play, then tasks. What was banked. */
+function close(g: Game, s: State, events: Event[], tally: Tally, move: boolean): number {
+  const banked = bank(g, tally, s, move);
+  s.points = Math.max(0, s.points + banked);
+  Object.assign(s, streakAfter(g, tally, s, move));
+  s.best = Math.max(s.best, s.streak);
+  // A mistake breaks the streak at once, after the move has been paid at it.
+  if (tally.broke) s.streak = 0;
+  const check = g.doc.deal.checks.find((c) => c.during);
+  if (check && stuck(g, s)) deal(g, s, events, check, true);
+  needTasks(g, s, events);
+  return banked;
+}
+
+/**
+ * Ticks: every tick that has fallen due by a time is run, in order. Tick n falls due n ticks' lengths into the
+ * round, so nothing ticks at its start, and the last tick is the one that falls on the clock's end or before it.
+ * Each is an entry of its own: Tick, Cascade, Move end and Close. What they banked between them.
+ */
+function runTicks(g: Game, s: State, at: number, events: Event[]): number {
+  const tempo = g.doc.round.tempo;
+  if (tempo.kind !== "ticking") return 0;
+  const clock = g.doc.round.ends.find((e) => e.by === "clock");
+  const until = clock ? Math.min(at, amount(g.settings, clock.setting) * 1000) : at;
+  let banked = 0;
+  while (!s.ended && (s.tick + 1) * tempo.tickMs <= until) {
+    const tick = { n: ++s.tick, ms: s.tick * tempo.tickMs };
+    const tally = newTally();
+    apply(g, s, (ctx) => g.puzzle.rules.onTick?.(ctx, tick), events, tally);
+    banked += close(g, s, events, tally, false);
+  }
+  return banked;
+}
+
 /**
  * Makes a move. `at` is when it was made, in whole milliseconds from the round's start: a round with a clock
  * needs it, and without it the move is taken as made when the last one was. Time never runs backwards.
+ * In a ticking puzzle every tick due by then runs first, so the move follows the tick it was made on.
  */
 export function play<M extends AnyMove>(round: Round<M>, move: NoInfer<M>, when: { at?: number } = {}): Round<M> {
   const g = gameOf(round.puzzle as Puzzle, round.settings, round.stage);
@@ -513,38 +616,47 @@ export function play<M extends AnyMove>(round: Round<M>, move: NoInfer<M>, when:
   if (!Number.isInteger(at) || at < round.state.time) throw new Error(`a move at ${at} cannot follow one at ${round.state.time}`);
   const refuse = (refused: string): Round<M> => ({ ...round, last: { events: [], refused, banked: 0 } });
   if (round.state.ended || timeUp(doc, round.settings, at)) return refuse("reason.round_over");
+  // A move that is refused leaves the round as it was, its ticks included.
+  const s = clone(round.state);
+  const events: Event[] = [];
+  let banked = runTicks(g, s, at, events);
   // Check: the loop refuses what it can before the rules are asked.
   const decl = doc.moves.find((m) => m.id === move.move);
   if (!decl) return refuse("reason.unknown_move");
-  const board = boardOf(round.state);
+  const board = boardOf(s);
   for (const [name, type] of Object.entries(decl.fields)) {
     const given = move[name];
     if (type === "place" && !board.has(given as Cell)) return refuse("reason.off_board");
     if (type === "places" && !(Array.isArray(given) && given.every((p) => board.has(p as Cell)))) return refuse("reason.off_board");
     if (type === "flag" && typeof given !== "boolean") return refuse("reason.unknown_move");
     if (type === "number" && !Number.isInteger(given)) return refuse("reason.unknown_move");
+    if (type === "direction" && !(DIRECTIONS as readonly unknown[]).includes(given)) return refuse("reason.unknown_move");
   }
-  const reason = g.puzzle.rules.canMove(viewOf(g, round.state), move);
+  const reason = g.puzzle.rules.canMove(viewOf(g, s), move);
   if (reason) return refuse(reason);
-  // Move, Cascade, Move end.
-  const s = clone(round.state);
-  const events: Event[] = [];
+  // Move, Cascade, Move end, Close, then the endings.
   const tally = newTally();
-  apply(g, s, move, events, tally);
-  // Close: the points are banked and the streak kept, then the check that holds during play, then tasks, then the endings.
-  const banked = bank(g, tally, s);
-  s.points = Math.max(0, s.points + banked);
-  Object.assign(s, streakAfter(g, tally, s));
-  s.best = Math.max(s.best, s.streak);
-  // A mistake breaks the streak at once, after the move has been paid at it.
-  if (tally.broke) s.streak = 0;
-  const check = doc.deal.checks.find((c) => c.during);
-  if (check && stuck(g, s)) deal(g, s, events, check, true);
-  needTasks(g, s, events);
+  apply(g, s, (ctx) => g.puzzle.rules.onMove(ctx, 0, move), events, tally);
+  banked += close(g, s, events, tally, true);
   s.moves++;
   s.time = at;
   for (const end of doc.round.ends) if (end.by === "budget" && s.moves >= amount(round.settings, end.setting)) s.ended = end.id;
   return { ...round, state: s, log: [...round.log, { at, move }], last: { events, refused: null, banked } };
+}
+
+/**
+ * Lets time pass with no move: every tick due by `at` runs. It writes nothing in the log, since the ticks between
+ * two moves are worked out again from the moves' own times. A host calls it to show a ticking round moving, and
+ * once more at the round's end.
+ */
+export function advance<M extends AnyMove>(round: Round<M>, when: { at: number }): Round<M> {
+  const g = gameOf(round.puzzle as Puzzle, round.settings, round.stage);
+  if (!Number.isInteger(when.at) || when.at < round.state.time) throw new Error(`time cannot run back from ${round.state.time} to ${when.at}`);
+  const s = clone(round.state);
+  const events: Event[] = [];
+  const banked = runTicks(g, s, when.at, events);
+  s.time = when.at;
+  return { ...round, state: s, last: { events, refused: null, banked } };
 }
 
 export interface Read {
@@ -565,6 +677,10 @@ export interface Read {
   /** What the rules remember. Rules made of parts keep each part's under its name. */
   state: unknown;
   board: (Piece | null)[][];
+  /** The terrain of every cell, row by row. Null is a plain cell. */
+  ground: (Ground | null)[][];
+  /** The last tick that has run. 0 in a still puzzle. */
+  tick: number;
   wait: "anyone" | "nobody";
 }
 export function read(round: Round, when: { at?: number } = {}): Read {
@@ -591,6 +707,8 @@ export function read(round: Round, when: { at?: number } = {}): Read {
     tasks: s.tasks,
     state: s.rules,
     board,
+    ground: Array.from({ length: s.height }, (_, y) => s.ground.slice(y * s.width, (y + 1) * s.width)),
+    tick: s.tick,
     wait: ended ? "nobody" : "anyone",
   };
 }
@@ -608,7 +726,8 @@ export const view = (round: Round): View => viewOf(gameFor(round), round.state);
 export const listMoves = <M extends AnyMove>(round: Round<M>): M[] => (round.puzzle.rules.listMoves?.(viewOf(gameFor(round as Round), round.state)) as M[] | undefined) ?? [];
 
 /** The same seed, settings, stage and log always make the same round. */
-export function replay<M extends AnyMove>(puzzle: Puzzle<M>, seed: string, settings: Record<string, Setting>, log: readonly Entry<M>[], stage?: string): Round<M> {
-  return log.reduce((r, e) => play(r, e.move, { at: e.at }), start(puzzle, { seed, settings, ...(stage ? { stage } : {}) }));
+export function replay<M extends AnyMove>(puzzle: Puzzle<M>, seed: string, settings: Record<string, Setting>, log: readonly Entry<M>[], stage?: string, until?: number): Round<M> {
+  const round = log.reduce((r, e) => play(r, e.move, { at: e.at }), start(puzzle, { seed, settings, ...(stage ? { stage } : {}) }));
+  return until === undefined ? round : advance(round, { at: until });
 }
 export type { PrngState, Rules };

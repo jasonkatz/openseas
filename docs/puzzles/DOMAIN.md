@@ -46,7 +46,9 @@ Every puzzle has one **tempo**: how its time moves.
 | Still | Nothing happens | Paths (Salvage): the board waits for the next path |
 | Ticking | The rules move on by themselves, one tick at a time | Overload: taps come back over time |
 
-A tick's length is fixed by the puzzle. It is never a setting. How long a seat may take over a move is
+A tick's length is fixed by the puzzle. It is never a setting. Ticks are counted from 1, and tick `n`
+falls at `n` times that length, so nothing happens as a round starts but its start. The last tick is the
+one on or before a clock's end. How long a seat may take over a move is
 not the puzzle's at all: the clock for a wait is the host's or a role's ([Sides](#sides)).
 
 ### Acting
@@ -401,17 +403,27 @@ A puzzle has at most one **streak**: a run of successes that raises a multiplier
 
 - what **builds** it: an event, with a condition on it, such as a path of five or more, or a task's
   grade, such as clean;
+- what it **counts**: moves, or events;
 - its **grace**: how many **misses** in a row it forgives before it breaks, as a number or a setting,
   where a miss is a move or a task that builds nothing;
 - which **mistakes** break it at once.
 
 What it raises is a multiplier whose table is indexed by the streak: a list setting with an entry for
-each success in a row, whose last entry holds. A move builds the streak once, however many of its events
-would: the streak counts moves, and tasks, never events.
+each success in a row, whose last entry holds.
 
-A move is paid at the streak it leaves. The first success in a row takes the table's first entry and
+A streak counts moves unless it says otherwise. A move builds it once, however many of its events
+would, and is paid at the streak it leaves. The first success in a row takes the table's first entry and
 the next takes the second. A miss within the grace takes the entry the streak still stands at, and a
 move that leaves no streak is paid as it is. A mistake breaks the streak after its move has been paid.
+A tick is no move: one that builds nothing is no miss.
+
+A streak that counts events is for a puzzle where successes come by themselves, several to a tick or
+none for many. Every event that builds it counts, and is paid at the streak it leaves. A mistake breaks
+it there and then, so what follows in the same tick is paid from the start of a new streak. Nothing is
+a miss, and it has no grace.
+
+> Paths counts moves: a long path builds its streak, and a short one is a miss. Gunnery counts events:
+> each full load builds its streak, two in one tick are two, and only a jam breaks it.
 
 The rules keep the round's best streak as the stat `best_streak`, and the streak's count as a gauge.
 
@@ -503,8 +515,14 @@ Each cell has one **terrain**: what the cell is, as opposed to the piece on it, 
 a port or a current. Terrain is plain unless the puzzle says otherwise, and it may have states, as a
 mirror that flips does. A cell holds at most one piece.
 
+A cell's terrain changes on an event, as a piece does: to another terrain, or to another state of the
+one it has. A terrain with states is in the first it declares unless the change names one.
+
 A puzzle either deals its terrain, as it deals pieces, or draws it by hand as **maps**. A puzzle with
-maps has a setting holding a list of them, and the seed picks one for each round.
+maps has a setting holding a list of them, and the seed picks one for each round. A map is a row for
+each row of the board, with a terrain for each cell. One that does not fit the board, or names terrain
+the puzzle does not have, is refused before a round starts. The rules lay the map out on an event, so a
+board drawn from events alone holds it.
 
 > Deflectors deals its mirrors, and Tug its blocks. Gunnery's decks and Space Battle's fields are maps.
 
@@ -589,7 +607,7 @@ A **draw** is one source of luck. A puzzle declares each with:
 |---|---|---|
 | Even roll | Each item alike, every time | Paths' debris: any of the `kinds` |
 | Weighted roll | Each item by its weight, or yes or no by a chance | Paths' prizes: `prizePermille` |
-| Bag | A shuffled set dealt out in order, then shuffled again | Gunnery's feed: every seven pieces hold the same seven |
+| Bag | A shuffled set dealt out in order, then shuffled again. Its setting is a list holding how many of each item a fill has, and the loop keeps what is left of it | Gunnery's feed: every seven pieces hold the same seven |
 | Pick | One entry of a list setting | Gunnery's deck, one of its maps |
 
 A draw belongs to a layer when only that layer's rules call for it.
@@ -932,7 +950,9 @@ see. The rules hold only what is the puzzle's own. They are written whole, or pu
 | End | An ending is met. The sides are placed, and the score is read for each seat | `onEnd`, `placing`, `score` |
 
 `start` runs Start. `play` runs Check to Close for one entry, after every tick that falls due before
-it, and Wait to Close runs again until an ending is met. A tick goes to `onTick` and a signal in to
+it, and Wait to Close runs again until an ending is met. An entry that is refused leaves its ticks
+unplayed, for whatever comes next. `advance` plays the ticks due by a time and nothing else, for a host
+showing a round between moves. A tick goes to `onTick` and a signal in to
 `onSignal`, where a move goes to `canMove` and `onMove`. Every entry and every tick runs Cascade, Move
 end and Close, as a move does.
 
@@ -1347,7 +1367,7 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
   "moves": [{ "id": "", "description": "", "gesture": "tap | long-press | draw | drag | swipe | slice | turn | hold", "inHand": "true when built in hand",
               "fields": { "<name>": "place | places | direction | piece | number | flag" } }],
   "controls": [{ "id": "", "move": "the move it makes, or none for a switch", "key": "its letter" }],
-  "events": [{ "id": "", "description": "", "fields": { "<name>": "place | places | piece | seat | side | number | points" }, "mistake": "true when it is one",
+  "events": [{ "id": "", "description": "", "fields": { "<name>": "place | places | direction | piece | seat | side | number | points" }, "mistake": "true when it is one",
               "changes": ["arrive | leave | travel | change: the board changes it can carry"],
               "step": "true when it counts as a cascade step", "closes": "a phase id", "reveals": ["zone ids, or the board"] }],
   "moment": { "event": "the event id", "when": "an optional condition on it", "size": "its number field", "most": "a number or a setting: the biggest" },
@@ -1355,7 +1375,7 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
                 "cap": "a number or a setting", "reads": ["setting ids"] }],
   "multipliers": [{ "id": "", "description": "", "scales": ["payout ids"], "on": "every, or event ids joined by or, and a condition after them where it has one",
                     "by": "{ percent: setting }, or { table: list setting, index: streak | step }" }],
-  "streak": "absent, or { builds: { event, when } or { grade }, grace: a number or a setting, breaksOn: [mistake event ids] }",
+  "streak": "absent, or { builds: { event, when } or { grade }, counts: moves | events, grace: a number or a setting, breaksOn: [mistake event ids] }",
   "tasks": [{ "id": "", "description": "", "open": "how many at once", "ends": ["done | given-up | out-of-time"], "control": "given-up only", "setting": "out-of-time only",
               "graded": "par | best | none", "grades": ["from best"], "next": "dealt, or the control that asks for it" }],
   "gauges": [{ "id": "", "description": "", "most": "a number or a setting", "danger": "the value past which it means danger", "each": "round | seat | side" }],

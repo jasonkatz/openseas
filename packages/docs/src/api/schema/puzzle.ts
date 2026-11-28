@@ -960,7 +960,7 @@ const events = page({
       [
         req("id", id, "The event's id. The rules report it by this id.", { never: "`start`, `countdown` or `end`. Those three are the host's." }),
         req("description", sentence, "What happened."),
-        req("fields", map("<field>", "A name for the value.", fieldTypes("place", "places", "piece", "seat", "side", "number", "points")), "What it carries. An empty object for an event that carries nothing.", {
+        req("fields", map("<field>", "A name for the value.", fieldTypes("place", "places", "direction", "piece", "seat", "side", "number", "points")), "What it carries. An empty object for an event that carries nothing.", {
           never: "More than one field of type `points`.",
         }),
         opt("mistake", bool, "True when it is a mistake: something a player who plays well can always avoid. It costs points through a penalty payout, the streak, or both. What luck alone deals is never a mistake.", {
@@ -1165,13 +1165,15 @@ const streak = page({
       ),
       "What builds it.",
     ),
+    opt("counts", en(["moves", "A move builds it once, however many of its events would. A move that builds nothing is a miss."], ["events", "Every event that builds it counts, and is paid at the streak it leaves. A mistake breaks it there and then. Nothing is a miss."]), "What the streak counts.", { absent: "It counts moves." }),
     req("grace", amount, "How many misses in a row it forgives before it breaks, as a number or the setting that holds it. A miss is a move, or a task, that builds nothing. At 0 the first miss breaks it."),
     req("breaksOn", arr(ref("event"), { noun: "event ids" }), "The mistakes that break it at once, whatever its grace. The list may be empty.", { must: "Name only events whose `mistake` is true." }),
   ]),
   rules: [
     "`builds` holds `event`, with or without `when`, or it holds `grade`. Never both forms.",
     "A streak built by a grade needs a task that has that grade.",
-    "A move builds the streak once, however many of its events would.",
+    "A streak that counts moves is built once by a move, however many of its events would. A tick is no move, and one that builds nothing is no miss.",
+    "A streak that counts events has no misses, and its `grace` is 0.",
     "A puzzle with a streak has a multiplier whose `by.index` is `streak`, a gauge for the count, and the stat `best_streak`.",
   ],
   examples: [fromPaths("streak"), { title: "Built by a task's grade", value: { streak: { builds: { grade: "clean" }, grace: 0, breaksOn: [] } } }],

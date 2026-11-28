@@ -3,7 +3,7 @@
 // one whole document and one flat rules object, which is all the loop ever sees.
 import { eventsNamed } from "./loop.js";
 import { whenProblem } from "./when.js";
-import type { AnyMove, CheckDecl, Ctx, Document, DrawDecl, EndDecl, Event, EventDecl, GaugeDecl, LayerDecl, MoveDecl, MultiplierDecl, PayoutDecl, PieceDecl, Puzzle, Rules, Setting, SettingDecl, StageDecl, StatDecl, StreakDecl, TaskDecl, View } from "./types.js";
+import type { AnyMove, CheckDecl, Ctx, Document, DrawDecl, EndDecl, Event, EventDecl, GaugeDecl, LayerDecl, MoveDecl, MultiplierDecl, PayoutDecl, PieceDecl, Puzzle, Rules, Setting, SettingDecl, StageDecl, StatDecl, StreakDecl, TaskDecl, TerrainDecl, Tick, View } from "./types.js";
 
 /** A part's hooks. Each is handed the part's own state, and an "on" hook gives back the next one, or nothing to keep it. */
 export interface PartHooks<S = any> {
@@ -14,6 +14,7 @@ export interface PartHooks<S = any> {
   onMove?: Record<string, (ctx: Ctx<S>, seat: 0, move: any) => S | void>;
   onCascade?(ctx: Ctx<S>): S | void;
   onMoveEnd?(ctx: Ctx<S>): S | void;
+  onTick?(ctx: Ctx<S>, tick: Tick): S | void;
   onTaskNeeded?(ctx: Ctx<S>): S | void;
   listMoves?(view: View<S>): AnyMove[];
   hint?(view: View<S>): AnyMove | null;
@@ -31,6 +32,7 @@ export interface Part<M extends AnyMove = never, S = any> {
   readonly rule: string;
   readonly settings?: readonly SettingNeed[];
   readonly pieces?: readonly PieceDecl[];
+  readonly terrain?: readonly TerrainDecl[];
   readonly moves?: readonly MoveDecl[];
   readonly events?: readonly EventDecl[];
   readonly draws?: readonly DrawDecl[];
@@ -61,7 +63,7 @@ export type SettingSpec = Setting | { readonly default: Setting; readonly min?: 
 export interface PayoutSpec { readonly on: string | readonly string[]; readonly counts?: string; readonly growth?: PayoutDecl["growth"]; readonly cap?: number | string; readonly reads?: string; readonly description?: string }
 /** `by` names the setting that holds the percent, or with `index` the list that holds one for each count. */
 export interface MultiplierSpec { readonly scales: string | readonly string[]; readonly on?: string; readonly by: string; readonly index?: "streak" | "step"; readonly description?: string }
-export interface StreakSpec { readonly builds: string | readonly string[]; readonly when?: string; readonly grace?: number | string; readonly breaksOn?: readonly string[] }
+export interface StreakSpec { readonly builds: string | readonly string[]; readonly when?: string; readonly counts?: "moves" | "events"; readonly grace?: number | string; readonly breaksOn?: readonly string[] }
 /** One stage of a puzzle's ladder: the parts it switches on, and the bar a player clears to move past it. */
 export interface StageSpec<Q extends Part<any> = Part<any>> { readonly stage: string; readonly parts: readonly Q[]; readonly advance?: StageDecl["advance"] }
 export const stage = <Q extends Part<any>>(id: string, parts: readonly Q[], opts: { advance?: StageDecl["advance"] } = {}): StageSpec<Q> => ({ stage: id, parts, ...opts });
@@ -70,8 +72,13 @@ export const bestRound = (threshold: number): NonNullable<StageDecl["advance"]> 
 
 interface Common {
   readonly board: BoardSpec;
-  /** How many kinds of piece are dealt. It becomes the setting `kinds`: write `"kinds"` to give its value among the settings. */
-  readonly pieces: number | "kinds";
+  /**
+   * How many kinds of piece are dealt. It becomes the setting `kinds`: write `"kinds"` to give its value among the
+   * settings. Left out, the puzzle has no kinds: every piece it has is one a part declares.
+   */
+  readonly pieces?: number | "kinds";
+  /** How the puzzle's time moves. Left out, it is still: nothing happens between moves. */
+  readonly tempo?: Document["round"]["tempo"];
   readonly ends: EndSpec | readonly EndSpec[];
   /** The order the parts are asked in, by name, where it is not the order the stages list them in. */
   readonly order?: readonly string[];
@@ -100,6 +107,7 @@ export const MERGE = {
   onMove: "every part with a say on the move, in order",
   onCascade: "parts in order: the first to report anything ends the step",
   onMoveEnd: "every part, in order",
+  onTick: "every part, in the order listed",
   onTaskNeeded: "every part, in order",
   listMoves: "every part's moves, in order",
   hint: "the first part with an answer",
@@ -142,6 +150,7 @@ export function mergeHooks<M extends AnyMove>(all: readonly Part<any>[], last?: 
   if (any("onFallback")) rules.onFallback = (ctx) => tell(ctx, (p, c) => p.hooks.onFallback?.(c));
   if (any("onCascade")) rules.onCascade = (ctx) => tell(ctx, (p, c) => p.hooks.onCascade?.(c), true);
   if (any("onMoveEnd")) rules.onMoveEnd = (ctx) => tell(ctx, (p, c) => p.hooks.onMoveEnd?.(c));
+  if (any("onTick")) rules.onTick = (ctx, tick) => tell(ctx, (p, c) => p.hooks.onTick?.(c, tick));
   if (any("onTaskNeeded")) rules.onTaskNeeded = (ctx) => tell(ctx, (p, c) => p.hooks.onTaskNeeded?.(c));
   if (any("listMoves")) rules.listMoves = (view) => onAt(view).flatMap((p) => p.hooks.listMoves?.(own(view, p.name, statesOf(view))) ?? []) as M[];
   if (any("hint")) rules.hint = (view) => onAt(view).reduce<AnyMove | null>((found, p) => found ?? p.hooks.hint?.(own(view, p.name, statesOf(view))) ?? null, null) as M | null;
@@ -209,6 +218,7 @@ function scoringProblem(doc: Document): string | null {
   if (doc.streak) {
     const wrong = named("the streak", doc.streak.builds.event, doc.streak.builds.when);
     if (wrong) return wrong;
+    if (doc.streak.counts === "events" && doc.streak.grace !== 0) return "the streak counts events, which have no misses, and so takes no grace";
     if (typeof doc.streak.grace === "string" && !typed(doc.streak.grace, "whole")) return `the streak's grace reads ${doc.streak.grace}, which is no whole number among the settings`;
     for (const id of doc.streak.breaksOn) if (!event(id)) return `the streak breaks on the event ${id}, which the puzzle does not have`;
   }
@@ -226,10 +236,10 @@ export function puzzle<const P extends readonly Part<any>[], Q extends Part<any>
   for (const name of spec.order ?? []) if (!listed.some((p) => p.name === name)) throw new Error(`${id}: the order names ${name}, which is no part of the puzzle`);
   const place = (p: Part<any>): number => (spec.order?.includes(p.name) ? spec.order.indexOf(p.name) : (spec.order?.length ?? 0) + listed.indexOf(p));
   const parts = [...listed].sort((a, b) => place(a) - place(b));
-  const from = <K extends "settings" | "pieces" | "moves" | "events" | "draws" | "checks" | "payouts" | "multipliers" | "gauges" | "stats" | "tasks">(k: K) => parts.map((p) => [p.name, p[k]] as const);
+  const from = <K extends "settings" | "pieces" | "terrain" | "moves" | "events" | "draws" | "checks" | "payouts" | "multipliers" | "gauges" | "stats" | "tasks">(k: K) => parts.map((p) => [p.name, p[k]] as const);
   const ends = list(spec.ends);
   const kinds: SettingNeed = { id: "kinds", type: "whole", ...(spec.pieces === "kinds" ? {} : { default: spec.pieces }), min: 2, max: 8, description: "kinds of piece dealt", group: "board" };
-  const needs = gather<SettingNeed>("setting", [["the board", spec.board.settings], ["the pieces", [kinds]], ...ends.map((e) => [`the ending ${e.end.id}`, e.settings] as const), ...from("settings")]);
+  const needs = gather<SettingNeed>("setting", [["the board", spec.board.settings], ["the pieces", spec.pieces === undefined ? [] : [kinds]], ...ends.map((e) => [`the ending ${e.end.id}`, e.settings] as const), ...from("settings")]);
   const given = spec.settings ?? {};
   const written = (v: SettingSpec): Exclude<SettingSpec, Setting> => (typeof v === "object" && !Array.isArray(v) ? (v as Exclude<SettingSpec, Setting>) : { default: v as Setting });
   const settings: SettingDecl[] = needs.map((need) => {
@@ -240,9 +250,10 @@ export function puzzle<const P extends readonly Part<any>[], Q extends Part<any>
   for (const [name, v] of Object.entries(given)) {
     if (needs.some((n) => n.id === name)) continue;
     const w = written(v);
-    settings.push({ id: name, type: typeof w.default === "boolean" ? "flag" : typeof w.default === "number" ? "whole" : "list", description: name, group: "scoring", ...w });
+    settings.push({ id: name, type: typeof w.default === "boolean" ? "flag" : typeof w.default === "number" ? "whole" : Array.isArray((w.default as readonly unknown[])[0]) ? "maps" : "list", description: name, group: "scoring", ...w });
   }
-  const pieces = gather<PieceDecl>("piece", [["the pieces", [{ id: "kind", family: "kinds" }]], ...from("pieces")]);
+  const pieces = gather<PieceDecl>("piece", [["the pieces", spec.pieces === undefined ? [] : [{ id: "kind", family: "kinds" }]], ...from("pieces")]);
+  const terrain = gather<TerrainDecl>("terrain", from("terrain"));
   const moves = gather<MoveDecl>("move", from("moves"));
   const events = gather<EventDecl>("event", from("events"));
   const draws = gather<DrawDecl>("draw", from("draws"));
@@ -266,7 +277,7 @@ export function puzzle<const P extends readonly Part<any>[], Q extends Part<any>
   const gauges = gather<GaugeDecl>("gauge", from("gauges"));
   const stats = gather<StatDecl>("stat", from("stats"));
   const tasks = gather<TaskDecl>("task", from("tasks"));
-  const streaks = [...parts.flatMap((p) => (p.streak ? [[p.name, p.streak] as const] : [])), ...(spec.streak ? [["the puzzle", { builds: { event: list(spec.streak.builds).join(" or "), ...(spec.streak.when ? { when: spec.streak.when } : {}) }, grace: spec.streak.grace ?? 0, breaksOn: [...(spec.streak.breaksOn ?? [])] } satisfies StreakDecl] as const] : [])];
+  const streaks = [...parts.flatMap((p) => (p.streak ? [[p.name, p.streak] as const] : [])), ...(spec.streak ? [["the puzzle", { builds: { event: list(spec.streak.builds).join(" or "), ...(spec.streak.when ? { when: spec.streak.when } : {}) }, ...(spec.streak.counts ? { counts: spec.streak.counts } : {}), grace: spec.streak.grace ?? 0, breaksOn: [...(spec.streak.breaksOn ?? [])] } satisfies StreakDecl] as const] : [])];
   if (streaks.length > 1) throw new Error(`${id}: a puzzle has at most one streak, and both ${streaks[0]![0]} and ${streaks[1]![0]} declare one`);
   const streak: StreakDecl | undefined = streaks[0]?.[1];
   if (moves.length === 0) throw new Error(`${id} has no move: add a part that brings one`);
@@ -284,16 +295,16 @@ export function puzzle<const P extends readonly Part<any>[], Q extends Part<any>
     ? listed.map((p) => ({ id: p.name, rule: p.rule, brings: brings(p) }))
     : [{ id: "full", rule: mechanic, brings: { draws: ids(draws), pieces: ids(pieces), events: ids(events), settings: ids(settings), payouts: ids(payouts), ...(multipliers.length ? { multipliers: ids(multipliers) } : {}) } }];
   const ladder: StageDecl[] = staged ? staged.map((x) => ({ stage: x.stage, adds: x.parts.map((p) => p.name), ...(x.advance ? { advance: x.advance } : {}) })) : [{ stage: "full", adds: ["full"] }];
-  const kindsMost = settings.find((s) => s.id === "kinds")!.max ?? 8;
+  const kindsMost = spec.pieces === undefined ? 0 : (settings.find((s) => s.id === "kinds")!.max ?? 8);
   const document: Document = {
     id,
     version: "0.1",
     history: [{ version: "0.1", description: "First version" }],
     mechanic: mechanic[0]!.toUpperCase() + mechanic.slice(1),
     verb: moves[0]!.id,
-    round: { tempo: { kind: "still" }, ends: ends.map((e) => e.end), logLimit: 1000 },
+    round: { tempo: spec.tempo ?? { kind: "still" }, ends: ends.map((e) => e.end), logLimit: 1000 },
     board: spec.board.board,
-    terrain: [],
+    terrain,
     zones: [],
     settings,
     relations: [],

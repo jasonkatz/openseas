@@ -1,7 +1,7 @@
 // A board drawn from events alone. A screen never reads a round's state: it starts from an empty
 // board and applies each event's changes, and what it holds is what the round holds. A host draws
 // with this, and the tests hold it to the loop for every event of every round.
-import type { Cell, Event, Piece } from "./types.js";
+import type { Cell, Event, Ground, Piece } from "./types.js";
 
 /** What a screen holds: the piece on each cell, row by row. */
 export type Seen = readonly (readonly (Piece | null)[])[];
@@ -17,6 +17,15 @@ export function seenAfter(board: Seen, event: Event): Seen {
     else if (c.change === "travel") next[c.from.y]![c.from.x] = null;
   }
   for (const c of event.changes) if (c.change === "travel") next[c.to.y]![c.to.x] = at(c.from);
-  for (const c of event.changes) if (c.change === "arrive" || c.change === "change") next[c.at.y]![c.at.x] = c.piece;
+  for (const c of event.changes) if ((c.change === "arrive" || c.change === "change") && "piece" in c) next[c.at.y]![c.at.x] = c.piece;
+  return next;
+}
+
+/** What a screen holds of the cells themselves: the terrain of each, row by row. Null is a plain cell. */
+export type SeenGround = readonly (readonly (Ground | null)[])[];
+/** The terrain after one event. */
+export function groundAfter(ground: SeenGround, event: Event): SeenGround {
+  const next = ground.map((row) => [...row]);
+  for (const c of event.changes) if (c.change === "change" && "terrain" in c) next[c.at.y]![c.at.x] = c.terrain === "plain" ? null : { terrain: c.terrain, ...(c.state === undefined ? {} : { state: c.state }) };
   return next;
 }

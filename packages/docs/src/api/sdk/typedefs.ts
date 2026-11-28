@@ -293,9 +293,9 @@ export const TYPE_GROUPS: readonly TypeGroup[] = [
           },
           {
             label: "A cell's terrain",
-            type: "{ terrain }",
-            description: "The cell itself becomes another terrain.",
-            fields: [P("terrain", "TerrainId<P> | \"plain\"", "The terrain it becomes.", { values: [{ value: "TerrainId<P>", description: "One of the puzzle's terrain, by id." }, { value: "\"plain\"", description: "An ordinary cell." }] })],
+            type: "{ terrain, state? }",
+            description: "The cell itself becomes another terrain, or the same terrain in another state.",
+            fields: [P("state", "string", "The state it is in, one of those the terrain declares.", { optional: true, absent: "The first state the terrain declares, where it has any." }), P("terrain", "TerrainId<P> | \"plain\"", "The terrain it becomes.", { values: [{ value: "TerrainId<P>", description: "One of the puzzle's terrain, by id." }, { value: "\"plain\"", description: "An ordinary cell." }] })],
           },
         ],
         examples: ["{ state: \"hot\" }", "{ piece: \"ruined\" }", "{ terrain: \"plain\" }"],
@@ -374,7 +374,7 @@ export const TYPE_GROUPS: readonly TypeGroup[] = [
         definition: "",
         description: "One tick of a ticking puzzle.",
         fields: [
-          P("n", "number", "Which tick this is, counted from 0. A whole number."),
+          P("n", "number", "Which tick this is, counted from 1. A whole number. The first tick falls one tick's length after the round starts."),
           P("ms", "number", "The tick's time, in milliseconds since the round started. It is always `n` times the puzzle's [`tickMs`](/api/puzzle#round-tempo-tickms)."),
         ],
       },
@@ -461,5 +461,5 @@ export const SETTING_MAP: readonly (readonly [setting: string, type: string, not
   ["permille", "number", "A whole number of thousandths, as written. Handed to `chance` as it is."],
   ["list", "readonly number[]", "The entries, in order. A table read past its end is the rules' to handle: most hold their last entry."],
   ["flag", "boolean", "True or false."],
-  ["maps", "readonly (readonly string[])[]", "The one map the seed picked for this round, a row at a time, each cell a terrain id or `plain`. The board is already laid out from it."],
+  ["maps", "readonly (readonly string[])[]", "Every map the round may be played on. Each is a row at a time, each cell a terrain id or `plain`. A draw picks one, and the rules lay it on the board on an event, so a board can draw the map from the event alone."],
 ];

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { budget, expand, grid, lines, puzzle, refill, swap } from "@openseas/puzzle";
+import gunnery from "@openseas/puzzle/examples/gunnery";
 import paths from "@openseas/puzzle/examples/paths";
 import { describe, expect, it } from "vitest";
 import { check } from "../src/api/schema/check.js";
@@ -154,5 +155,11 @@ describe("a puzzle of seven lines", () => {
     const document = JSON.parse(expand(paths)) as Record<string, unknown>;
     expect(check(document, typeOf(PUZZLE), "paths")).toEqual([]);
     expect(document.ladder).toHaveLength(4);
+  });
+
+  it("and a ticking puzzle on a map, with terrain and a bag, expands to one too", () => {
+    const document = JSON.parse(expand(gunnery)) as Record<string, unknown>;
+    expect(check(document, typeOf(PUZZLE), "gunnery")).toEqual([]);
+    expect(document.round).toMatchObject({ tempo: { kind: "ticking", tickMs: 200 } });
   });
 });

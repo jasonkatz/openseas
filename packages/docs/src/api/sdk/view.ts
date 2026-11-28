@@ -70,18 +70,33 @@ const board: Member = {
         {
           name: "terrain",
           kind: "method",
-          signature: "terrain(place: Cell<P>): TerrainId<P> | \"plain\"",
+          signature: "terrain(place: Cell<P>): TerrainId<P> | \"plain\" | \"off\"",
           description: "The terrain of a cell.",
-          params: [{ name: "place", type: "Cell<P>", description: "A cell on the board." }],
+          params: [{ name: "place", type: "Cell<P>", description: "A cell, on the board or off it." }],
           returns: {
-            type: "TerrainId<P> | \"plain\"",
+            type: "TerrainId<P> | \"plain\" | \"off\"",
             description: "What the cell itself is, whatever stands on it.",
             values: [
               { value: "TerrainId<P>", description: "The id of one of the puzzle's [`terrain`](/api/puzzle#terrain)." },
               { value: "\"plain\"", description: "An ordinary cell. Every cell is plain in a puzzle that declares no terrain." },
+              { value: "\"off\"", description: "The cell is not on the board. Rules that look a step ahead of a piece need no check of their own for the edge." },
             ],
           },
-          refused: ["The cell is not on the board."],
+        },
+        {
+          name: "terrainState",
+          kind: "method",
+          signature: "terrainState(place: Cell<P>): string | null",
+          description: "The state a cell's terrain is in.",
+          params: [{ name: "place", type: "Cell<P>", description: "A cell, on the board or off it." }],
+          returns: {
+            type: "string | null",
+            description: "The state, where the terrain has any.",
+            values: [
+              { value: "string", description: "One of the states the terrain declares, as a mirror leans one way or the other." },
+              { value: "null", description: "The terrain has no states. So it is on a plain cell, and off the board." },
+            ],
+          },
         },
         {
           name: "touching",
@@ -654,7 +669,7 @@ const emit: Member = {
               description: "What it becomes. See [`Change`](/api/sdk#change).",
               values: [
                 { value: "{ piece?, kind?, state? }", description: "The piece on the cell becomes this, and keeps its id. Naming a `piece` makes it that piece, whole: a kind or a state left out is gone. Naming only a kind or a state changes that alone." },
-                { value: "{ terrain }", description: "The cell's terrain becomes this, whatever stands on it." },
+                { value: "{ terrain, state? }", description: "The cell's terrain becomes this, whatever stands on it. A terrain with states takes the state named, or its first." },
               ],
             },
           ],

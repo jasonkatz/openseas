@@ -1,0 +1,1077 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Gunnery on the new engine, beside the engine the game ships > holds the same deck, pieces, turrets, feed, score and streak, tick for tick: a fast feed and quick turrets 1`] = `
+{
+  "bestStreak": 4,
+  "broadsides": 0,
+  "cleans": 31,
+  "drops": 1546,
+  "exits": 1294,
+  "fires": 31,
+  "full": 31,
+  "jams": 33,
+  "loads": 99,
+  "moves": 812,
+  "score": 2853,
+  "splashes": 9,
+  "ticks": 4560,
+}
+`;
+
+exports[`Gunnery on the new engine, beside the engine the game ships > holds the same deck, pieces, turrets, feed, score and streak, tick for tick: a short round on one deck 1`] = `
+{
+  "bestStreak": 0,
+  "broadsides": 0,
+  "cleans": 0,
+  "drops": 300,
+  "exits": 289,
+  "fires": 0,
+  "full": 0,
+  "jams": 0,
+  "loads": 4,
+  "moves": 192,
+  "score": 40,
+  "splashes": 0,
+  "ticks": 1800,
+}
+`;
+
+exports[`Gunnery on the new engine, beside the engine the game ships > holds the same deck, pieces, turrets, feed, score and streak, tick for tick: as shipped 1`] = `
+{
+  "bestStreak": 12,
+  "broadsides": 1,
+  "cleans": 9,
+  "drops": 742,
+  "exits": 533,
+  "fires": 48,
+  "full": 48,
+  "jams": 10,
+  "loads": 120,
+  "moves": 977,
+  "score": 9600,
+  "splashes": 4,
+  "ticks": 4560,
+}
+`;
+
+exports[`Gunnery on the new engine, beside the engine the game ships > holds the same deck, pieces, turrets, feed, score and streak, tick for tick: one gangway and two turrets 1`] = `
+{
+  "bestStreak": 11,
+  "broadsides": 23,
+  "cleans": 10,
+  "drops": 594,
+  "exits": 345,
+  "fires": 67,
+  "full": 67,
+  "jams": 10,
+  "loads": 157,
+  "moves": 738,
+  "score": 19870,
+  "splashes": 0,
+  "ticks": 3000,
+}
+`;
+
+exports[`Gunnery, on its own > explains which part answers each tick 1`] = `
+"{
+  "id": "gunnery",
+  "version": "0.1",
+  "history": [
+    {
+      "version": "0.1",
+      "description": "First version"
+    }
+  ],
+  "mechanic": "Pieces roll across a deck drawn by hand; lay arrows on the deck to steer what rolls over them; a full turret fires by itself, and every turret firing is a broadside; every piece rolls a cell a tick, and one that rolls into a turret loads it, jams it or cleans it; a feeder drops pieces onto the deck from a shuffled bag, quicker as the round goes on",
+  "verb": "arrow",
+  "round": {
+    "tempo": {
+      "kind": "ticking",
+      "tickMs": 200
+    },
+    "ends": [
+      {
+        "id": "clock",
+        "by": "clock",
+        "setting": "roundSeconds"
+      },
+      {
+        "id": "moves",
+        "by": "budget",
+        "setting": "maxMoves"
+      }
+    ],
+    "logLimit": 1000
+  },
+  "board": {
+    "shape": "grid",
+    "width": "width",
+    "height": "height",
+    "touch": 4,
+    "rim": false
+  },
+  "terrain": [
+    {
+      "id": "wall"
+    },
+    {
+      "id": "crate"
+    },
+    {
+      "id": "feeder"
+    },
+    {
+      "id": "hatch"
+    },
+    {
+      "id": "arrow",
+      "states": [
+        "right",
+        "down",
+        "left",
+        "up"
+      ]
+    },
+    {
+      "id": "turret",
+      "states": [
+        "empty",
+        "one",
+        "two",
+        "full",
+        "jammed"
+      ]
+    }
+  ],
+  "zones": [],
+  "settings": [
+    {
+      "id": "width",
+      "type": "whole",
+      "min": 3,
+      "max": 12,
+      "description": "columns on the board",
+      "group": "board",
+      "unit": "cells",
+      "default": 9
+    },
+    {
+      "id": "height",
+      "type": "whole",
+      "min": 3,
+      "max": 16,
+      "description": "rows on the board",
+      "group": "board",
+      "unit": "cells",
+      "default": 15
+    },
+    {
+      "id": "roundSeconds",
+      "type": "whole",
+      "min": 1,
+      "max": 3600,
+      "description": "seconds in a round",
+      "group": "tempo",
+      "unit": "seconds",
+      "default": 152
+    },
+    {
+      "id": "maxMoves",
+      "type": "whole",
+      "min": 1,
+      "max": 100000,
+      "description": "moves in a round",
+      "group": "tempo",
+      "unit": "moves",
+      "default": 1000
+    },
+    {
+      "id": "decks",
+      "type": "maps",
+      "description": "the decks a round may be played on",
+      "group": "board",
+      "default": [
+        [
+          [
+            "wall",
+            "wall",
+            "wall",
+            "wall",
+            "feeder",
+            "wall",
+            "wall",
+            "wall",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "turret",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "turret"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "crate",
+            "plain",
+            "crate",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "crate",
+            "plain",
+            "plain",
+            "plain",
+            "crate",
+            "plain",
+            "wall"
+          ],
+          [
+            "hatch",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "hatch"
+          ],
+          [
+            "wall",
+            "plain",
+            "crate",
+            "plain",
+            "plain",
+            "plain",
+            "crate",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "crate",
+            "crate",
+            "plain",
+            "crate",
+            "crate",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "turret",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "turret"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "wall",
+            "wall",
+            "wall",
+            "hatch",
+            "wall",
+            "wall",
+            "hatch",
+            "wall"
+          ]
+        ],
+        [
+          [
+            "wall",
+            "hatch",
+            "wall",
+            "wall",
+            "feeder",
+            "wall",
+            "hatch",
+            "wall",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "turret",
+            "plain",
+            "plain",
+            "crate",
+            "crate",
+            "crate",
+            "plain",
+            "plain",
+            "turret"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "crate",
+            "plain",
+            "plain",
+            "plain",
+            "crate",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "plain",
+            "crate",
+            "plain",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "crate",
+            "plain",
+            "crate",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "crate",
+            "plain",
+            "crate",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "turret",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "turret"
+          ],
+          [
+            "wall",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "plain",
+            "wall"
+          ],
+          [
+            "wall",
+            "wall",
+            "wall",
+            "wall",
+            "wall",
+            "wall",
+            "wall",
+            "wall",
+            "wall"
+          ]
+        ]
+      ]
+    },
+    {
+      "id": "fireAfter",
+      "type": "whole",
+      "default": 3,
+      "min": 1,
+      "max": 100,
+      "description": "ticks between a turret filling and firing",
+      "group": "tempo",
+      "unit": "ticks"
+    },
+    {
+      "id": "broadsidePoints",
+      "type": "whole",
+      "default": 300,
+      "min": 0,
+      "max": 100000,
+      "description": "points for a broadside",
+      "group": "scoring",
+      "unit": "points"
+    },
+    {
+      "id": "stepPoints",
+      "type": "whole",
+      "default": 10,
+      "min": 0,
+      "max": 100000,
+      "description": "points for a piece a turret wants",
+      "group": "scoring",
+      "unit": "points"
+    },
+    {
+      "id": "loadPoints",
+      "type": "whole",
+      "default": 100,
+      "min": 0,
+      "max": 100000,
+      "description": "points for a full load",
+      "group": "scoring",
+      "unit": "points"
+    },
+    {
+      "id": "maxOnDeck",
+      "type": "whole",
+      "default": 8,
+      "min": 1,
+      "max": 144,
+      "description": "pieces on deck at which the feeder holds back",
+      "group": "deal",
+      "unit": "pieces"
+    },
+    {
+      "id": "dropEvery",
+      "type": "whole",
+      "default": 8,
+      "min": 1,
+      "max": 1000,
+      "description": "ticks between drops when a round starts",
+      "group": "tempo",
+      "unit": "ticks"
+    },
+    {
+      "id": "dropEveryLeast",
+      "type": "whole",
+      "default": 4,
+      "min": 1,
+      "max": 1000,
+      "description": "ticks between drops by the end of a round",
+      "group": "tempo",
+      "unit": "ticks"
+    },
+    {
+      "id": "queueLength",
+      "type": "whole",
+      "default": 3,
+      "min": 0,
+      "max": 8,
+      "description": "pieces to come that the feeder shows",
+      "group": "deal",
+      "unit": "pieces"
+    },
+    {
+      "id": "bag",
+      "type": "list",
+      "default": [
+        2,
+        2,
+        2,
+        1
+      ],
+      "min": 0,
+      "max": 20,
+      "description": "pieces in each fill of the bag: cell, sabot, slug, coolant",
+      "group": "deal",
+      "entries": {
+        "least": 4,
+        "most": 4
+      }
+    },
+    {
+      "id": "streakPercent",
+      "type": "list",
+      "description": "what a full load multiplies by, an entry for each in a row without a jam",
+      "group": "scoring",
+      "default": [
+        100,
+        125,
+        150,
+        175,
+        200,
+        225,
+        250,
+        275,
+        300
+      ],
+      "min": 100,
+      "max": 1000
+    }
+  ],
+  "relations": [],
+  "deal": {
+    "draws": [
+      {
+        "id": "deck",
+        "description": "which deck the round is played on",
+        "gives": "map",
+        "by": "pick",
+        "when": "start",
+        "reads": [
+          "decks"
+        ]
+      },
+      {
+        "id": "feed",
+        "description": "the next piece out of the bag",
+        "gives": "piece",
+        "by": "bag",
+        "when": "tick",
+        "reads": [
+          "bag"
+        ]
+      }
+    ],
+    "checks": [],
+    "bounds": []
+  },
+  "layers": [
+    {
+      "id": "full",
+      "rule": "pieces roll across a deck drawn by hand; lay arrows on the deck to steer what rolls over them; a full turret fires by itself, and every turret firing is a broadside; every piece rolls a cell a tick, and one that rolls into a turret loads it, jams it or cleans it; a feeder drops pieces onto the deck from a shuffled bag, quicker as the round goes on",
+      "brings": {
+        "draws": [
+          "deck",
+          "feed"
+        ],
+        "pieces": [
+          "cell",
+          "sabot",
+          "slug",
+          "coolant"
+        ],
+        "events": [
+          "deck",
+          "arrow",
+          "remove",
+          "fire",
+          "broadside",
+          "roll",
+          "load",
+          "loaded",
+          "jam",
+          "clean",
+          "splash",
+          "exit",
+          "drop"
+        ],
+        "settings": [
+          "width",
+          "height",
+          "roundSeconds",
+          "maxMoves",
+          "decks",
+          "fireAfter",
+          "broadsidePoints",
+          "stepPoints",
+          "loadPoints",
+          "maxOnDeck",
+          "dropEvery",
+          "dropEveryLeast",
+          "queueLength",
+          "bag",
+          "streakPercent"
+        ],
+        "payouts": [
+          "broadside",
+          "step",
+          "load"
+        ],
+        "multipliers": [
+          "streak"
+        ]
+      }
+    }
+  ],
+  "ladder": [
+    {
+      "stage": "full",
+      "adds": [
+        "full"
+      ]
+    }
+  ],
+  "signals": {
+    "in": [],
+    "out": []
+  },
+  "pieces": [
+    {
+      "id": "cell",
+      "states": [
+        "right",
+        "down",
+        "left",
+        "up"
+      ]
+    },
+    {
+      "id": "sabot",
+      "states": [
+        "right",
+        "down",
+        "left",
+        "up"
+      ]
+    },
+    {
+      "id": "slug",
+      "states": [
+        "right",
+        "down",
+        "left",
+        "up"
+      ]
+    },
+    {
+      "id": "coolant",
+      "states": [
+        "right",
+        "down",
+        "left",
+        "up"
+      ]
+    }
+  ],
+  "moves": [
+    {
+      "id": "arrow",
+      "description": "lay an arrow on a plank",
+      "gesture": "drag",
+      "fields": {
+        "at": "place",
+        "heading": "direction"
+      }
+    },
+    {
+      "id": "remove",
+      "description": "take an arrow off a plank",
+      "gesture": "tap",
+      "fields": {
+        "at": "place"
+      }
+    }
+  ],
+  "controls": [],
+  "events": [
+    {
+      "id": "deck",
+      "description": "the deck was laid out",
+      "fields": {
+        "map": "number"
+      },
+      "changes": [
+        "change"
+      ]
+    },
+    {
+      "id": "arrow",
+      "description": "an arrow was laid",
+      "fields": {
+        "at": "place",
+        "heading": "direction"
+      },
+      "changes": [
+        "change"
+      ]
+    },
+    {
+      "id": "remove",
+      "description": "an arrow was taken off",
+      "fields": {
+        "at": "place"
+      },
+      "changes": [
+        "change"
+      ]
+    },
+    {
+      "id": "fire",
+      "description": "a full turret fired",
+      "fields": {
+        "at": "place"
+      },
+      "changes": [
+        "change"
+      ]
+    },
+    {
+      "id": "broadside",
+      "description": "every turret has fired since the last broadside",
+      "fields": {
+        "points": "points"
+      }
+    },
+    {
+      "id": "roll",
+      "description": "the pieces on deck rolled",
+      "fields": {},
+      "changes": [
+        "travel",
+        "change"
+      ]
+    },
+    {
+      "id": "load",
+      "description": "a turret took the piece it wanted",
+      "fields": {
+        "at": "place",
+        "from": "place",
+        "points": "points"
+      },
+      "changes": [
+        "leave",
+        "change"
+      ]
+    },
+    {
+      "id": "loaded",
+      "description": "a turret took its last piece and is full",
+      "fields": {
+        "at": "place",
+        "from": "place",
+        "points": "points"
+      },
+      "changes": [
+        "leave",
+        "change"
+      ]
+    },
+    {
+      "id": "jam",
+      "description": "a turret took the wrong piece and jammed",
+      "fields": {
+        "at": "place",
+        "from": "place"
+      },
+      "changes": [
+        "leave",
+        "change"
+      ],
+      "mistake": true
+    },
+    {
+      "id": "clean",
+      "description": "coolant cleaned a jammed turret",
+      "fields": {
+        "at": "place",
+        "from": "place"
+      },
+      "changes": [
+        "leave",
+        "change"
+      ]
+    },
+    {
+      "id": "splash",
+      "description": "coolant went into a turret that was not jammed",
+      "fields": {
+        "at": "place",
+        "from": "place"
+      },
+      "changes": [
+        "leave"
+      ]
+    },
+    {
+      "id": "exit",
+      "description": "a piece rolled out through a hatch",
+      "fields": {
+        "at": "place",
+        "from": "place"
+      },
+      "changes": [
+        "leave"
+      ]
+    },
+    {
+      "id": "drop",
+      "description": "the feeder dropped a piece onto the deck",
+      "fields": {
+        "at": "place"
+      },
+      "changes": [
+        "arrive"
+      ]
+    }
+  ],
+  "payouts": [
+    {
+      "id": "broadside",
+      "description": "a broadside",
+      "on": [
+        "broadside"
+      ],
+      "growth": "flat",
+      "reads": [
+        "broadsidePoints"
+      ]
+    },
+    {
+      "id": "step",
+      "description": "a piece a turret wants",
+      "on": [
+        "load"
+      ],
+      "growth": "flat",
+      "reads": [
+        "stepPoints"
+      ]
+    },
+    {
+      "id": "load",
+      "description": "a full load",
+      "on": [
+        "loaded"
+      ],
+      "growth": "flat",
+      "reads": [
+        "loadPoints"
+      ]
+    }
+  ],
+  "multipliers": [
+    {
+      "id": "streak",
+      "description": "streak",
+      "scales": [
+        "load"
+      ],
+      "on": "loaded",
+      "by": {
+        "table": "streakPercent",
+        "index": "streak"
+      }
+    }
+  ],
+  "streak": {
+    "builds": {
+      "event": "loaded"
+    },
+    "counts": "events",
+    "grace": 0,
+    "breaksOn": [
+      "jam"
+    ]
+  },
+  "tasks": [],
+  "gauges": [
+    {
+      "id": "streak",
+      "description": "full loads in a row without a jam"
+    }
+  ],
+  "stats": [
+    {
+      "id": "arrows",
+      "description": "arrows laid"
+    },
+    {
+      "id": "broadsides",
+      "description": "broadsides fired"
+    },
+    {
+      "id": "loads",
+      "description": "full loads"
+    },
+    {
+      "id": "jams",
+      "description": "turrets jammed"
+    },
+    {
+      "id": "best_streak",
+      "description": "the most full loads in a row"
+    }
+  ],
+  "texts": [
+    {
+      "key": "name"
+    },
+    {
+      "key": "how_to"
+    },
+    {
+      "key": "stage.full"
+    },
+    {
+      "key": "stage.full_intro"
+    },
+    {
+      "key": "piece.cell"
+    },
+    {
+      "key": "piece.sabot"
+    },
+    {
+      "key": "piece.slug"
+    },
+    {
+      "key": "piece.coolant"
+    },
+    {
+      "key": "reason.round_over"
+    },
+    {
+      "key": "reason.unknown_move"
+    },
+    {
+      "key": "reason.off_board"
+    },
+    {
+      "key": "reason.not_a_plank"
+    }
+  ],
+  "teaching": {
+    "preview": false,
+    "hint": false
+  }
+}
+"
+`;

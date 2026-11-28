@@ -1,7 +1,7 @@
 // The stock library: plain board helpers, and the stock parts built from them.
 // A stock part uses the public hooks and nothing else, so an author could have written any of them.
 import { part, type BoardSpec, type EndSpec, type Part, type SettingNeed } from "./puzzle.js";
-import type { Board, Cell, Ctx, EventDecl, NewPiece } from "./types.js";
+import type { Board, Cell, Changes, Ctx, Direction, EventDecl, MapRows, NewPiece } from "./types.js";
 
 // ---- plain helpers on a board. None of them touches the loop.
 
@@ -61,6 +61,25 @@ export const grid = (width: number | string, height: number | string, opts: { to
   const h = held(height, "height", { type: "whole", min: 3, max: 12, description: "rows on the board", group: "board", unit: "cells" });
   return { board: { shape: "grid", width: w.id, height: h.id, touch: opts.touch ?? 4, rim: false }, settings: [w, h] };
 };
+/** A ticking tempo: the rules move on by themselves, a tick every so many milliseconds. A tick's length is the puzzle's, never a setting. */
+export const ticking = (tickMs: number): { kind: "ticking"; tickMs: number } => ({ kind: "ticking", tickMs });
+
+/** A map drawn as text, a character a cell, with what each character stands for. */
+export const mapOf = (rows: readonly string[], legend: Readonly<Record<string, string>>): string[][] =>
+  rows.map((row, y) =>
+    [...row].map((ch, x) => {
+      const terrain = legend[ch];
+      if (terrain === undefined) throw new Error(`mapOf: no terrain for "${ch}" at ${x},${y}`);
+      return terrain;
+    }),
+  );
+/** Lays a map on the board: every cell that is not plain becomes its terrain. Call it on the event the deal is reported as. */
+export const layMap = (e: Changes, map: MapRows): void => map.forEach((row, y) => row.forEach((terrain, x) => terrain !== "plain" && e.change({ x, y }, { terrain })));
+const DX = { right: 1, down: 0, left: -1, up: 0 } as const;
+const DY = { right: 0, down: 1, left: 0, up: -1 } as const;
+/** The cell one step from a cell, in a direction. It may be off the board. */
+export const stepFrom = (at: Cell, direction: Direction): Cell => ({ x: at.x + DX[direction], y: at.y + DY[direction] });
+
 /** The round ends when this many moves have been made. */
 export const budget = (moves: number | string): EndSpec => {
   const setting = held(moves, "moves", { type: "whole", min: 1, max: 100_000, description: "moves in a round", group: "tempo", unit: "moves" });

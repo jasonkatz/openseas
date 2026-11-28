@@ -68,7 +68,7 @@ function paint(canvas: HTMLCanvasElement, board: Seen, playing: { event: Event; 
       } else if (c.change === "arrive") {
         const off = c.from === "above" ? -1 : c.from === "below" ? 1 : 0;
         piece(c.piece.kind ?? 1, c.at.x, c.at.y + off * (1 - at), off === 0 ? at : 1, at);
-      } else piece(c.piece.kind ?? 1, c.at.x, c.at.y);
+      } else if ("piece" in c) piece(c.piece.kind ?? 1, c.at.x, c.at.y);
     }
   }
 

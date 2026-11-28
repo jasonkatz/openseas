@@ -100,7 +100,8 @@ export interface Board<P extends Puzzle = Puzzle> {
   places(): Cell<P>[];
   has(place: Cell<P>): boolean;
   at(place: Cell<P>): Piece<P> | null;
-  terrain(place: Cell<P>): TerrainId<P> | "plain";
+  terrain(place: Cell<P>): TerrainId<P> | "plain" | "off";
+  terrainState(place: Cell<P>): string | null;
   touching(place: Cell<P>): Cell<P>[];
 }
 
@@ -164,7 +165,7 @@ export interface NewPiece<P extends Puzzle = Puzzle> {
   readonly kind?: number;
   readonly state?: P["states"];
 }
-export type Change<P extends Puzzle = Puzzle> = { readonly piece?: P["pieces"]; readonly kind?: number; readonly state?: P["states"] } | { readonly terrain: TerrainId<P> | "plain" };
+export type Change<P extends Puzzle = Puzzle> = { readonly piece?: P["pieces"]; readonly kind?: number; readonly state?: P["states"] } | { readonly terrain: TerrainId<P> | "plain"; readonly state?: string };
 
 export type Settings<P extends Puzzle> = Readonly<P["settings"]>;
 export type Move<P extends Puzzle, M extends MoveId<P> = MoveId<P>> = { [K in M]: { readonly move: K } & Readonly<P["moves"][K]> }[M];
