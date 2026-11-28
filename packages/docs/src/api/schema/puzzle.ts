@@ -805,9 +805,9 @@ const ladder = page({
       ],
       "stage",
     ),
-    { min: 2, max: 4 },
+    { min: 1, max: 4 },
   ),
-  rules: ["A ladder has two to four stages.", "Each layer is added by exactly one stage, and no stage switches a layer off.", "The last stage is `full`, the whole puzzle. It has no `advance`. Every other stage has one."],
+  rules: ["A ladder has one to four stages. A ready puzzle's has at least two: one stage, `full`, is what a puzzle has before it says how it opens up.", "Each layer is added by exactly one stage, and no stage switches a layer off.", "The last stage is `full`, the whole puzzle. It has no `advance`. Every other stage has one."],
   examples: [fromPaths("ladder")],
 });
 
@@ -817,7 +817,8 @@ const evaluation = page({
   lede: "How a round is judged on the five tiers every puzzle shares.",
   about: ["Every round is judged as Green, Steady, Sharp, Masterful or Legendary. The tiers are the same for every puzzle, and the scale under them is the host's.", "A puzzle places its own scores on that scale by saying where four of the tiers start. Green starts at zero."],
   ideas: { title: "Judgement", path: "/domain/depth-and-judgement#judgement" },
-  need: "required",
+  need: { when: "the puzzle is ready" },
+  absent: "The puzzle is valid and not yet ready. Its rounds are scored and never judged.",
   type: obj([
     when(BETWEEN, "by", en(["outcome", "A round is judged by who won, weighted by the opponent's standing: beating a stronger opponent earns more."], ["score", "A round is placed through `tierStarts`, as a solo round is, whoever the opponent was."]), "How a round between sides is judged.", {
       never: "A solo puzzle. It is always judged by its score.",
@@ -1002,7 +1003,8 @@ const moment = page({
   lede: "The one event that is the puzzle's biggest, and how big each one is.",
   about: ["Every skin plays its beat on the moment: one pulse over the whole board, stronger for a bigger moment. Which event is biggest follows from scoring, so the puzzle names it and every skin agrees."],
   ideas: { title: "The moment and the beat", path: "/domain/motion#the-moment-and-the-beat" },
-  need: "required",
+  need: { when: "the puzzle is ready" },
+  absent: "The puzzle is valid and not yet ready. No skin plays a beat.",
   type: obj([
     req("event", ref("event"), "The event."),
     opt("when", condition, "A condition on the event's fields. The beat plays only on an event that meets it.", { absent: "Every such event is a moment." }),
@@ -1081,7 +1083,7 @@ const payouts = page({
           "How its points rise with what it counts.",
         ),
         opt("cap", amount, "The count past which it grows no faster. A count above the cap pays as the cap does.", { absent: "It has no cap.", never: "A payout whose `growth` is `flat`." }),
-        req("reads", arr(ref("setting"), { min: 1, noun: "setting ids" }), "The settings that size it.", {
+        req("reads", arr(ref("setting"), { noun: "setting ids" }), "The settings that size it. A payout that reads none pays one point for each thing it counts, which is what a puzzle pays before it says otherwise. A ready puzzle's payout reads at least one.", {
           must: ["Name a setting of type `whole` for `flat`, `linear` and `superlinear`.", "Name a setting of type `list` for `stepped`."],
         }),
       ],
@@ -1298,20 +1300,20 @@ export const PUZZLE: RootObject = {
     { title: "Words and teaching", fields: [texts, teaching] },
   ],
   ready: {
-    intro: "A host checks all of this before it runs a round.",
+    intro: "A puzzle is **valid** when it has a board, a piece, a move and an ending, its rules answer `onStart`, `canMove` and `onMove`, every id it names is declared, and it can list its moves where it declares a check. A valid puzzle plays in the studio: its rounds are scored and never judged, and the game cannot deal it. It is **ready**, and may be promoted into the game, when all of this holds as well.",
     items: [
-      "Every required key is filled in.",
+      "Every required key is filled in, with `moment` and `evaluation` among them.",
       "The ladder has two to four stages, each layer is added by exactly one, and the last is `full`.",
+      "Every payout reads at least one setting.",
       "The rules know every part the puzzle declares, and the puzzle declares every part the rules name.",
       "The moment names one of the puzzle's events and a number field of it.",
-      "Every draw has a stream of its own, every check has a fallback that passes, and every place that hides something has an event that reveals it.",
+      "Every draw has a stream of its own, every check has a fallback that passes and the rules answer `onFallback`, and every place that hides something has an event that reveals it.",
       "Every phase can close, every move belongs to a phase where the puzzle has phases, and every ending has a reason.",
-      "The rules answer `onStart`, `canMove` and `onMove`.",
       "A puzzle between sides can list the moves a round allows, or brings a stand-in of its own. It names its absent stand-in and says how its sides are placed.",
       "The puzzle keeps witness rounds, each still giving the read recorded for it, and a history entry for its current version.",
       "Its skin has a drawing for every piece, state and kind, a cue for every cue an event names, a text for every key, a beat cue, and a motion for every board change.",
     ],
-    outro: "A puzzle that is not ready can still be edited and dressed. A puzzle with no rules yet cannot be played.",
+    outro: "A puzzle that is not ready can still be edited and dressed, and a valid one can be played. A puzzle with no rules yet cannot be played.",
   },
   example: {
     title: "Paths, in outline",

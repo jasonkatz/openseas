@@ -1,4 +1,4 @@
-This page builds one small puzzle from an empty file, so every part of the API is seen doing its job. The puzzle is Swap: swap two touching pieces, and three or more of a kind in a line clear. The pieces below rise, new ones come in, and that can clear again.
+This page builds one small puzzle from an empty file with every key and every hook written by hand, so the whole API is seen doing its job. It is the long way on purpose. The short way to the same puzzle is the [quickstart](/api/quickstart). The puzzle is Swap: swap two touching pieces, and three or more of a kind in a line clear. The pieces below rise, new ones come in, and that can clear again.
 
 It takes two files. The document says what exists. The rules say what a move does.
 
@@ -184,22 +184,30 @@ That is the whole document. It has said nothing yet about what a swap does.
 
 ## 8. Write the rules
 
-The rules are an object of hooks. Swap writes six. It keeps no state of its own, because the pieces sit on the engine's board.
+The rules are an object of hooks. Swap writes eight. It keeps no state of its own, because the pieces sit on the engine's board.
 
 ```ts title=swap.rules.ts
-import { defineRules, type Board, type GridCell, type Move } from "@openseas/engine";
+import { defineRules, type Board, type GridCell, type Move, type View } from "@openseas/puzzle";
 import type { Swap } from "./swap.puzzle.gen";
 
 type State = {};
 
 export default defineRules<Swap, State>({
-  // Start: deal a board with no line on it and at least one swap that makes one.
+  // Start: deal a board. The engine holds the deal to the "playable" check, so this only deals.
   onStart(ctx) {
-    const kinds = freshBoard(ctx.board, () => 1 + ctx.draw("fill").even(ctx.settings.kinds));
     ctx.emit("fill", {}, (e) => {
-      for (const p of ctx.board.places()) e.arrive(p, { piece: "kind", kind: kinds[p.y][p.x] }, "below");
+      for (const p of ctx.board.places()) e.arrive(p, { piece: "kind", kind: 1 + ctx.draw("fill").even(ctx.settings.kinds) }, "above");
     });
     return {};
+  },
+
+  // Asked only when fifty deals in a row failed the check: lay a board that is sure to pass.
+  // Two kinds as a chequerboard make no line. A third, two in a row and one a step away, gives one sure swap.
+  onFallback(ctx) {
+    const sure = (p: GridCell): boolean => (p.y === 0 && p.x < 2) || (p.y === 1 && p.x === 2);
+    ctx.emit("fill", {}, (e) => {
+      for (const p of ctx.board.places()) e.arrive(p, { piece: "kind", kind: sure(p) ? 1 : 2 + ((p.x + p.y) % 2) }, "above");
+    });
   },
 
   // Check: a question, asked with this seat's view. Answering changes nothing.
@@ -239,26 +247,41 @@ export default defineRules<Swap, State>({
     });
   },
 
-  // Move end: once a move, when the cascade has run dry.
-  onMoveEnd(ctx) {
-    if (findSwap(ctx.board)) return;
-    const kinds = freshBoard(ctx.board, () => 1 + ctx.draw("fill").even(ctx.settings.kinds));
-    ctx.emit("reshuffle", {}, (e) => {
-      for (const p of ctx.board.places()) e.leave(p).arrive(p, { piece: "kind", kind: kinds[p.y][p.x] }, "in place");
-    });
-  },
+  // Every swap there is. The engine tries these to hold the check, and deals the board again,
+  // as "reshuffle", when none of them would clear anything.
+  listMoves: swaps,
 
-  // A question the board asks after a few idle seconds.
-  hint: (view) => findSwap(view.board),
+  // A question the board asks after a few idle seconds: the swap that pays most now.
+  hint(view) {
+    let best: Move<Swap> | null = null;
+    let most = 0;
+    for (const move of swaps(view)) {
+      const points = view.try(move).points;
+      if (points > most) [best, most] = [move, points];
+    }
+    return best;
+  },
 });
 
-// Swap's own helpers are plain functions on a board. None of them touches the engine.
+// Every swap side by side that the rules allow, each written once.
+function swaps(view: View<Swap, State>): Move<Swap>[] {
+  const moves: Move<Swap>[] = [];
+  for (const a of view.board.places()) {
+    for (const b of view.board.touching(a)) {
+      const first = a.y < b.y || (a.y === b.y && a.x < b.x);
+      if (first && view.allowed({ move: "swap", a, b }) === null) moves.push({ move: "swap", a, b });
+    }
+  }
+  return moves;
+}
+
+// Swap's one helper is a plain function on a board. It does not touch the engine.
 declare function groupsOf(board: Board<Swap>): GridCell[][]; // every run of three or more, touching runs joined
-declare function findSwap(board: Board<Swap>): Move<Swap> | null;
-declare function freshBoard(board: Board<Swap>, draw: () => number): number[][]; // the "playable" check, with its fallback
 ```
 
-Read it for what is missing. The rules never add a point, never count a step of the cascade, never keep a streak, never count the swaps left and never decide the round is over. Each of those was declared in the document, so the engine does it.
+Read it for what is missing. The rules never add a point, never count a step of the cascade, never keep a streak, never count the swaps left and never decide the round is over. They never test their own deal either, and never look for a board with no swap left. Each of those was declared in the document, so the engine does it.
+
+This is every hook written by hand, the top rung. The [quickstart](/api/quickstart) makes the same puzzle from three stock parts in seven lines, and those lines expand to a document and hooks like the ones on this page.
 
 ## 9. Dress it
 
@@ -299,7 +322,8 @@ Swap then records a few witness rounds: a seed, settings, a log and the read eac
 | What a swap needs to be allowed | Refused a place off the board before you were asked |
 | What a swap does, as an event | Applied it to the board and sent it to the screen |
 | One step of what follows | Counted the steps and ran them until nothing was left |
-| When the board must be dealt again | Kept each draw's stream apart, so the deal never shifts |
+| How a board is dealt, and every swap there is | Held each deal to its check, and dealt again when no swap was left |
+| Nothing about luck | Kept each draw's stream apart, so the deal never shifts |
 | Nothing about points | Paid every clear, with the step and the streak, rounded once |
 | Nothing about time | Counted the swaps and ended the round |
 | Nothing about replays | Kept the log, and replays the round from it |

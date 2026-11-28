@@ -1,5 +1,5 @@
 // Made from tricks.puzzle.json: a game of bids and tricks for four seats in two sides.
-import type { GridCell, Outcome, Points, Puzzle, Seat, Side } from "@openseas/engine";
+import type { GridCell, Outcome, Points, Puzzle, Seat, Side } from "@openseas/puzzle";
 
 export interface Tricks extends Puzzle {
   cell: GridCell;

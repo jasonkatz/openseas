@@ -371,7 +371,7 @@ export function SdkRootPage({ root }: { root: SdkRoot }) {
             <Crumbs items={[{ title: t("docs.area.api"), path: "/api" }, { title: t("docs.sdk.group") }]} />
             <h1>{root.title}</h1>
             <p className="ref-type">
-              <span className="type"><span className="type-name">{root.name}{"<P, S>"}</span><span className="type-fact"><code>@openseas/engine</code></span></span>
+              <span className="type"><span className="type-name">{root.name}{"<P, S>"}</span><span className="type-fact"><code>@openseas/puzzle</code></span></span>
             </p>
             <p className="lede"><Line text={root.lede} /></p>
           </header>

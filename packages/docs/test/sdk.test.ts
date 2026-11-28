@@ -142,8 +142,8 @@ function fileOf(example: CodeExample): string {
   if (example.wrap === "file") return example.code;
   const X = PUZZLES[example.puzzle];
   const head = [
-    `import { defineRules, zone } from "@openseas/engine";`,
-    `import type { ${TYPE_NAMES.join(", ")} } from "@openseas/engine";`,
+    `import { defineRules, zone } from "@openseas/puzzle";`,
+    `import type { ${TYPE_NAMES.join(", ")} } from "@openseas/puzzle";`,
     `import type { ${X} } from "./${example.puzzle}.puzzle.gen";`,
     `type State = ${example.state ?? "{}"};`,
     example.given ?? "",
@@ -182,7 +182,7 @@ function param(p: Param, at: string): void {
 
 describe("the rules SDK", () => {
   it("declares a surface that compiles on its own", () => {
-    expect(compile({ "use.ts": `import { defineRules, zone } from "@openseas/engine";\nimport type { Swap } from "./swap.puzzle.gen";\nimport type { Tricks } from "./tricks.puzzle.gen";\nexport type T = [Swap, Tricks, typeof defineRules, typeof zone];\n` })).toEqual([]);
+    expect(compile({ "use.ts": `import { defineRules, zone } from "@openseas/puzzle";\nimport type { Swap } from "./swap.puzzle.gen";\nimport type { Tricks } from "./tricks.puzzle.gen";\nexport type T = [Swap, Tricks, typeof defineRules, typeof zone];\n` })).toEqual([]);
   });
 
   it("documents every hook, member and type the declarations export, and nothing they do not", () => {
@@ -210,7 +210,7 @@ describe("the rules SDK", () => {
   });
 
   it("writes every hook's signature as one the declarations take", () => {
-    const lines: string[] = [`import type { ${TYPE_NAMES.join(", ")} } from "@openseas/engine";`];
+    const lines: string[] = [`import type { ${TYPE_NAMES.join(", ")} } from "@openseas/puzzle";`];
     for (const hook of HOOKS) {
       for (const [i, signature] of [hook.signature, hook.each?.signature].entries()) {
         if (!signature) continue;

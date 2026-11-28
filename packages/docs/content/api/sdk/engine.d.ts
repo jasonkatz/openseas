@@ -6,6 +6,7 @@ export function zone<P extends Puzzle = Puzzle>(id: ZoneId<P>, owner?: Seat | Si
 
 export interface Rules<P extends Puzzle, S> {
   onStart(ctx: Ctx<P, S>): S;
+  onFallback?: On<P, S>;
   canMove: Ask<P, S, Move<P>, string | null> | { [M in MoveId<P>]: Ask<P, S, Move<P, M>, string | null> };
   onMove: On<P, S, [seat: Seat, move: Move<P>]> | { [M in MoveId<P>]: On<P, S, [seat: Seat, move: Move<P, M>]> };
   onCascade?: On<P, S>;

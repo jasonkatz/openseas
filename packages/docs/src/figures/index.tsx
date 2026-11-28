@@ -86,7 +86,7 @@ function Round() {
 }
 
 const STAGES: readonly { name: string; hooks: readonly string[]; again?: boolean }[] = [
-  { name: "Start", hooks: ["onStart", "onOpen"] },
+  { name: "Start", hooks: ["onStart", "onFallback", "onOpen"] },
   { name: "Wait", hooks: ["whoseTurn", "onTurn", "pickMove"], again: true },
   { name: "Check", hooks: ["canMove"], again: true },
   { name: "Move", hooks: ["onMove"], again: true },

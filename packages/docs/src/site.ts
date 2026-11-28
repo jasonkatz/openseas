@@ -1,5 +1,5 @@
 import { CORE_PUZZLE_IDS, PROTOTYPE_PUZZLE_IDS, PUZZLE_IDS, type PuzzleId } from "@openseas/engine";
-import { API_GROUPS, apiContent, apiPath } from "./api/pages.js";
+import { API_GROUPS, RUNGS_GROUP, apiContent, apiPath } from "./api/pages.js";
 import { ALIASES, ROOTS, TYPES_PATH, isPage, nodePath, pagePath, pageView, pagesOf, rootNodes, rootPath } from "./api/schema/index.js";
 import { FUNCTIONS, SDK_ROOTS, SDK_TYPES_PATH, TYPE_DEFS, innerAnchor, memberPagesOf, memberPath, membersOf, sdkRootPath, typeAnchor } from "./api/sdk/index.js";
 import { t } from "./content.js";
@@ -37,8 +37,11 @@ export interface NavGroup {
 export function navOf(area: Area): NavGroup[] {
   if (area === "domain") return DOMAIN_GROUPS.map((g) => ({ title: g.title, items: g.pages.map((p) => ({ path: domainPath(p.slug), title: p.title })) }));
   if (area === "api") {
-    const [start, ...rest] = API_GROUPS.map((g) => ({ title: g.title, items: g.pages.map((p): NavItem => ({ path: apiPath(p.slug), title: p.title })) }));
-    return [start!, referenceNav(), ...rest.map((g) => (g.title === SDK_GROUP ? { ...g, items: [...g.items, ...sdkNav()] } : g))];
+    const groups = API_GROUPS.map((g) => ({ title: g.title, items: g.pages.map((p): NavItem => ({ path: apiPath(p.slug), title: p.title })) }));
+    // The pages that teach come first, then the reference they lead to.
+    const cut = groups.findIndex((g) => g.title === RUNGS_GROUP) + 1;
+    const [learn, rest] = [groups.slice(0, cut), groups.slice(cut)];
+    return [...learn, referenceNav(), ...rest.map((g) => (g.title === SDK_GROUP ? { ...g, items: [...g.items, ...sdkNav()] } : g))];
   }
   const items = (ids: readonly PuzzleId[]): NavItem[] => ids.map((id) => ({ path: guidePath(id), title: t(`${id}.title`) }));
   return [

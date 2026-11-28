@@ -103,8 +103,8 @@ export const DOMAIN_GROUPS: readonly DomainGroup[] = [
       {
         slug: "rules",
         title: "The rules",
-        lede: "The rules are the only part of a puzzle that is code. They are small, because one loop runs every round and asks the rules only for what is the puzzle's own.",
-        sections: ["The rules"],
+        lede: "The rules are the only part of a puzzle that is code. They are small, because one loop runs every round and asks the rules only for what is the puzzle's own, and smaller still when a puzzle is put together from parts.",
+        sections: ["The rules", "Parts"],
         figure: "loop",
       },
       {
@@ -127,7 +127,7 @@ export const DOMAIN_GROUPS: readonly DomainGroup[] = [
       {
         slug: "documents",
         title: "The documents",
-        lede: "A puzzle, its skin and its theme are each one document. This page gives the shape of all three in brief and says when a puzzle is ready. The [API reference](/api) explains every key.",
+        lede: "A puzzle, its skin and its theme are each one document. This page gives the shape of all three in brief, and says when a puzzle is valid, when it is ready, and what promotion does. The [API reference](/api) explains every key.",
         sections: ["The documents", "Not yet covered"],
         figure: "documents",
       },

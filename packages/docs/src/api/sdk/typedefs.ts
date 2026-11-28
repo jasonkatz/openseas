@@ -23,7 +23,7 @@ export const FUNCTIONS: readonly Member[] = [
         title: "A rules file",
         puzzle: "swap",
         wrap: "file",
-        code: `import { defineRules } from "@openseas/engine";
+        code: `import { defineRules } from "@openseas/puzzle";
 import type { Swap } from "./swap.puzzle.gen";
 
 type State = { swaps: number };

@@ -33,11 +33,14 @@ const onStart: Member = {
   page: true,
   signature: "onStart(ctx: Ctx<P, S>): S",
   description: "Deals the board and gives the rules' first state.",
-  about: ["It is the first hook of every round. The board and every zone are empty when it is asked, so whatever a round starts with arrives here, on events."],
+  about: [
+    "It is the first hook of every round. The board and every zone are empty when it is asked, so whatever a round starts with arrives here, on events.",
+    "It deals and does nothing else. Where the puzzle declares a [check](/api/puzzle#deal-checks), the loop holds the deal to it: it asks `onStart` on a copy for each try, and shows the player only the deal that passed. So `onStart` never tests its own deal, and never loops until it finds a good one.",
+  ],
   need: "required",
   given: "context",
   stages: ["Start"],
-  asked: "Once a round, before anything else.",
+  asked: "At the start of a round, before anything else. Where the puzzle has a check it is asked once for every try, and again when a board is dealt again during play.",
   before: ["The round is made from its seed and its settings.", "`checkSettings` has passed these settings.", "No phase is open yet: `ctx.phase` is `null`."],
   after: ["The puzzle's first phase opens, and `onOpen` is asked for it.", "The loop works out who is awaited."],
   params: [ctx],
@@ -72,6 +75,46 @@ const onStart: Member = {
       state: "{ dealer: Seat; bids: (number | null)[] }",
       code: `onStart(ctx) {
   return { dealer: ctx.seats[0]!, bids: ctx.seats.map(() => null) };
+}`,
+    },
+  ],
+};
+
+const onFallback: Member = {
+  name: "onFallback",
+  kind: "hook",
+  page: true,
+  signature: "onFallback(ctx: Ctx<P, S>): S | void",
+  description: "Deals a board that passes, when every try of a check has failed.",
+  about: [
+    "The loop holds a deal to the puzzle's [checks](/api/puzzle#deal-checks). It asks `onStart` to deal on a copy, runs the cascade there unseen and unpaid, and tries every move `listMoves` gives. A deal with no move worth making is dealt again, up to the check's `tries`.",
+    "When every try fails, this hook deals instead. What it deals is taken as it is and shown to the player, so it must pass by the way it is built, whatever the settings.",
+  ],
+  need: { when: "the puzzle declares a check and is ready" },
+  absent: "A round whose every try fails refuses to start, or stops, with an error that names the check. A puzzle that is valid and not yet ready may leave it out.",
+  given: "context",
+  stages: ["Start", "Close"],
+  asked: "At the start, or at a close where a check holds during play, when the last try of the check has failed.",
+  before: ["Every try has failed, and each used its luck.", "The board is empty, as it is for `onStart`."],
+  after: ["What it dealt is the deal. It is not tried.", "During play, the check's `during` event tells the player the board was dealt again."],
+  params: [ctx],
+  returns: NEXT_STATE,
+  rules: [must("Deal a board that passes the check for every value its settings may take."), never("Lean on luck to pass. A fallback that draws may fail as the tries did."), PURE],
+  refused: ["An event, a draw or a piece the puzzle does not declare is named."],
+  examples: [
+    {
+      title: "A board with one sure move",
+      note: "Two kinds laid as a chequerboard make no line. A third kind is laid two in a row with one a step away, so one swap always makes a line.",
+      puzzle: "swap",
+      wrap: "rules",
+      code: `onFallback(ctx) {
+  const sure = (p: GridCell): boolean => (p.y === 0 && p.x < 2) || (p.y === 1 && p.x === 2);
+  ctx.emit("fill", {}, (e) => {
+    for (const place of ctx.board.places()) {
+      const kind = sure(place) ? 1 : 2 + ((place.x + place.y) % 2);
+      e.arrive(place, { piece: "kind", kind }, "above");
+    }
+  });
 }`,
     },
   ],
@@ -249,8 +292,8 @@ const onMoveEnd: Member = {
   signature: "onMoveEnd(ctx: Ctx<P, S>): S | void",
   description: "Handles the end of a move, once the cascade has run dry.",
   about: [
-    "It is where a full trick is taken, a turn's hits are counted, and a board with no move left is dealt again.",
-    "A board with no move left has no hook of its own. The rules report it from here: the round fails, the task ends, or the seat is out.",
+    "It is where a full trick is taken and a turn's hits are counted.",
+    "A board with no move left is dealt again by the loop, where the puzzle declares a check that holds during play. Where running out is the puzzle's own matter, the rules report it from here: the round fails, the task ends, or the seat is out.",
   ],
   need: "optional",
   absent: "Nothing happens at the end of a move.",
@@ -258,24 +301,11 @@ const onMoveEnd: Member = {
   stages: ["Move end"],
   asked: "Once for each move, tick and signal, when `onCascade` has reported nothing.",
   before: ["The cascade has run dry: the last asking of `onCascade` reported no event."],
-  after: ["If it reported an event, `onCascade` is asked again, and the steps go on from the same count. `onMoveEnd` is then asked once more.", "If it reported nothing, the loop closes the move."],
+  after: ["If it reported an event, `onCascade` is asked again, and the steps go on from the same count. `onMoveEnd` is then asked once more, and it is asked again only when what it reported set the cascade off.", "If it reported nothing, the loop closes the move."],
   params: [ctx],
   returns: NEXT_STATE,
   rules: [must("Report nothing when there is nothing to do, so that the move can close."), PURE],
   examples: [
-    {
-      title: "Deal again when no move is left",
-      puzzle: "swap",
-      wrap: "rules",
-      given: "declare function findSwap(board: Board<Swap>): Move<Swap> | null;\ndeclare function freshBoard(board: Board<Swap>, draw: () => number): number[][];",
-      code: `onMoveEnd(ctx) {
-  if (findSwap(ctx.board)) return;
-  const kinds = freshBoard(ctx.board, () => 1 + ctx.draw("fill").even(ctx.settings.kinds));
-  ctx.emit("reshuffle", {}, (e) => {
-    for (const p of ctx.board.places()) e.leave(p).arrive(p, { piece: "kind", kind: kinds[p.y]![p.x]! }, "in place");
-  });
-}`,
-    },
     {
       title: "Take a full trick",
       puzzle: "tricks",
@@ -580,13 +610,13 @@ const listMoves: Member = {
   signature: "listMoves(view: View<P, S>): Move<P>[]",
   description: "Lists every move a seat can make now.",
   about: [
-    "With it the puzzle takes all four stand-in types, and the loop can tell that a seat has no move left.",
+    "With it the puzzle takes all four stand-in types, the loop can tell that a seat has no move left, and it can hold a deal to its checks: it tries each listed move on a copy to learn whether one is worth making.",
     "The four types choose from everything on the board, so they play only where a seat sees all of it. A puzzle with a place a seat cannot see brings stand-ins of its own.",
   ],
   need: "optional",
-  absent: "None of the four stand-in types can play the puzzle, and nothing can tell that a seat has no move left.",
+  absent: "None of the four stand-in types can play the puzzle, no check can be held, and nothing can tell that a seat has no move left.",
   given: "view",
-  asked: "Whenever a stand-in type is awaited, and by the Finish test after every close.",
+  asked: "Whenever a stand-in type is awaited, for every try of a check, at a close where a check holds during play, and by the Finish test after every close.",
   params: [view("the seat whose moves are wanted")],
   returns: {
     type: "Move<P>[]",
@@ -836,6 +866,7 @@ export const HOOKS_ROOT: SdkRoot = {
   ],
   groups: [
     { title: "Required", note: "Every rules file has these three.", members: [onStart, canMove, onMove] },
+    { title: "The deal", members: [onFallback] },
     { title: "After a move", members: [onCascade, onMoveEnd] },
     { title: "Time and signals", members: [onTick, onSignal] },
     { title: "Tasks", members: [onTaskNeeded] },
@@ -860,7 +891,7 @@ export const HOOKS_ROOT: SdkRoot = {
     note: "The three required hooks, and nothing else. This is a whole rules file.",
     puzzle: "swap",
     wrap: "file",
-    code: `import { defineRules } from "@openseas/engine";
+    code: `import { defineRules } from "@openseas/puzzle";
 import type { Swap } from "./swap.puzzle.gen";
 
 type State = {};
