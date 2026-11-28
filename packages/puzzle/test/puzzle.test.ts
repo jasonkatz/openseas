@@ -74,7 +74,7 @@ describe("rung 0 and 1: the seven-line Swap", () => {
     expect(end.movesMade).toBe(20);
     expect(end.score).toBeGreaterThan(0);
     expect(end.board.flat().every(Boolean)).toBe(true);
-    expect(play(rounds.at(-1)!, rounds.at(-1)!.log[0]!).last.refused).toBe("reason.round_over");
+    expect(play(rounds.at(-1)!, rounds.at(-1)!.log[0]!.move).last.refused).toBe("reason.round_over");
   });
 
   it("refuses a move with the rules' own reason, and changes nothing", () => {
@@ -217,7 +217,7 @@ describe("nothing is hidden", () => {
       let other = start(flat, { seed });
       expect(other.last.events).toEqual(composed[0]!.last.events);
       for (const r of composed.slice(1)) {
-        other = play(other, r.log.at(-1)!);
+        other = play(other, r.log.at(-1)!.move);
         expect(other.last.events, `seed ${seed}, move ${r.log.length}`).toEqual(r.last.events);
         events += r.last.events.length;
       }

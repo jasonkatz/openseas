@@ -65,10 +65,10 @@ function paint(canvas: HTMLCanvasElement, board: Seen, playing: { event: Event; 
       } else if (c.change === "travel") {
         const p = board[c.from.y]![c.from.x];
         if (p) piece(p.kind ?? 1, c.from.x + (c.to.x - c.from.x) * at, c.from.y + (c.to.y - c.from.y) * at);
-      } else {
+      } else if (c.change === "arrive") {
         const off = c.from === "above" ? -1 : c.from === "below" ? 1 : 0;
         piece(c.piece.kind ?? 1, c.at.x, c.at.y + off * (1 - at), off === 0 ? at : 1, at);
-      }
+      } else piece(c.piece.kind ?? 1, c.at.x, c.at.y);
     }
   }
 

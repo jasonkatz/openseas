@@ -29,7 +29,7 @@ const rules = defineRules<Swap>({
   onCascade(ctx) {
     const groups = groupsOf(ctx.board, ctx.settings.lineMin as number);
     if (groups.length > 0) {
-      for (const g of groups) ctx.emit("clear", { pieces: g, size: g.length }, (e) => g.forEach((p) => e.leave(p)));
+      for (const g of groups) ctx.emit("clear", { pieces: g, size: g.length, together: groups.length }, (e) => g.forEach((p) => e.leave(p)));
       return;
     }
     if (ctx.board.places().every((p) => ctx.board.at(p))) return;

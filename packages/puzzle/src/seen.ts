@@ -17,6 +17,6 @@ export function seenAfter(board: Seen, event: Event): Seen {
     else if (c.change === "travel") next[c.from.y]![c.from.x] = null;
   }
   for (const c of event.changes) if (c.change === "travel") next[c.to.y]![c.to.x] = at(c.from);
-  for (const c of event.changes) if (c.change === "arrive") next[c.at.y]![c.at.x] = c.piece;
+  for (const c of event.changes) if (c.change === "arrive" || c.change === "change") next[c.at.y]![c.at.x] = c.piece;
   return next;
 }

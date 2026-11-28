@@ -1,28 +1,34 @@
-// Rung 1: puzzle() with a default for every key, and parts.
+// Rungs 1 to 3: puzzle() with a default for every key, numbers as data, and parts.
 // A part is a slice of the puzzle document plus the hooks that work it. puzzle() merges parts into
 // one whole document and one flat rules object, which is all the loop ever sees.
-import type { AnyMove, CheckDecl, Ctx, Document, DrawDecl, Event, EventDecl, MoveDecl, PayoutDecl, PieceDecl, Puzzle, Rules, SettingDecl, View } from "./types.js";
+import { eventsNamed } from "./loop.js";
+import { whenProblem } from "./when.js";
+import type { AnyMove, CheckDecl, Ctx, Document, DrawDecl, EndDecl, Event, EventDecl, MoveDecl, MultiplierDecl, PayoutDecl, PieceDecl, Puzzle, Rules, Setting, SettingDecl, StreakDecl, View } from "./types.js";
 
-export interface PartHooks {
-  onStart?(ctx: Ctx): void;
-  onFallback?(ctx: Ctx): void;
+/** A part's hooks. Each is handed the part's own state, and an "on" hook gives back the next one, or nothing to keep it. */
+export interface PartHooks<S = any> {
+  onStart?(ctx: Ctx<S>): S | void;
+  onFallback?(ctx: Ctx<S>): S | void;
   /** One answer for each move the part has a say on. */
-  canMove?: Record<string, (view: View, move: any) => string | null>;
-  onMove?: Record<string, (ctx: Ctx, seat: 0, move: any) => void>;
-  onCascade?(ctx: Ctx): void;
-  onMoveEnd?(ctx: Ctx): void;
-  listMoves?(view: View): AnyMove[];
-  hint?(view: View): AnyMove | null;
+  canMove?: Record<string, (view: View<S>, move: any) => string | null>;
+  onMove?: Record<string, (ctx: Ctx<S>, seat: 0, move: any) => S | void>;
+  onCascade?(ctx: Ctx<S>): S | void;
+  onMoveEnd?(ctx: Ctx<S>): S | void;
+  listMoves?(view: View<S>): AnyMove[];
+  hint?(view: View<S>): AnyMove | null;
   pointsFor?(event: Event, paid: number): number;
 }
 
-export interface Part<M extends AnyMove = never> {
-  /** How the part is written in a puzzle, for expand to print: its name and what it was called with. */
+/** A setting as a part declares it. One with no default is named by the part and given its value by the puzzle. */
+export type SettingNeed = Omit<SettingDecl, "default"> & { readonly default?: Setting };
+
+export interface Part<M extends AnyMove = never, S = any> {
+  /** How the part is written in a puzzle, for expand to print: its name and what it was called with. Its state is kept under the name. */
   readonly name: string;
   readonly args?: readonly unknown[];
   /** One plain line: what the part adds. It becomes part of the mechanic. */
   readonly rule: string;
-  readonly settings?: readonly SettingDecl[];
+  readonly settings?: readonly SettingNeed[];
   readonly pieces?: readonly PieceDecl[];
   readonly moves?: readonly MoveDecl[];
   readonly events?: readonly EventDecl[];
@@ -31,26 +37,40 @@ export interface Part<M extends AnyMove = never> {
   readonly payouts?: readonly PayoutDecl[];
   /** The text keys it needs words for, such as each reason it refuses a move with. */
   readonly texts?: readonly string[];
-  readonly hooks: PartHooks;
+  readonly hooks: PartHooks<S>;
   /** Only a type: the moves this part brings. */
   readonly __moves?: M;
 }
 /** A rules object written whole, by hand: the top rung. It gives back what it was handed, typed. */
-export const defineRules = <M extends AnyMove>(rules: Rules<M>): Rules<M> => rules;
+export const defineRules = <M extends AnyMove, S = unknown>(rules: Rules<M, S>): Rules<M, S> => rules;
 
 /** An author's own part is written the same way a stock one is. */
-export const part = <M extends AnyMove = never>(p: Part<M>): Part<M> => p;
+export const part = <M extends AnyMove = never, S = any>(p: Part<M, S>): Part<M, S> => p;
 
-export interface BoardSpec { readonly board: Document["board"]; readonly settings: readonly SettingDecl[] }
-export interface EndSpec { readonly end: Document["round"]["ends"][number]; readonly settings: readonly SettingDecl[] }
+export interface BoardSpec { readonly board: Document["board"]; readonly settings: readonly SettingNeed[] }
+export interface EndSpec { readonly end: EndDecl; readonly settings: readonly SettingNeed[] }
+/** A setting as a puzzle writes it: a bare value is its default, and an object may bound and describe it. */
+export type SettingSpec = Setting | { readonly default: Setting; readonly min?: number; readonly max?: number; readonly unit?: string; readonly description?: string; readonly group?: SettingDecl["group"] };
+export interface PayoutSpec { readonly on: string | readonly string[]; readonly counts?: string; readonly growth?: PayoutDecl["growth"]; readonly cap?: number | string; readonly reads?: string; readonly description?: string }
+/** `by` names the setting that holds the percent, or with `index` the list that holds one for each count. */
+export interface MultiplierSpec { readonly scales: string | readonly string[]; readonly on?: string; readonly by: string; readonly index?: "streak" | "step"; readonly description?: string }
+export interface StreakSpec { readonly builds: string | readonly string[]; readonly when?: string; readonly grace?: number | string; readonly breaksOn?: readonly string[] }
 export interface Spec<P extends readonly Part<any>[]> {
   readonly board: BoardSpec;
-  /** How many kinds of piece are dealt. It becomes the setting `kinds`. */
-  readonly pieces: number;
+  /** How many kinds of piece are dealt. It becomes the setting `kinds`: write `"kinds"` to give its value among the settings. */
+  readonly pieces: number | "kinds";
   readonly parts: P;
-  readonly ends: EndSpec;
+  readonly ends: EndSpec | readonly EndSpec[];
+  /** Numbers by name. One a part or the board already declares takes this value. Any other is the puzzle's own. */
+  readonly settings?: Readonly<Record<string, SettingSpec>>;
+  /** What an event is worth. An event that carries points and has no payout pays one point for each place it names. */
+  readonly payouts?: Readonly<Record<string, PayoutSpec>>;
+  readonly multipliers?: Readonly<Record<string, MultiplierSpec>>;
+  readonly streak?: StreakSpec;
+  /** Asked last, after every part's own. */
+  readonly pointsFor?: (event: Event, paid: number) => number;
 }
-type MovesOf<T> = T extends Part<infer M> ? M : never;
+type MovesOf<T> = T extends Part<infer M, any> ? M : never;
 export interface Composed<M extends AnyMove = AnyMove> extends Puzzle<M> { readonly parts: readonly Part<any>[] }
 
 /** How parts merge. This table is the whole rule, and `explain` prints it for any puzzle. */
@@ -66,36 +86,43 @@ export const MERGE = {
   pointsFor: "each part in order, handed what the last one paid",
 } as const;
 
-export function mergeHooks<M extends AnyMove>(parts: readonly Part<any>[]): Rules<M> {
-  const having = <K extends keyof PartHooks>(k: K): NonNullable<PartHooks[K]>[] => parts.flatMap((p) => (p.hooks[k] ? [p.hooks[k]!] : []));
-  const falls = having("onFallback");
-  const starts = having("onStart"), cans = having("canMove"), moves = having("onMove"), cascades = having("onCascade");
-  const ends = having("onMoveEnd"), lists = having("listMoves"), hints = having("hint"), pays = having("pointsFor");
-  const rules: Rules<M> = {
-    onStart: (ctx) => starts.forEach((f) => f(ctx)),
+/** What one part is handed: the loop's own context or view, with the part's state in place of the whole. */
+const own = <T extends View>(base: T, name: string, states: Record<string, unknown>, more: PropertyDescriptorMap = {}): T => Object.create(base, { state: { get: () => states[name], enumerable: true }, ...more }) as T;
+
+export function mergeHooks<M extends AnyMove>(parts: readonly Part<any>[], last?: (event: Event, paid: number) => number): Rules<M, Record<string, unknown>> {
+  const any = (k: keyof PartHooks): boolean => parts.some((p) => p.hooks[k]);
+  const statesOf = (view: View<unknown>): Record<string, unknown> => ({ ...(view.state as Record<string, unknown> | undefined) });
+  /** Tells every part, in order. Each part's answer is its own next state, kept under its name. */
+  const tell = (ctx: Ctx<unknown>, each: (p: Part<any>, ctx: Ctx) => unknown, untilReported = false): Record<string, unknown> | void => {
+    const states = statesOf(ctx);
+    let changed = false;
+    for (const p of parts) {
+      let reported = false;
+      const next = each(p, own(ctx, p.name, states, { emit: { value: (...a: Parameters<Ctx["emit"]>) => ((reported = true), ctx.emit(...a)) } }));
+      if (next !== undefined) (states[p.name] = next), (changed = true);
+      if (untilReported && reported) break;
+    }
+    return changed ? states : undefined;
+  };
+  const pays = parts.flatMap((p) => (p.hooks.pointsFor ? [p.hooks.pointsFor] : [])).concat(last ? [last] : []);
+  const rules: Rules<M, Record<string, unknown>> = {
+    onStart: (ctx) => tell(ctx, (p, c) => p.hooks.onStart?.(c)),
     canMove: (view, move) => {
-      for (const c of cans) {
-        const reason = c[move.move]?.(view, move);
+      const states = statesOf(view);
+      for (const p of parts) {
+        const reason = p.hooks.canMove?.[move.move]?.(own(view, p.name, states), move);
         if (reason) return reason;
       }
       return null;
     },
-    onMove: (ctx, seat, move) => moves.forEach((m) => m[move.move]?.(ctx, seat, move)),
+    onMove: (ctx, seat, move) => tell(ctx, (p, c) => p.hooks.onMove?.[move.move]?.(c, seat, move)),
   };
-  if (falls.length) rules.onFallback = (ctx) => falls.forEach((f) => f(ctx));
-  if (cascades.length) {
-    rules.onCascade = (ctx) => {
-      for (const f of cascades) {
-        let reported = false;
-        f({ ...ctx, step: ctx.step, emit: (...a) => ((reported = true), ctx.emit(...a)) });
-        if (reported) return;
-      }
-    };
-  }
-  if (ends.length) rules.onMoveEnd = (ctx) => ends.forEach((f) => f(ctx));
-  if (lists.length) rules.listMoves = (view) => lists.flatMap((f) => f(view)) as M[];
-  if (hints.length) rules.hint = (view) => hints.reduce<AnyMove | null>((found, f) => found ?? f(view), null) as M | null;
-  if (pays.length) rules.pointsFor = (event, paid) => pays.reduce((p, f) => f(event, p), paid);
+  if (any("onFallback")) rules.onFallback = (ctx) => tell(ctx, (p, c) => p.hooks.onFallback?.(c));
+  if (any("onCascade")) rules.onCascade = (ctx) => tell(ctx, (p, c) => p.hooks.onCascade?.(c), true);
+  if (any("onMoveEnd")) rules.onMoveEnd = (ctx) => tell(ctx, (p, c) => p.hooks.onMoveEnd?.(c));
+  if (any("listMoves")) rules.listMoves = (view) => parts.flatMap((p) => p.hooks.listMoves?.(own(view, p.name, statesOf(view))) ?? []) as M[];
+  if (any("hint")) rules.hint = (view) => parts.reduce<AnyMove | null>((found, p) => found ?? p.hooks.hint?.(own(view, p.name, statesOf(view))) ?? null, null) as M | null;
+  if (pays.length) rules.pointsFor = (event, paid) => pays.reduce((n, f) => f(event, n), paid);
   return rules;
 }
 
@@ -116,42 +143,114 @@ function gather<T extends { id: string }>(what: string, sources: readonly (reado
   return out;
 }
 
+const list = <T>(x: T | readonly T[] | undefined): T[] => (x === undefined ? [] : Array.isArray(x) ? [...x] : [x as T]);
+
+/** What is wrong with the scoring a document declares, or nothing. Every id it names must be one the puzzle has. */
+function scoringProblem(doc: Document): string | null {
+  const settings = doc.settings.map((s) => s.id);
+  const event = (id: string): EventDecl | undefined => doc.events.find((e) => e.id === id);
+  const typed = (id: string, type: SettingDecl["type"]): boolean => doc.settings.find((s) => s.id === id)?.type === type;
+  const named = (what: string, text: string, extra?: string): string | null => {
+    const { events, when } = eventsNamed(text);
+    const ids = events === "every" ? doc.events.map((e) => e.id) : events;
+    for (const id of ids) if (!event(id)) return `${what} names the event ${id}, which the puzzle does not have`;
+    for (const w of [when, extra ?? null]) {
+      if (!w) continue;
+      for (const id of events === "every" ? [] : ids) {
+        const wrong = whenProblem(w, Object.keys(event(id)!.fields), settings);
+        if (wrong) return `${what}: ${wrong}`;
+      }
+    }
+    return null;
+  };
+  for (const p of doc.payouts) {
+    const what = `payout ${p.id}`;
+    for (const id of p.on) {
+      const e = event(id);
+      if (!e) return `${what} pays on the event ${id}, which the puzzle does not have`;
+      if (!Object.values(e.fields).includes("points")) return `${what} pays on the event ${id}, which carries no points`;
+      if (p.growth !== "flat" && !["number", "places"].includes(e.fields[p.counts ?? ""] ?? "")) return `${what} counts ${p.counts}, which is no number or places of the event ${id}`;
+    }
+    for (const id of p.reads) if (!typed(id, p.growth === "stepped" ? "list" : "whole")) return `${what} reads ${id}, which is no ${p.growth === "stepped" ? "list" : "whole number"} among the settings`;
+    if (p.growth === "stepped" && p.reads.length === 0) return `${what} is stepped, so it reads a list`;
+  }
+  for (const m of doc.multipliers) {
+    const what = `multiplier ${m.id}`;
+    for (const id of m.scales) if (!doc.payouts.some((p) => p.id === id)) return `${what} scales the payout ${id}, which the puzzle does not have`;
+    const wrong = named(what, m.on);
+    if (wrong) return wrong;
+    if ("percent" in m.by ? !typed(m.by.percent, "whole") : !typed(m.by.table, "list")) return `${what} reads ${"percent" in m.by ? `${m.by.percent}, which is no whole number` : `${m.by.table}, which is no list`} among the settings`;
+    if ("index" in m.by && m.by.index === "streak" && !doc.streak) return `${what} is indexed by the streak, and the puzzle declares none`;
+    if ("index" in m.by && m.by.index === "step" && !doc.events.some((e) => e.step)) return `${what} is indexed by the step, and no event of the puzzle counts as one`;
+  }
+  if (doc.streak) {
+    const wrong = named("the streak", doc.streak.builds.event, doc.streak.builds.when);
+    if (wrong) return wrong;
+    if (typeof doc.streak.grace === "string" && !typed(doc.streak.grace, "whole")) return `the streak's grace reads ${doc.streak.grace}, which is no whole number among the settings`;
+    for (const id of doc.streak.breaksOn) if (!event(id)) return `the streak breaks on the event ${id}, which the puzzle does not have`;
+  }
+  return null;
+}
+
 export function puzzle<const P extends readonly Part<any>[]>(id: string, spec: Spec<P>): Composed<MovesOf<P[number]>> {
   const parts = spec.parts;
   const from = <K extends "settings" | "pieces" | "moves" | "events" | "draws" | "checks" | "payouts">(k: K) => parts.map((p) => [p.name, p[k]] as const);
-  const kinds: SettingDecl = { id: "kinds", type: "whole", default: spec.pieces, min: 2, max: 8, description: "kinds of piece dealt", group: "board" };
-  const settings = gather<SettingDecl>("setting", [["the board", spec.board.settings], ["the pieces", [kinds]], ["the ending", spec.ends.settings], ...from("settings")]);
+  const ends = list(spec.ends);
+  const kinds: SettingNeed = { id: "kinds", type: "whole", ...(spec.pieces === "kinds" ? {} : { default: spec.pieces }), min: 2, max: 8, description: "kinds of piece dealt", group: "board" };
+  const needs = gather<SettingNeed>("setting", [["the board", spec.board.settings], ["the pieces", [kinds]], ...ends.map((e) => [`the ending ${e.end.id}`, e.settings] as const), ...from("settings")]);
+  const given = spec.settings ?? {};
+  const written = (v: SettingSpec): Exclude<SettingSpec, Setting> => (typeof v === "object" && !Array.isArray(v) ? (v as Exclude<SettingSpec, Setting>) : { default: v as Setting });
+  const settings: SettingDecl[] = needs.map((need) => {
+    const made = { ...need, ...(need.id in given ? written(given[need.id]!) : {}) };
+    if (made.default === undefined) throw new Error(`${id}: the setting ${need.id} has no value. Give it one among the settings`);
+    return made as SettingDecl;
+  });
+  for (const [name, v] of Object.entries(given)) {
+    if (needs.some((n) => n.id === name)) continue;
+    const w = written(v);
+    settings.push({ id: name, type: typeof w.default === "boolean" ? "flag" : typeof w.default === "number" ? "whole" : "list", description: name, group: "scoring", ...w });
+  }
   const pieces = gather<PieceDecl>("piece", [["the pieces", [{ id: "kind", family: "kinds" }]], ...from("pieces")]);
   const moves = gather<MoveDecl>("move", from("moves"));
   const events = gather<EventDecl>("event", from("events"));
   const draws = gather<DrawDecl>("draw", from("draws"));
   const checks = gather<CheckDecl>("check", from("checks"));
-  let payouts = gather<PayoutDecl>("payout", from("payouts"));
-  // The default scoring: an event that carries points pays one for each place it names.
-  if (payouts.length === 0) {
-    payouts = events.flatMap((e) => {
-      const places = Object.entries(e.fields).find(([, t]) => t === "places")?.[0];
-      return places && Object.values(e.fields).includes("points") ? [{ id: e.id, description: `one point for each piece of a ${e.id}`, on: [e.id], counts: places, growth: "linear" as const, reads: [] }] : [];
-    });
+  const mine: PayoutDecl[] = Object.entries(spec.payouts ?? {}).map(([name, p]) => ({ id: name, description: p.description ?? name, on: list(p.on), ...(p.counts ? { counts: p.counts } : {}), growth: p.growth ?? (p.counts ? "linear" : "flat"), ...(p.cap === undefined ? {} : { cap: p.cap }), reads: list(p.reads) }));
+  const payouts = gather<PayoutDecl>("payout", [...from("payouts"), ["the puzzle", mine]]);
+  // The default scoring: an event that carries points and has no payout pays one for each place it names.
+  for (const e of events) {
+    const places = Object.entries(e.fields).find(([, t]) => t === "places")?.[0];
+    if (!places || !Object.values(e.fields).includes("points") || payouts.some((p) => p.on.includes(e.id))) continue;
+    if (payouts.some((p) => p.id === e.id)) continue;
+    payouts.push({ id: e.id, description: `one point for each piece of a ${e.id}`, on: [e.id], counts: places, growth: "linear", reads: [] });
   }
+  const multipliers: MultiplierDecl[] = Object.entries(spec.multipliers ?? {}).map(([name, m]) => {
+    const scales = list(m.scales);
+    // Left unsaid, a multiplier applies on every event its payouts pay on.
+    const on = m.on ?? [...new Set(payouts.filter((p) => scales.includes(p.id)).flatMap((p) => p.on))].join(" or ");
+    return { id: name, description: m.description ?? name, scales, on, by: m.index ? { table: m.by, index: m.index } : { percent: m.by } };
+  });
+  const streak: StreakDecl | undefined = spec.streak && { builds: { event: list(spec.streak.builds).join(" or "), ...(spec.streak.when ? { when: spec.streak.when } : {}) }, grace: spec.streak.grace ?? 0, breaksOn: [...(spec.streak.breaksOn ?? [])] };
   if (moves.length === 0) throw new Error(`${id} has no move: add a part that brings one`);
+  if (ends.length === 0) throw new Error(`${id} has no ending: give it one`);
   const mechanic = parts.map((p) => p.rule).join("; ");
-  const rules = mergeHooks<MovesOf<P[number]>>(parts);
+  const rules = mergeHooks<MovesOf<P[number]>>(parts, spec.pointsFor);
   const ids = (list: readonly { id: string }[]): string[] => list.map((x) => x.id);
+  const kindsMost = settings.find((s) => s.id === "kinds")!.max ?? 8;
   const document: Document = {
     id,
     version: "0.1",
     history: [{ version: "0.1", description: "First version" }],
     mechanic: mechanic[0]!.toUpperCase() + mechanic.slice(1),
     verb: moves[0]!.id,
-    round: { tempo: { kind: "still" }, ends: [spec.ends.end], logLimit: 1000 },
+    round: { tempo: { kind: "still" }, ends: ends.map((e) => e.end), logLimit: 1000 },
     board: spec.board.board,
     terrain: [],
     zones: [],
     settings,
     relations: [],
     deal: { draws, checks, bounds: [] },
-    layers: [{ id: "full", rule: mechanic, brings: { draws: ids(draws), pieces: ids(pieces), events: ids(events), settings: ids(settings), payouts: ids(payouts) } }],
+    layers: [{ id: "full", rule: mechanic, brings: { draws: ids(draws), pieces: ids(pieces), events: ids(events), settings: ids(settings), payouts: ids(payouts), ...(multipliers.length ? { multipliers: ids(multipliers) } : {}) } }],
     ladder: [{ stage: "full", adds: ["full"] }],
     signals: { in: [], out: [] },
     pieces,
@@ -159,12 +258,15 @@ export function puzzle<const P extends readonly Part<any>[]>(id: string, spec: S
     controls: [],
     events,
     payouts,
-    multipliers: [],
+    multipliers,
+    ...(streak ? { streak } : {}),
     tasks: [],
     gauges: [],
     stats: [],
-    texts: [{ key: "name" }, { key: "how_to" }, { key: "stage.full" }, { key: "stage.full_intro" }, ...Array.from({ length: kinds.max }, (_, i) => ({ key: `piece.kind_${i + 1}` })), ...pieces.filter((p) => !p.family).map((p) => ({ key: `piece.${p.id}` })), ...LOOP_REASONS.map((key) => ({ key })), ...gather("text", parts.map((p) => [p.name, (p.texts ?? []).map((id) => ({ id }))] as const)).map((x) => ({ key: x.id }))],
+    texts: [{ key: "name" }, { key: "how_to" }, { key: "stage.full" }, { key: "stage.full_intro" }, ...Array.from({ length: kindsMost }, (_, i) => ({ key: `piece.kind_${i + 1}` })), ...pieces.filter((p) => !p.family).map((p) => ({ key: `piece.${p.id}` })), ...LOOP_REASONS.map((key) => ({ key })), ...gather("text", parts.map((p) => [p.name, (p.texts ?? []).map((id) => ({ id }))] as const)).map((x) => ({ key: x.id }))],
     teaching: { preview: false, hint: Boolean(rules.listMoves || rules.hint) },
   };
+  const wrong = scoringProblem(document);
+  if (wrong) throw new Error(`${id}: ${wrong}`);
   return { document, rules, parts };
 }
