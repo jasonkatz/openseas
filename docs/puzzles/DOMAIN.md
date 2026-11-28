@@ -825,8 +825,9 @@ differently, and the standing and ladder places built from it stand.
 
 ### Witness rounds
 
-Each puzzle keeps a few **witness rounds**: recorded rounds, each a seed, settings, log and the read
-it must give. A change that alters any of them without raising the major fails the checks, so the rule
+Each puzzle keeps a few **witness rounds**: recorded rounds, each a seed, a stage, settings, log and the
+read it must give. At least one is played on the whole puzzle. A witness holds the settings it was played
+with, so tuning a number moves none. A change that alters any of them without raising the major fails the checks, so the rule
 above does not rest on anyone noticing. Raising the major records them again.
 
 ## Sides
@@ -1207,7 +1208,8 @@ any entry with a good time.
 ### The moment and the beat
 
 A puzzle names its **moment**: the one event that is its biggest, an optional condition on it, and the
-number field that says how big each one is, with the value that counts as biggest. Which moment is
+field that says how big each one is, a number or places that are counted, with the value that counts as
+biggest. Which moment is
 biggest follows from scoring, so every skin of a puzzle agrees on it.
 
 The skin plays the **beat** on the moment: one pulse over the whole board, on top of every other
@@ -1370,7 +1372,7 @@ Each puzzle is two documents: the **puzzle** and its default **skin**. Every ski
   "events": [{ "id": "", "description": "", "fields": { "<name>": "place | places | direction | piece | seat | side | number | points" }, "mistake": "true when it is one",
               "changes": ["arrive | leave | travel | change: the board changes it can carry"],
               "step": "true when it counts as a cascade step", "closes": "a phase id", "reveals": ["zone ids, or the board"] }],
-  "moment": { "event": "the event id", "when": "an optional condition on it", "size": "its number field", "most": "a number or a setting: the biggest" },
+  "moment": { "event": "the event id", "when": "an optional condition on it", "size": "its number field, or a places field, counted", "most": "a number or a setting: the biggest" },
   "payouts": [{ "id": "", "description": "", "on": ["event ids"], "counts": "the event's field it grows from", "growth": "flat | linear | superlinear | stepped",
                 "cap": "a number or a setting", "reads": ["setting ids"] }],
   "multipliers": [{ "id": "", "description": "", "scales": ["payout ids"], "on": "every, or event ids joined by or, and a condition after them where it has one",
@@ -1477,6 +1479,10 @@ also changes where the puzzle is kept.
 
 So for every puzzle a player can meet, only the document holds a number, and whatever tunes a
 puzzle edits that one file. After promotion a number written in the code is refused.
+
+A promoted puzzle is built from its document and its parts. Each part must find in the document
+everything it works, and what a part would have declared for itself is not read. Promotion allows the
+game to deal a puzzle. Giving it a place in a world is a step of the world's own.
 
 ### Example
 

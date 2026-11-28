@@ -123,10 +123,12 @@ export const swap = (opts: { along?: "row" | "column"; alike?: boolean } = {}): 
 };
 
 /** Lines of `min` or more of a kind clear. Each clear says how many cleared together, in the one step. */
-export const lines = (min: number): Part =>
-  part({
+export const lines = (min?: number): Part => {
+  const args = min === undefined ? {} : { args: [min] };
+  min ??= 3;
+  return part({
     name: "lines",
-    args: [min],
+    ...args,
     rule: `${min} or more of a kind in a line clear`,
     settings: [{ id: "lineMin", type: "whole", default: min, min: 3, max: 6, description: "pieces of a kind in a line that clear", group: "scoring", unit: "pieces" }],
     events: [{ id: "clear", description: "a line of a kind cleared", fields: { pieces: "places", size: "number", together: "number", points: "points" }, changes: ["leave"], step: true }],
@@ -137,6 +139,7 @@ export const lines = (min: number): Part =>
       },
     },
   });
+};
 
 /** A piece of its own that rises in among the kinds: which piece, and its chance in a thousand, as a number or a setting. */
 export interface Mixed { readonly piece: string; readonly permille: number | string }

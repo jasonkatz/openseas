@@ -327,6 +327,9 @@ export function pathsWith(opts: { luck?: "one" } = {}) {
     order: ["timers", "bounty"],
     ends: [clock("roundSeconds"), budget("maxMoves")],
     settings: { width: 7, height: 8, kinds: 5, roundSeconds: 120, maxMoves: 600 },
+    // What a ready puzzle adds: where its tiers start, and its biggest event, a loop that takes prizes.
+    evaluation: { tierStarts: { steady: 850, sharp: 2450, masterful: 4800, legendary: 8400 }, paceWindowSeconds: 10 },
+    moment: { event: "loop", when: "prizes > 0", size: "prizes", most: "maxPrizes" },
   });
 }
 

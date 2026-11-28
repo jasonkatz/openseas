@@ -9,7 +9,7 @@
 // banked at Close. A multiplier indexed by the streak holds for the whole entry, so it is applied there.
 import { nextInt, seedFromString, type PrngState } from "./prng.js";
 import { holds } from "./when.js";
-import { DIRECTIONS } from "./types.js";
+import { DIRECTIONS, TIERS, type Tier } from "./types.js";
 import type { AnyMove, Board, Cell, Change, Changes, CheckDecl, Ctx, Document, Event, Ground, MapRows, NewPiece, OpenTask, Piece, Puzzle, Rules, Setting, Settings, View } from "./types.js";
 
 interface State {
@@ -661,6 +661,8 @@ export function advance<M extends AnyMove>(round: Round<M>, when: { at: number }
 
 export interface Read {
   score: number;
+  /** The tier the score stands in. Null where the puzzle says nothing of how a round is judged. */
+  tier: Tier | null;
   /** The ending the round reached, by id. A clock's ending shows only when `read` is told the time. */
   ended: string | null;
   stage: string;
@@ -694,8 +696,10 @@ export function read(round: Round, when: { at?: number } = {}): Read {
   const board = Array.from({ length: s.height }, (_, y) => s.cells.slice(y * s.width, (y + 1) * s.width));
   const ended = s.ended ?? timeUp(doc, round.settings, at);
   const values = (what: "gauges" | "stats"): Record<string, number> => Object.fromEntries(doc[what].filter((x) => there(g, what, x.id)).map((x) => [x.id, view.value(x.id)]));
+  const starts = doc.evaluation?.tierStarts;
   return {
     score: s.points,
+    tier: starts ? TIERS.reduce<Tier>((at, tier) => (tier !== "green" && s.points >= starts[tier] ? tier : at), "green") : null,
     ended,
     stage: round.stage,
     movesMade: s.moves,

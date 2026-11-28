@@ -1012,10 +1012,10 @@ const moment = page({
   type: obj([
     req("event", ref("event"), "The event."),
     opt("when", condition, "A condition on the event's fields. The beat plays only on an event that meets it.", { absent: "Every such event is a moment." }),
-    req("size", ref("event field"), "The field of the event that says how big this one is.", { must: "Name a field of `event` whose type is `number`." }),
+    req("size", ref("event field"), "The field of the event that says how big this one is.", { must: "Name a field of `event` whose type is `number`, or `places`, which are counted." }),
     req("most", amount, "The size that counts as biggest. A moment of this size or more gets the strongest pulse."),
   ]),
-  rules: ["`size` is a `number` field of the event `event` names."],
+  rules: ["`size` is a `number` or a `places` field of the event `event` names."],
   examples: [fromPaths("moment")],
 });
 

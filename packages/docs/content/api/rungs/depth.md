@@ -222,11 +222,10 @@ Gunnery is written on this rung as five parts in about 280 lines. A test plays i
 ## Still to come
 
 > [!PREVIEW]
-> These are designed and not built yet, and names in them may change.
+> This is designed and not built yet, and names in it may change.
 
 | Add | For |
 |---|---|
-| Tiers | Where a score sits on the scale every puzzle shares. It is the puzzle's [evaluation](/api/puzzle#evaluation) |
 | A graded task | A task with a par, graded when it is done |
 
 ## What you learned

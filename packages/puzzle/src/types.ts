@@ -69,6 +69,12 @@ export interface StatDecl { id: string; description: string }
 export interface TaskDecl { id: string; description: string; open: number; ends: ("done")[]; graded: "none"; grades: string[] }
 export interface LayerDecl { id: string; rule: string; brings: Record<string, string[]> }
 export interface StageDecl { stage: string; adds: string[]; advance?: { measure: "best-round" | "average" | "wins" | "rounds"; threshold: number } }
+/** The five tiers every puzzle shares. Green starts at zero, and a puzzle says where the other four start. */
+export const TIERS = ["green", "steady", "sharp", "masterful", "legendary"] as const;
+export type Tier = (typeof TIERS)[number];
+export interface Evaluation { tierStarts: Record<Exclude<Tier, "green">, number>; paceWindowSeconds: number }
+/** The puzzle's biggest event: which one, and the field that says how big each is. `most` is the size that counts as biggest. */
+export interface Moment { event: string; when?: string; size: string; most: Amount }
 export interface EndDecl { id: string; by: "budget" | "clock"; setting: string }
 
 export interface Document {
@@ -98,6 +104,10 @@ export interface Document {
   gauges: GaugeDecl[];
   stats: StatDecl[];
   texts: { key: string }[];
+  /** Needed only when a puzzle is ready. Without it a round is scored and never judged. */
+  evaluation?: Evaluation;
+  /** Needed only when a puzzle is ready. Without it no skin plays a beat. */
+  moment?: Moment;
   teaching: { preview: boolean; hint: boolean };
 }
 

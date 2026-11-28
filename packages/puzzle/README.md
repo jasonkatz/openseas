@@ -1,6 +1,6 @@
 # @openseas/puzzle
 
-The puzzle engine, written in rungs (ADR 0092 to ADR 0095). It is pure: no clock, no random number, no I/O, and
+The puzzle engine, written in rungs (ADR 0092 to ADR 0096). It is pure: no clock, no random number, no I/O, and
 no dependency. `pnpm --filter @openseas/puzzle lint` holds it to that.
 
 What is built: rungs 0 to 3, and rung 4 without its ticks, for one seat on a still grid.
@@ -12,6 +12,8 @@ What is built: rungs 0 to 3, and rung 4 without its ticks, for one seat on a sti
 | `src/when.ts` | A condition: one comparison over an event's fields and the settings |
 | `src/stock.ts` | The stock parts (`swap`, `lines`, `refill`), `grid`, `budget`, `clock`, and the plain board helpers they are built from |
 | `src/expand.ts` | `expand` prints the document. `explain` prints which part answers each hook |
+| `src/ready.ts` | Valid, ready and promoted: `ready` says what a puzzle lacks, `witnessOf`, `witnessPlayed` and `witnessProblem` keep its witness rounds, `promote` gives its document and the lines its file shrinks to, and `rules(document, parts)` is a promoted puzzle |
+| `scripts/promote.mjs` | The commands `ready`, `witness` and `promote`: the only file here that reads or writes one |
 | `src/seen.ts` | A board drawn from events alone: what a screen holds, held to the loop by the tests |
 | `src/types.ts` | The document, the rules and a round's events |
 | `src/prng.ts` | The same generator `engine` uses. Each draw has a stream seeded from `<seed>/<draw id>` |
@@ -28,5 +30,12 @@ and luck. `test/gunnery.test.ts` does it for Gunnery, after every tick and every
 decks from the same bags. `test/rungs.test.ts` runs the samples the docs site teaches rungs 2 and 3 with. The docs
 site's tests hold the expanded Swap, Paths and Gunnery to the typed reference.
 
-Not built yet: a round's tiers, seats (rung 5), and promotion.
+`test/ready.test.ts` holds Paths ready with the witness rounds it keeps, promotes it, and plays it again
+from its document and its parts.
+
+    pnpm --filter @openseas/puzzle ready examples/swap.puzzle.ts
+    pnpm --filter @openseas/puzzle witness examples/paths.puzzle.ts
+    pnpm --filter @openseas/puzzle promote examples/paths.puzzle.ts --out /tmp/paths
+
+Not built yet: a task's par and grade, and seats (rung 5).
 `docs/adr/0092-a-puzzle-is-written-in-rungs.md` gives the order.

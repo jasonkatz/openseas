@@ -1046,6 +1046,21 @@ exports[`Paths, on its own > expands to a whole document 1`] = `
       "description": "prizes taken by a loop"
     }
   ],
+  "evaluation": {
+    "tierStarts": {
+      "steady": 850,
+      "sharp": 2450,
+      "masterful": 4800,
+      "legendary": 8400
+    },
+    "paceWindowSeconds": 10
+  },
+  "moment": {
+    "event": "loop",
+    "when": "prizes > 0",
+    "size": "prizes",
+    "most": "maxPrizes"
+  },
   "texts": [
     {
       "key": "name"

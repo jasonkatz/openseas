@@ -5,6 +5,7 @@ export * from "./loop.js";
 export * from "./puzzle.js";
 export * from "./stock.js";
 export * from "./expand.js";
+export * from "./ready.js";
 export * from "./seen.js";
 export * from "./when.js";
 export { nextInt, seedFromString } from "./prng.js";

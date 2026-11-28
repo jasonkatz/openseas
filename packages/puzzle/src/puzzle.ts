@@ -3,7 +3,7 @@
 // one whole document and one flat rules object, which is all the loop ever sees.
 import { eventsNamed } from "./loop.js";
 import { whenProblem } from "./when.js";
-import type { AnyMove, CheckDecl, Ctx, Document, DrawDecl, EndDecl, Event, EventDecl, GaugeDecl, LayerDecl, MoveDecl, MultiplierDecl, PayoutDecl, PieceDecl, Puzzle, Rules, Setting, SettingDecl, StageDecl, StatDecl, StreakDecl, TaskDecl, TerrainDecl, Tick, View } from "./types.js";
+import type { AnyMove, CheckDecl, Ctx, Document, DrawDecl, EndDecl, Evaluation, Event, EventDecl, GaugeDecl, LayerDecl, Moment, MoveDecl, MultiplierDecl, PayoutDecl, PieceDecl, Puzzle, Rules, Setting, SettingDecl, StageDecl, StatDecl, StreakDecl, TaskDecl, TerrainDecl, Tick, View } from "./types.js";
 
 /** A part's hooks. Each is handed the part's own state, and an "on" hook gives back the next one, or nothing to keep it. */
 export interface PartHooks<S = any> {
@@ -88,6 +88,10 @@ interface Common {
   readonly payouts?: Readonly<Record<string, PayoutSpec>>;
   readonly multipliers?: Readonly<Record<string, MultiplierSpec>>;
   readonly streak?: StreakSpec;
+  /** How a round is judged: the score each tier starts at. A puzzle needs it to be ready, never to play. */
+  readonly evaluation?: Evaluation;
+  /** The puzzle's biggest event, which every skin plays its beat on. A puzzle needs it to be ready, never to play. */
+  readonly moment?: Moment;
   /** Asked last, after every part's own. */
   readonly pointsFor?: (event: Event, paid: number) => number;
 }
@@ -178,7 +182,7 @@ function gather<T extends { id: string }>(what: string, sources: readonly (reado
 const list = <T>(x: T | readonly T[] | undefined): T[] => (x === undefined ? [] : Array.isArray(x) ? [...x] : [x as T]);
 
 /** What is wrong with the scoring a document declares, or nothing. Every id it names must be one the puzzle has. */
-function scoringProblem(doc: Document): string | null {
+export function documentProblem(doc: Document): string | null {
   const settings = doc.settings.map((s) => s.id);
   const event = (id: string): EventDecl | undefined => doc.events.find((e) => e.id === id);
   const typed = (id: string, type: SettingDecl["type"]): boolean => doc.settings.find((s) => s.id === id)?.type === type;
@@ -221,6 +225,19 @@ function scoringProblem(doc: Document): string | null {
     if (doc.streak.counts === "events" && doc.streak.grace !== 0) return "the streak counts events, which have no misses, and so takes no grace";
     if (typeof doc.streak.grace === "string" && !typed(doc.streak.grace, "whole")) return `the streak's grace reads ${doc.streak.grace}, which is no whole number among the settings`;
     for (const id of doc.streak.breaksOn) if (!event(id)) return `the streak breaks on the event ${id}, which the puzzle does not have`;
+  }
+  if (doc.moment) {
+    const { moment } = doc;
+    const wrong = named("the moment", moment.event, moment.when);
+    if (wrong) return wrong;
+    if (!["number", "places"].includes(event(moment.event)!.fields[moment.size] ?? "")) return `the moment's size is ${moment.size}, which is no number or places of the event ${moment.event}`;
+    if (typeof moment.most === "string" ? !typed(moment.most, "whole") : !(Number.isInteger(moment.most) && moment.most >= 1)) return `the moment's most is ${moment.most}, which is no whole number, and no whole number among the settings`;
+  }
+  if (doc.evaluation) {
+    const { tierStarts: t, paceWindowSeconds } = doc.evaluation;
+    const starts = [t.steady, t.sharp, t.masterful, t.legendary];
+    if (!starts.every((n, i) => Number.isInteger(n) && n > (starts[i - 1] ?? 0))) return "the tier starts are whole numbers that rise: steady, then sharp, then masterful, then legendary";
+    if (!(Number.isInteger(paceWindowSeconds) && paceWindowSeconds >= 1)) return "pace is read over a whole number of seconds";
   }
   return null;
 }
@@ -322,10 +339,12 @@ export function puzzle<const P extends readonly Part<any>[], Q extends Part<any>
     tasks,
     gauges,
     stats,
+    ...(spec.evaluation ? { evaluation: spec.evaluation } : {}),
+    ...(spec.moment ? { moment: spec.moment } : {}),
     texts: [{ key: "name" }, { key: "how_to" }, ...ladder.flatMap((x) => [{ key: `stage.${x.stage}` }, { key: `stage.${x.stage}_intro` }]), ...Array.from({ length: kindsMost }, (_, i) => ({ key: `piece.kind_${i + 1}` })), ...pieces.filter((p) => !p.family).map((p) => ({ key: `piece.${p.id}` })), ...LOOP_REASONS.map((key) => ({ key })), ...gather("text", parts.map((p) => [p.name, (p.texts ?? []).map((id) => ({ id }))] as const)).map((x) => ({ key: x.id }))],
     teaching: { preview: false, hint: Boolean(rules.listMoves || rules.hint) },
   };
-  const wrong = scoringProblem(document);
+  const wrong = documentProblem(document);
   if (wrong) throw new Error(`${id}: ${wrong}`);
   return { document, rules, parts };
 }
