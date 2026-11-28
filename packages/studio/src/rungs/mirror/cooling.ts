@@ -3,7 +3,7 @@
 // file only turns what that round reports into the old shape, so the board, its sounds and its page are the
 // shipped ones, unchanged.
 import { COOLING_DEF, InvalidMoveError, Special, type ClearedGroup, type ClearRound, type CoolingConfig, type CoolingMove, type CoolingState, type Piece as OldPiece, type PuzzleDef } from "@openseas/engine";
-import { play, read, seenAfter, start, type AnyMove, type Cell, type Event, type Piece, type Round, type Seen, type Setting } from "@openseas/puzzle";
+import { play, read, seenAfter, signal, start, type AnyMove, type Cell, type Event, type Piece, type Round, type Seen, type Setting } from "@openseas/puzzle";
 import cooling from "@openseas/puzzle/examples/cooling";
 import { held, roundOf } from "./held.js";
 
@@ -26,6 +26,7 @@ export function coolingSettings(c: CoolingConfig): Record<string, Setting> {
     heatLeastRow: c.minHeatRow,
     heatRiseMoves: c.heatRisePerMoves,
     heatFallPoints: c.heatDropPerPoints,
+    shipHeat: c.shipHeat,
     streakGrace: c.streakGrace,
     cascadePercent: c.cascadeMultipliers.map((m) => m * 100),
     streakPercent: streak,
@@ -105,9 +106,13 @@ export const COOLING_MIRROR: PuzzleDef<CoolingState, CoolingMove, CoolingConfig>
   reduce: (state, move) => {
     if (state.finished) throw new InvalidMoveError("game is finished", move);
     const round = roundOf(state);
-    // Ending early is the host's, and the heat a ship injects is not built on the new engine: the board keeps its own.
+    // Ending early is the host's. The heat a ship injects is the signal `level`: no move, so nothing is paid.
     if (move.type === "end") return shown(round, state.config, { move, rounds: [], points: 0, streakPercent: 100 }, true);
-    if (move.type === "heat") throw new InvalidMoveError("the board keeps its own heat", move);
+    if (move.type === "heat") {
+      if (!state.config.shipHeat) throw new InvalidMoveError("the board keeps its own heat", move);
+      if (!Number.isInteger(move.row) || move.row < 0 || move.row > state.config.height) throw new InvalidMoveError("heat row out of range", move);
+      return shown(signal(round, { signal: "level", value: move.row }), state.config, { move, rounds: [], points: 0, streakPercent: 100 });
+    }
     const y = state.config.height - 1 - move.row;
     const next = play(round, { move: "swap", a: { x: move.col, y }, b: { x: move.col + 1, y } });
     if (next.last.refused) throw new InvalidMoveError(next.last.refused, move);

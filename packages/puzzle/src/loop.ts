@@ -10,7 +10,7 @@
 import { nextInt, seedFromString, type PrngState } from "./prng.js";
 import { holds } from "./when.js";
 import { DIRECTIONS, TIERS, type Tier } from "./types.js";
-import type { AnyMove, Board, Cell, Change, Changes, CheckDecl, Ctx, Document, Event, Ground, MapRows, NewPiece, OpenTask, Piece, Puzzle, Rules, Setting, Settings, View } from "./types.js";
+import type { AnyMove, AnySignal, Board, Cell, Change, Changes, CheckDecl, Ctx, Document, Event, Ground, MapRows, NewPiece, OpenTask, Piece, Puzzle, Rules, Setting, Settings, View } from "./types.js";
 
 interface State {
   width: number;
@@ -80,8 +80,8 @@ const there = (g: Game, what: string, id: string): boolean => !g.off[what]?.has(
 /** The puzzle's streak. Where a layer brings the gauge that shows it, no streak is kept until the stage has reached that layer. */
 const streakOf = (g: Game): Document["streak"] => (there(g, "gauges", "streak") ? g.doc.streak : undefined);
 
-/** One line of a round's log: a move, and when it was made, in milliseconds from the round's start. */
-export interface Entry<M extends AnyMove = AnyMove> { readonly at: number; readonly move: M }
+/** One line of a round's log: a move or a signal in, and when it came, in milliseconds from the round's start. */
+export type Entry<M extends AnyMove = AnyMove> = { readonly at: number; readonly move: M } | { readonly at: number; readonly signal: AnySignal };
 
 export interface Round<M extends AnyMove = AnyMove> {
   readonly puzzle: Puzzle<M>;
@@ -104,13 +104,20 @@ const clone = (s: State): State => ({ ...s, cells: [...s.cells], ground: [...s.g
 const scratch = (s: State): State => ({ ...clone(s), streams: {}, streamKey: `${s.seed}/try` });
 
 const AROUND = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]] as const;
-function boardOf(s: State, touch: 4 | 8 = 4): Board {
+function boardOf(s: State, shape: Document["board"] | { shape: "grid"; touch: 4 } = { shape: "grid", touch: 4 }): Board {
   const has = (p: Cell): boolean => Number.isInteger(p?.x) && Number.isInteger(p?.y) && p.x >= 0 && p.y >= 0 && p.x < s.width && p.y < s.height;
+  const ringed = shape.shape === "rings";
+  const touch = shape.shape === "grid" ? shape.touch : 4;
   return {
-    // Clockwise from the cell above.
-    touching: (p) => AROUND.filter(([dx, dy]) => touch === 8 || dx === 0 || dy === 0).map(([dx, dy]) => ({ x: p.x + dx, y: p.y + dy })).filter(has),
+    // Clockwise from the cell above. On rings, out, clockwise, in and anticlockwise, and a ring wraps.
+    touching: (p) =>
+      ringed
+        ? [{ x: p.x, y: p.y + 1 }, { x: (p.x + 1) % s.width, y: p.y }, { x: p.x, y: p.y - 1 }, { x: (p.x + s.width - 1) % s.width, y: p.y }].filter((q, i, all) => has(q) && all.findIndex((r) => r.x === q.x && r.y === q.y) === i && (q.x !== p.x || q.y !== p.y))
+        : AROUND.filter(([dx, dy]) => touch === 8 || dx === 0 || dy === 0).map(([dx, dy]) => ({ x: p.x + dx, y: p.y + dy })).filter(has),
     width: s.width,
     height: s.height,
+    rings: ringed ? s.height : 0,
+    sectors: ringed ? s.width : 0,
     has,
     places: () => Array.from({ length: s.width * s.height }, (_, i) => ({ x: i % s.width, y: Math.floor(i / s.width) })),
     at: (p) => (has(p) ? s.cells[p.y * s.width + p.x]! : null),
@@ -232,7 +239,7 @@ function termsOf(g: Game, id: string, fields: Readonly<Record<string, unknown>>,
 function viewOf(g: Game, s: State): View {
   return {
     settings: g.settings,
-    board: boardOf(s, g.doc.board.touch),
+    board: boardOf(s, g.doc.board),
     get state() {
       return s.rules;
     },
@@ -528,8 +535,8 @@ export function start<M extends AnyMove>(puzzle: Puzzle<M>, opts: StartOptions):
   const settings = settingsOf(doc, opts.settings);
   const stage = opts.stage ?? doc.ladder.at(-1)!.stage;
   const g = gameOf(puzzle as Puzzle, settings, stage);
-  const width = amount(settings, doc.board.width);
-  const height = amount(settings, doc.board.height);
+  const width = amount(settings, doc.board.shape === "rings" ? doc.board.sectors : doc.board.width);
+  const height = amount(settings, doc.board.shape === "rings" ? doc.board.rings : doc.board.height);
   const seed = String(opts.seed);
   for (const d of doc.settings) {
     if (d.type !== "maps") continue;
@@ -641,7 +648,7 @@ export function play<M extends AnyMove>(round: Round<M>, move: NoInfer<M>, when:
   s.moves++;
   s.time = at;
   for (const end of doc.round.ends) if (end.by === "budget" && s.moves >= amount(round.settings, end.setting)) s.ended = end.id;
-  return { ...round, state: s, log: [...round.log, { at, move }], last: { events, refused: null, banked } };
+  return { ...round, state: s, log: [...round.log, { at, move } as Entry<M>], last: { events, refused: null, banked } };
 }
 
 /**
@@ -657,6 +664,31 @@ export function advance<M extends AnyMove>(round: Round<M>, when: { at: number }
   const banked = runTicks(g, s, when.at, events);
   s.time = when.at;
   return { ...round, state: s, last: { events, refused: null, banked } };
+}
+
+/**
+ * A signal in from outside the puzzle, such as a level a role wires in. It is told to the rules and runs Cascade,
+ * Move end and Close as a move does, after every tick due by then. It is no move: it counts toward no budget, is no
+ * miss of the streak, and the rules are never asked whether it may come. The log keeps it, so a replay sees it.
+ */
+export function signal<M extends AnyMove>(round: Round<M>, sig: AnySignal, when: { at?: number } = {}): Round<M> {
+  const g = gameOf(round.puzzle as Puzzle, round.settings, round.stage);
+  const { doc } = g;
+  const at = when.at ?? round.state.time;
+  if (!Number.isInteger(at) || at < round.state.time) throw new Error(`a signal at ${at} cannot follow an entry at ${round.state.time}`);
+  const decl = doc.signals.in.find((x) => x.id === sig.signal);
+  if (!decl) throw new Error(`${doc.id} takes no signal ${sig.signal}`);
+  const v = sig.value;
+  if (decl.type === "flag" ? typeof v !== "boolean" : !Number.isInteger(v) || (decl.min !== undefined && (v as number) < decl.min) || (decl.max !== undefined && (v as number) > amount(round.settings, decl.max))) throw new Error(`signal ${sig.signal}: ${JSON.stringify(v)} is not a ${decl.type === "flag" ? "flag" : `whole number from ${decl.min ?? "any"} to ${decl.max ?? "any"}`}`);
+  if (round.state.ended || timeUp(doc, round.settings, at)) return { ...round, last: { events: [], refused: "reason.round_over", banked: 0 } };
+  const s = clone(round.state);
+  const events: Event[] = [];
+  let banked = runTicks(g, s, at, events);
+  const tally = newTally();
+  apply(g, s, (ctx) => g.puzzle.rules.onSignal?.(ctx, sig), events, tally);
+  banked += close(g, s, events, tally, false);
+  s.time = at;
+  return { ...round, state: s, log: [...round.log, { at, signal: sig }], last: { events, refused: null, banked } };
 }
 
 export interface Read {
@@ -731,7 +763,7 @@ export const listMoves = <M extends AnyMove>(round: Round<M>): M[] => (round.puz
 
 /** The same seed, settings, stage and log always make the same round. */
 export function replay<M extends AnyMove>(puzzle: Puzzle<M>, seed: string, settings: Record<string, Setting>, log: readonly Entry<M>[], stage?: string, until?: number): Round<M> {
-  const round = log.reduce((r, e) => play(r, e.move, { at: e.at }), start(puzzle, { seed, settings, ...(stage ? { stage } : {}) }));
+  const round = log.reduce((r, e) => ("signal" in e ? signal(r, e.signal, { at: e.at }) : play(r, e.move, { at: e.at })), start(puzzle, { seed, settings, ...(stage ? { stage } : {}) }));
   return until === undefined ? round : advance(round, { at: until });
 }
 export type { PrngState, Rules };

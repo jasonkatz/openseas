@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import flat from "../examples/swap.flat.js";
 import sparks from "../examples/sparks.puzzle.js";
 import swap from "../examples/swap.puzzle.js";
-import { budget, expand, explain, grid, groupsOf, hint, lines, listMoves, part, play, puzzle, read, refill, replay, seenAfter, seenEmpty, start, swap as swapPart, view, type AnyMove, type Puzzle, type Round } from "../src/index.js";
+import { budget, expand, explain, grid, groupsOf, hint, lines, listMoves, part, play, puzzle, read, refill, replay, seenAfter, seenEmpty, start, swap as swapPart, view, type AnyMove, type Puzzle, type Round, type SwapMove } from "../src/index.js";
 
 /** Plays a round to its end: a listed move picked by `pick`, or the hint, so runs differ and still score. */
 function playOut<M extends AnyMove>(p: Puzzle<M>, seed: number | string, picks: readonly number[] = [], settings: Record<string, number> = {}): Round<M>[] {
@@ -74,7 +74,7 @@ describe("rung 0 and 1: the seven-line Swap", () => {
     expect(end.movesMade).toBe(20);
     expect(end.score).toBeGreaterThan(0);
     expect(end.board.flat().every(Boolean)).toBe(true);
-    expect(play(rounds.at(-1)!, rounds.at(-1)!.log[0]!.move).last.refused).toBe("reason.round_over");
+    expect(play(rounds.at(-1)!, (rounds.at(-1)!.log[0] as { move: SwapMove }).move).last.refused).toBe("reason.round_over");
   });
 
   it("refuses a move with the rules' own reason, and changes nothing", () => {
@@ -213,7 +213,7 @@ describe("nothing is hidden", () => {
       let other = start(flat, { seed });
       expect(other.last.events).toEqual(composed[0]!.last.events);
       for (const r of composed.slice(1)) {
-        other = play(other, r.log.at(-1)!.move);
+        other = play(other, (r.log.at(-1) as { move: SwapMove }).move);
         expect(other.last.events, `seed ${seed}, move ${r.log.length}`).toEqual(r.last.events);
         events += r.last.events.length;
       }

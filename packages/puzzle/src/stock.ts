@@ -61,6 +61,12 @@ export const grid = (width: number | string, height: number | string, opts: { to
   const h = held(height, "height", { type: "whole", min: 3, max: 12, description: "rows on the board", group: "board", unit: "cells" });
   return { board: { shape: "grid", width: w.id, height: h.id, touch: opts.touch ?? 4, rim: false }, settings: [w, h] };
 };
+/** Rings around a centre, cut into sectors. A cell's `x` is its sector, clockwise from the top, and its `y` its ring, from the innermost. */
+export const rings = (count: number | string, sectors: number | string): BoardSpec => {
+  const r = held(count, "rings", { type: "whole", min: 1, max: 6, description: "rings around the centre", group: "board", unit: "rings" });
+  const s = held(sectors, "sectors", { type: "whole", min: 3, max: 16, description: "sectors each ring is cut into", group: "board", unit: "sectors" });
+  return { board: { shape: "rings", rings: r.id, sectors: s.id }, settings: [r, s] };
+};
 /** A ticking tempo: the rules move on by themselves, a tick every so many milliseconds. A tick's length is the puzzle's, never a setting. */
 export const ticking = (tickMs: number): { kind: "ticking"; tickMs: number } => ({ kind: "ticking", tickMs });
 
