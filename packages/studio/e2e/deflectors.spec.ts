@@ -87,8 +87,8 @@ async function tapEmitters(page: Page): Promise<void> {
   await page.mouse.click(ox - 0.5 * size, oy + 3.5 * size);
 }
 
-test("Deflectors plays alone on /play: a round puts pieces down by key and by tap, and bins them", async ({ page }) => {
-  await page.goto("/play/deflectors");
+for (const [path, on] of [["/play/deflectors", ""], ["/play/rungs/deflectors", ", on the new engine"]] as const) test(`Deflectors plays alone on /play: a round puts pieces down by key and by tap, and bins them${on}`, async ({ page }) => {
+  await page.goto(`${path}`);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("deflectors-canvas");
   await expect(canvas).toBeVisible();

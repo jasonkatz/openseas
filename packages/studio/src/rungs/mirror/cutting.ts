@@ -20,7 +20,7 @@ const slabOf = (round: Round<AnyMove>): Slab => (read(round).state as { slab: Sl
 const cutsDealt = (round: Round<AnyMove>): number => round.last.events.filter((e) => e.event === "slab").at(-1)!.fields.cuts as number;
 
 /** Everything the board keeps that the round does not: what this slab banked, and the round's tallies. */
-type Kept = Pick<CuttingState, "banked" | "cutsAllowed" | "moveCount" | "logLength" | "bestCombo" | "slabsDone" | "flawless" | "clean" | "rough" | "totalGot" | "totalBest" | "biggest">;
+type Kept = { -readonly [K in keyof Pick<CuttingState, "banked" | "cutsAllowed" | "moveCount" | "logLength" | "bestCombo" | "slabsDone" | "flawless" | "clean" | "rough" | "totalGot" | "totalBest" | "biggest">]: CuttingState[K] };
 
 function shown(round: Round<AnyMove>, config: CuttingConfig, kept: Kept, lastMove: CuttingMoveReport | null, ended = false): CuttingState {
   const now = read(round);

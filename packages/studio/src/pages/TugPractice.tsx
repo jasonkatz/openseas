@@ -5,19 +5,20 @@ import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { TUG } from "../prototypes/tug.js";
+import type { StudioPuzzle } from "../puzzles.js";
 
 const tug = content.puzzles.tug;
 
-/** Tug (prototype, ADR 0036): the shared board in the studio's frame. */
-export function TugPractice() {
+/** Tug (prototype, ADR 0036): the shared board in the studio's frame. `entry` is the puzzle this page plays: the prototype, or the same puzzle on another engine (ADR 0097, ADR 0099). */
+export function TugPractice({ entry = TUG }: { entry?: StudioPuzzle<TugState, TugMove, TugConfig> } = {}) {
   const api = usePractice<TugState, TugMove, TugConfig>({
     puzzle: "tug",
-    def: TUG.def,
+    def: entry.def,
     config: tug.config,
     roundSeconds: tug.roundSeconds,
     summarize: summarizeTug,
   });
-  const studio = useStudio(TUG, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const shown = state;
   const cfg = shown.config;
@@ -30,7 +31,7 @@ export function TugPractice() {
   return (
     <PracticeShell
       puzzle="tug"
-      eyebrow={t("studio.prototype_eyebrow")}
+      eyebrow={entry === TUG ? t("studio.prototype_eyebrow") : t("rungs.eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}
@@ -39,7 +40,7 @@ export function TugPractice() {
       moves={shown.moveCount}
       movesLabel={t("tug.moves")}
       // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
-      maxMoves={cfg.maxMoves < TUG.config.maxMoves ? cfg.maxMoves : undefined}
+      maxMoves={cfg.maxMoves < entry.config.maxMoves ? cfg.maxMoves : undefined}
       combo={shown.combo}
       onStart={studio.start}
       ready={studio.ready}

@@ -19,8 +19,8 @@ async function legalDir(page: Page): Promise<number> {
   return Number(((await board.getAttribute("data-legal")) ?? "0")[0]);
 }
 
-test("Reactor plays alone on /play: a round swipes by key and by pointer", async ({ page }) => {
-  await page.goto("/play/reactor");
+for (const [path, on] of [["/play/reactor", ""], ["/play/rungs/reactor", ", on the new engine"]] as const) test(`Reactor plays alone on /play: a round swipes by key and by pointer${on}`, async ({ page }) => {
+  await page.goto(`${path}`);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("reactor-canvas");
   await expect(canvas).toBeVisible();

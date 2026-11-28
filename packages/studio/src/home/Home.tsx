@@ -6,6 +6,9 @@ import { listDrafts } from "../service/client.js";
 import { useMe } from "../service/me.js";
 import { useThumbnails } from "./thumbs.js";
 
+/** The solo prototypes the studio also plays on the new engine, each on its own page (ADR 0099). */
+const RUNG_PROTOTYPES = ["tug", "racks", "reactor", "overload", "scanner", "cutting", "tractor", "refining", "forging", "assembly", "deflectors", "freefall", "pouring"] as const;
+
 const GLYPHS: Record<PuzzleId, ReactNode> = {
   cooling: (
     <svg viewBox="0 0 64 64" width="56" height="56">
@@ -408,6 +411,14 @@ export function Home() {
               <Link to={`/rungs/${id}`} className="practice-tile live" data-testid={`tile-rung-${id}`}>
                 <span className="tile-title">{t(`rungs.${id}.home`)}</span>
                 <span className="tile-blurb">{t(`rungs.${id}.home_blurb`)}</span>
+              </Link>
+            </li>
+          ))}
+          {RUNG_PROTOTYPES.map((id) => (
+            <li key={id}>
+              <Link to={`/rungs/${id}`} className="practice-tile live" data-testid={`tile-rung-${id}`}>
+                <span className="tile-title">{t("rungs.prototype.home", { name: t(`home.practice_${id}`) })}</span>
+                <span className="tile-blurb">{t("rungs.prototype.home_blurb")}</span>
               </Link>
             </li>
           ))}

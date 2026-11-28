@@ -5,19 +5,20 @@ import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { POURING } from "../prototypes/pouring.js";
+import type { StudioPuzzle } from "../puzzles.js";
 
 const pouring = content.puzzles.pouring;
 
-/** Pouring (prototype, ADR 0085): the shared board in the studio's frame. */
-export function PouringPractice() {
+/** Pouring (prototype, ADR 0085): the shared board in the studio's frame. `entry` is the puzzle this page plays: the prototype, or the same puzzle on another engine (ADR 0097, ADR 0099). */
+export function PouringPractice({ entry = POURING }: { entry?: StudioPuzzle<PouringState, PouringMove, PouringConfig> } = {}) {
   const api = usePractice<PouringState, PouringMove, PouringConfig>({
     puzzle: "pouring",
-    def: POURING.def,
+    def: entry.def,
     config: pouring.config,
     roundSeconds: pouring.roundSeconds,
     summarize: summarizePouring,
   });
-  const studio = useStudio(POURING, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const cfg = state.config;
   const me = state.seats[0]!;
@@ -32,7 +33,7 @@ export function PouringPractice() {
   return (
     <PracticeShell
       puzzle="pouring"
-      eyebrow={t("studio.prototype_eyebrow")}
+      eyebrow={entry === POURING ? t("studio.prototype_eyebrow") : t("rungs.eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}

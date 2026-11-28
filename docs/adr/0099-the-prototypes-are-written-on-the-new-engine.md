@@ -60,6 +60,6 @@ Most of the thirteen fit the engine as it was. Three did not, quite:
 
 - Every solo puzzle in the game and in the studio, but Showdown and Pact, is a definition on the new engine.
   Swordfighting, Battle, Showdown and Pact wait for seats.
-- None of the thirteen has a page on the new engine. A mirror for each, as ADR 0097 gave three, would put
-  them in the studio.
+- None of the thirteen has a page on the new engine. A mirror for each, as ADR 0097 gave three, puts them in
+  the studio (ADR 0100).
 - The puzzle package's tests take about a minute more: each new test runs twenty seeds or so of every config.

@@ -12,8 +12,8 @@ async function tapLane(page: Page, lane: number, row = 2): Promise<void> {
   await page.mouse.click(ox + (lane + 0.5) * cell, oy + (row + 0.5) * cell);
 }
 
-test("Freefall plays alone on /play: a round drops by key and by tap", async ({ page }) => {
-  await page.goto("/play/freefall");
+for (const [path, on] of [["/play/freefall", ""], ["/play/rungs/freefall", ", on the new engine"]] as const) test(`Freefall plays alone on /play: a round drops by key and by tap${on}`, async ({ page }) => {
+  await page.goto(`${path}`);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("freefall-canvas");
   await expect(canvas).toBeVisible();

@@ -31,9 +31,9 @@ async function tap(page: Page, cell: number): Promise<void> {
   await page.mouse.click(ox + ((cell % N) + 0.5) * size, oy + (Math.floor(cell / N) + 0.5) * size);
 }
 
-test("Pouring plays alone on /play: a turn by key, by tap and a drink downed", async ({ page }) => {
+for (const [path, on] of [["/play/pouring", ""], ["/play/rungs/pouring", ", on the new engine"]] as const) test(`Pouring plays alone on /play: a turn by key, by tap and a drink downed${on}`, async ({ page }) => {
   // This seed deals the player a drink in the first slot, so the first pour is one any square takes.
-  await page.goto("/play/pouring?seed=smoke-2");
+  await page.goto(`${path}?seed=smoke-2`);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("pouring-canvas");
   await expect(canvas).toBeVisible();

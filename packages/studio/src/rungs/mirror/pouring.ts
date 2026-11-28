@@ -30,9 +30,9 @@ function shown(round: Round<AnyMove>, config: PouringConfig, names: Names, cells
   const seats: PouringSeat[] = tavern.seats.map((s, i) => ({ hand: hands[i]!, score: s.score, drunk: s.drunk, sober: s.sober, asleep: s.asleep, turns: s.turns, lines: s.lines }));
   // The round as the new engine left it, piece for piece, is what the names were laid on.
   const agrees =
-    cells.every((p, i) => { const q = now.board[Math.floor(i / config.size)]![i % config.size]; return p === null ? q === null : q !== null && same(p, lookOf(q)); }) &&
+    cells.every((p, i) => { const q = now.board[Math.floor(i / config.size)]![i % config.size] ?? null; return p === null ? q === null : q !== null && same(p, lookOf(q)); }) &&
     hands.every((h, i) => h.every((s, k) => same(s.piece, tavern.seats[i]!.hand[k]!.piece) && s.age === tavern.seats[i]!.hand[k]!.age)) &&
-    names.bag.length === tavern.bag.length && names.bag.every((p, k) => same(p, tavern.bag[k]!));
+    names.bag.length === tavern.bag.length && names.bag.every((p, k) => tavern.bag[k] !== undefined && same(p, tavern.bag[k]));
   if (!agrees) throw new Error("the names laid on the round no longer fit it");
   const state: PouringState = {
     config,

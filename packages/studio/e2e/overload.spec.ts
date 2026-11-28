@@ -19,8 +19,8 @@ async function tapCell(page: Page, cell: number): Promise<void> {
   await page.mouse.click(ox + ((cell % W) + 0.5) * size, oy + (Math.floor(cell / W) + 0.5) * size);
 }
 
-test("Overload plays alone on /play: a round charges a capacitor by key and bursts one by pointer", async ({ page }) => {
-  await page.goto("/play/overload");
+for (const [path, on] of [["/play/overload", ""], ["/play/rungs/overload", ", on the new engine"]] as const) test(`Overload plays alone on /play: a round charges a capacitor by key and bursts one by pointer${on}`, async ({ page }) => {
+  await page.goto(`${path}`);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("overload-canvas");
   await expect(canvas).toBeVisible();

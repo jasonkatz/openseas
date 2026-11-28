@@ -5,19 +5,20 @@ import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { TRACTOR } from "../prototypes/tractor.js";
+import type { StudioPuzzle } from "../puzzles.js";
 
 const tractor = content.puzzles.tractor;
 
-/** Tractor (prototype, ADR 0036): the shared board in the studio's frame. */
-export function TractorPractice() {
+/** Tractor (prototype, ADR 0036): the shared board in the studio's frame. `entry` is the puzzle this page plays: the prototype, or the same puzzle on another engine (ADR 0097, ADR 0099). */
+export function TractorPractice({ entry = TRACTOR }: { entry?: StudioPuzzle<TractorState, TractorMove, TractorConfig> } = {}) {
   const api = usePractice<TractorState, TractorMove, TractorConfig>({
     puzzle: "tractor",
-    def: TRACTOR.def,
+    def: entry.def,
     config: tractor.config,
     roundSeconds: tractor.roundSeconds,
     summarize: summarizeTractor,
   });
-  const studio = useStudio(TRACTOR, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const shown = state;
   const cfg = shown.config;
@@ -31,7 +32,7 @@ export function TractorPractice() {
   return (
     <PracticeShell
       puzzle="tractor"
-      eyebrow={t("studio.prototype_eyebrow")}
+      eyebrow={entry === TRACTOR ? t("studio.prototype_eyebrow") : t("rungs.eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}
@@ -40,7 +41,7 @@ export function TractorPractice() {
       moves={shown.moveCount}
       movesLabel={t("tractor.moves")}
       // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
-      maxMoves={cfg.maxMoves < TRACTOR.config.maxMoves ? cfg.maxMoves : undefined}
+      maxMoves={cfg.maxMoves < entry.config.maxMoves ? cfg.maxMoves : undefined}
       combo={shown.lastMove?.waves.length ?? 0}
       onStart={studio.start}
       ready={studio.ready}

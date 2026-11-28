@@ -21,7 +21,8 @@ What is built: rungs 0 to 4 for one seat, on a grid or on rings, with signals in
 
 Swap plays in the studio at `/rungs/swap`, on a board drawn through `seen.ts` in the stock skin. Cooling, Paths and
 Gunnery play there at `/rungs/cooling`, `/rungs/paths` and `/rungs/gunnery`, each on the page and board its
-hand-written engine has, through a mirror in `studio/src/rungs/mirror` (ADR 0097).
+hand-written engine has, through a mirror in `studio/src/rungs/mirror` (ADR 0097), and so do the thirteen solo
+prototypes at `/rungs/<id>`, each on its own page (ADR 0100).
 
 The tests start with determinism, then the deal's check, then that the rules written flat report
 the same events as the parts. `test/cooling.test.ts` plays Cooling beside the engine the game ships,

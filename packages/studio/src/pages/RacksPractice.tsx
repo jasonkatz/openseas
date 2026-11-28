@@ -5,19 +5,20 @@ import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { RACKS } from "../prototypes/racks.js";
+import type { StudioPuzzle } from "../puzzles.js";
 
 const racks = content.puzzles.racks;
 
-/** Racks (prototype, ADR 0036): the shared board in the studio's frame. */
-export function RacksPractice() {
+/** Racks (prototype, ADR 0036): the shared board in the studio's frame. `entry` is the puzzle this page plays: the prototype, or the same puzzle on another engine (ADR 0097, ADR 0099). */
+export function RacksPractice({ entry = RACKS }: { entry?: StudioPuzzle<RacksState, RacksMove, RacksConfig> } = {}) {
   const api = usePractice<RacksState, RacksMove, RacksConfig>({
     puzzle: "racks",
-    def: RACKS.def,
+    def: entry.def,
     config: racks.config,
     roundSeconds: racks.roundSeconds,
     summarize: summarizeRacks,
   });
-  const studio = useStudio(RACKS, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const shown = state;
   const cfg = shown.config;
@@ -33,7 +34,7 @@ export function RacksPractice() {
   return (
     <PracticeShell
       puzzle="racks"
-      eyebrow={t("studio.prototype_eyebrow")}
+      eyebrow={entry === RACKS ? t("studio.prototype_eyebrow") : t("rungs.eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}
@@ -42,7 +43,7 @@ export function RacksPractice() {
       moves={shown.moveCount}
       movesLabel={t("racks.moves")}
       // The move bound only keeps the log sane; the clock ends a round. A lab's tighter cap is shown.
-      maxMoves={cfg.maxMoves < RACKS.config.maxMoves ? cfg.maxMoves : undefined}
+      maxMoves={cfg.maxMoves < entry.config.maxMoves ? cfg.maxMoves : undefined}
       combo={shown.combo}
       warn={api.phase === "playing" && !fits}
       onStart={studio.start}

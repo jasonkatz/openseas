@@ -142,8 +142,8 @@ async function readyAFit(page: Page, moves: number): Promise<number> {
   throw new Error("no fit readied");
 }
 
-test("Assembly plays alone on /play: swaps and fits by key and by pointer", async ({ page }) => {
-  await page.goto("/play/assembly?seed=smoke-1");
+for (const [path, on] of [["/play/assembly", ""], ["/play/rungs/assembly", ", on the new engine"]] as const) test(`Assembly plays alone on /play: swaps and fits by key and by pointer${on}`, async ({ page }) => {
+  await page.goto(`${path}?seed=smoke-1`);
   await page.getByTestId("play-start").click();
   await expect(page.getByTestId("assembly-canvas")).toBeVisible();
   await expect(page.getByTestId("hud-moves").first()).toHaveText("0");

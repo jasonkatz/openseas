@@ -5,19 +5,20 @@ import { useStudio } from "../studio/useStudio.js";
 import { PracticeShell } from "../practice/PracticeShell.jsx";
 import { usePractice } from "../practice/usePractice.js";
 import { FORGING } from "../prototypes/forging.js";
+import type { StudioPuzzle } from "../puzzles.js";
 
 const forging = content.puzzles.forging;
 
-/** Forging (prototype, ADR 0036, ADR 0083): the shared board in the studio's frame. */
-export function ForgingPractice() {
+/** Forging (prototype, ADR 0036, ADR 0083): the shared board in the studio's frame. `entry` is the puzzle this page plays: the prototype, or the same puzzle on another engine (ADR 0097, ADR 0099). */
+export function ForgingPractice({ entry = FORGING }: { entry?: StudioPuzzle<ForgingState, ForgingMove, ForgingConfig> } = {}) {
   const api = usePractice<ForgingState, ForgingMove, ForgingConfig>({
     puzzle: "forging",
-    def: FORGING.def,
+    def: entry.def,
     config: forging.config,
     roundSeconds: forging.roundSeconds,
     summarize: summarizeForging,
   });
-  const studio = useStudio(FORGING, api);
+  const studio = useStudio(entry, api);
   const { state } = api;
   const cfg = state.config;
 
@@ -30,7 +31,7 @@ export function ForgingPractice() {
   return (
     <PracticeShell
       puzzle="forging"
-      eyebrow={t("studio.prototype_eyebrow")}
+      eyebrow={entry === FORGING ? t("studio.prototype_eyebrow") : t("rungs.eyebrow")}
       phase={api.phase}
       outcome={api.outcome}
       roundSeconds={api.roundSeconds}
@@ -42,7 +43,7 @@ export function ForgingPractice() {
       moves={state.moveCount}
       movesLabel={t("forging.moves")}
       // The move bound only keeps the log sane; the plate or a stall ends a round. A lab's tighter cap is shown.
-      maxMoves={cfg.maxMoves < FORGING.config.maxMoves ? cfg.maxMoves : undefined}
+      maxMoves={cfg.maxMoves < entry.config.maxMoves ? cfg.maxMoves : undefined}
       combo={state.weave}
       onStart={studio.start}
       ready={studio.ready}

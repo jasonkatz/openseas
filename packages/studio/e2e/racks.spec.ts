@@ -57,8 +57,8 @@ async function dragRack(page: Page, from: number, to: number): Promise<void> {
   await page.mouse.up();
 }
 
-test("Racks plays alone on /play: a round moves cells by key, tap and drag, and calls the crate", async ({ page }) => {
-  await page.goto("/play/racks");
+for (const [path, on] of [["/play/racks", ""], ["/play/rungs/racks", ", on the new engine"]] as const) test(`Racks plays alone on /play: a round moves cells by key, tap and drag, and calls the crate${on}`, async ({ page }) => {
+  await page.goto(`${path}`);
   await page.getByTestId("play-start").click();
   const canvas = page.getByTestId("racks-canvas");
   await expect(canvas).toBeVisible();

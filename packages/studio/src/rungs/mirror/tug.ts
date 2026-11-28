@@ -15,7 +15,8 @@ export function tugSettings(c: TugConfig): Record<string, Setting> {
   };
 }
 
-type Kept = Pick<TugState, "moveCount" | "logLength" | "bestCombo" | "bestPar">;
+/** What the round does not keep, carried from state to state; a move writes to its own copy. */
+type Kept = { -readonly [K in keyof Pick<TugState, "moveCount" | "logLength" | "bestCombo" | "bestPar">]: TugState[K] };
 
 function shown(round: Round<AnyMove>, config: TugConfig, kept: Kept, lastMove: TugMoveReport | null, ended = false): TugState {
   const now = read(round);

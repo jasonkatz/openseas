@@ -120,9 +120,11 @@ test("Swap plays by key: arrows move, space picks, an arrow swaps", async ({ pag
   expect(next.board).not.toBe(after.board);
 });
 
-// Cooling, Paths and Gunnery on the new engine play on their shipped pages (ADR 0097). Their rounds are driven by
-// the shipped smoke of each board, which runs on both engines; this holds only that the pages are reached.
-for (const [id, canvas] of [["cooling", "cooling-canvas"], ["paths", "salvage-canvas"], ["gunnery", "gunnery-canvas"]] as const) {
+// Cooling, Paths and Gunnery on the new engine play on their shipped pages (ADR 0097), and the solo prototypes on
+// theirs (ADR 0099). Each mirror is held to its engine state for state by its unit test; this holds that the pages
+// are reached, on their own boards.
+const PROTOTYPES = ["tug", "racks", "reactor", "overload", "scanner", "cutting", "tractor", "refining", "forging", "assembly", "deflectors", "freefall", "pouring"] as const;
+for (const [id, canvas] of [["cooling", "cooling-canvas"], ["paths", "salvage-canvas"], ["gunnery", "gunnery-canvas"], ...PROTOTYPES.map((p) => [p, `${p}-canvas`] as const)] as const) {
   test(`${id} on the new engine is reached from home, on its shipped board`, async ({ page }) => {
     await page.goto("/");
     await page.getByTestId(`tile-rung-${id}`).click();
