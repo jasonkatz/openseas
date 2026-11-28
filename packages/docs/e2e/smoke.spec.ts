@@ -179,7 +179,7 @@ test("an event's builder is defined in the section of emit, and the SDK's types 
   await page.goto("/api/context#e-arrive");
   await expect(page.locator("#e-arrive")).toBeInViewport();
   await expect(page.locator("#e-arrive .values")).toContainText("in place");
-  expect(await page.getByTestId("sdk-context-emit").getByTestId("sdk-inner").count()).toBe(11);
+  expect(await page.getByTestId("sdk-context-emit").getByTestId("sdk-inner").count()).toBe(14);
   await page.goto("/api/sdk");
   await expect(page.getByTestId("sdk-types")).toBeVisible();
   expect(await page.getByTestId("sdk-type").count()).toBeGreaterThan(25);
